@@ -49,6 +49,7 @@ jobs:
         env:
           SELECTED_AGENT: ${{ vars.AI_REVIEW_AGENT }}
           REQUESTED_TRIGGER_MODE: ${{ inputs.trigger_mode }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           selected="${SELECTED_AGENT:-codex}"
@@ -60,7 +61,7 @@ jobs:
               exit 1
               ;;
           esac
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
             trigger_mode="${REQUESTED_TRIGGER_MODE:-skip}"
           else
             trigger_mode="skip"

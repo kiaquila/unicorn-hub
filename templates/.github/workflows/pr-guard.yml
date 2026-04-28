@@ -34,14 +34,20 @@ jobs:
 
       - name: Resolve diff refs
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          INPUT_BASE_REF: ${{ inputs.base_ref }}
+          INPUT_HEAD_REF: ${{ inputs.head_ref }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base_ref="${{ github.event.pull_request.base.sha }}"
-            head_ref="${{ github.event.pull_request.head.sha }}"
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            base_ref="${PR_BASE_SHA}"
+            head_ref="${PR_HEAD_SHA}"
           else
-            base_ref="${{ inputs.base_ref || 'HEAD~1' }}"
-            head_ref="${{ inputs.head_ref || 'HEAD' }}"
+            base_ref="${INPUT_BASE_REF:-HEAD~1}"
+            head_ref="${INPUT_HEAD_REF:-HEAD}"
           fi
           echo "BASE_REF=$base_ref" >> "$GITHUB_ENV"
           echo "HEAD_REF=$head_ref" >> "$GITHUB_ENV"
