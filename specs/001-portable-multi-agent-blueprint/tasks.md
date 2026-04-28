@@ -33,3 +33,4 @@
 - [x] Replace shell-only preflight syntax checks with a Node-based preflight entrypoint.
 - [x] Document the zero-human-approval branch protection default.
 - [x] Add review-fix tests for workflow parity, login matching, sanitizer coverage, and helper behavior.
+- [x] Fix pnpm optional test/build invocation in the generated CI workflow.

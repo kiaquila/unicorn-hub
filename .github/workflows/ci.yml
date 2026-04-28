@@ -39,7 +39,7 @@ jobs:
         run: pnpm run check:repo
 
       - name: Run tests if present
-        run: pnpm run test --if-present
+        run: pnpm run --if-present test
 
       - name: Run build if present
-        run: pnpm run build --if-present
+        run: pnpm run --if-present build
