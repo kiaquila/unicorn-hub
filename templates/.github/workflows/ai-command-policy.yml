@@ -1,0 +1,62 @@
+name: AI Command Policy
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  ai-command-policy:
+    name: ai-command-policy
+    if: |
+      github.event.issue.pull_request &&
+      (
+        contains(github.event.comment.body, '@claude') ||
+        contains(github.event.comment.body, '@codex') ||
+        contains(github.event.comment.body, '/gemini')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate trusted actor and selected agent
+        uses: actions/github-script@v7
+        env:
+          AI_IMPLEMENTATION_AGENT: ${{ vars.AI_IMPLEMENTATION_AGENT }}
+          AI_REVIEW_AGENT: ${{ vars.AI_REVIEW_AGENT }}
+        with:
+          script: |
+            const body = context.payload.comment.body || "";
+            const authorAssociation = context.payload.comment.author_association;
+            const trusted = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+            const isReview =
+              body.includes("@codex review") ||
+              body.includes("@claude review once") ||
+              body.includes("/gemini review");
+            const selected = (isReview
+              ? process.env.AI_REVIEW_AGENT || "codex"
+              : process.env.AI_IMPLEMENTATION_AGENT || "claude").trim().toLowerCase();
+            const allowed = isReview
+              ? new Set(["codex", "claude", "gemini"])
+              : new Set(["claude", "codex"]);
+
+            const lines = [];
+            if (!trusted.has(authorAssociation)) {
+              lines.push("AI command rejected: only OWNER, MEMBER, and COLLABORATOR comments are trusted.");
+            }
+            if (!allowed.has(selected)) {
+              lines.push(`AI command rejected: unsupported selected agent '${selected}'.`);
+            }
+            if (lines.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: lines.join("\n")
+              });
+              core.setFailed(lines.join(" "));
+              return;
+            }
+
+            core.notice(`Trusted AI ${isReview ? "review" : "implementation"} command for ${selected}.`);

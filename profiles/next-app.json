@@ -1,0 +1,22 @@
+{
+  "id": "next-app",
+  "description": "Next.js application with TypeScript and hosted preview deployments.",
+  "docsDir": "docs_project",
+  "specsDir": "specs",
+  "productPaths": ["app/", "src/", "components/", "lib/", "public/", "next.config.js", "next.config.mjs"],
+  "packageManager": "pnpm",
+  "nodeVersion": "20",
+  "commands": {
+    "install": "pnpm install --frozen-lockfile",
+    "typecheck": "pnpm run typecheck --if-present",
+    "test": "pnpm run test --if-present",
+    "build": "pnpm run build",
+    "preflight": "pnpm run preflight"
+  },
+  "requiredChecks": ["baseline-checks", "guard", "AI Review"],
+  "deploy": {
+    "type": "vercel-git",
+    "preview": "pull_request",
+    "production": "merge_to_main"
+  }
+}

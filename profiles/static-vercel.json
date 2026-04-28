@@ -1,0 +1,22 @@
+{
+  "id": "static-vercel",
+  "description": "Static frontend deployed through Vercel Git integration.",
+  "docsDir": "docs_project",
+  "specsDir": "specs",
+  "productPaths": ["index.html", "src/", "public/", "vercel.json"],
+  "packageManager": "pnpm",
+  "nodeVersion": "20",
+  "commands": {
+    "install": "pnpm install --frozen-lockfile",
+    "check": "pnpm run check:repo",
+    "test": "pnpm run test --if-present",
+    "build": "pnpm run build --if-present",
+    "preflight": "pnpm run preflight"
+  },
+  "requiredChecks": ["baseline-checks", "guard", "AI Review"],
+  "deploy": {
+    "type": "vercel-git",
+    "preview": "pull_request",
+    "production": "merge_to_main"
+  }
+}

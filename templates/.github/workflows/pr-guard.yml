@@ -1,0 +1,65 @@
+name: PR Guard
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base git ref
+        required: false
+      head_ref:
+        description: Head git ref
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR content
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout trusted gate scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .gate-trusted
+          fetch-depth: 1
+
+      - name: Resolve diff refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_ref="${{ github.event.pull_request.base.sha }}"
+            head_ref="${{ github.event.pull_request.head.sha }}"
+          else
+            base_ref="${{ inputs.base_ref || 'HEAD~1' }}"
+            head_ref="${{ inputs.head_ref || 'HEAD' }}"
+          fi
+          echo "BASE_REF=$base_ref" >> "$GITHUB_ENV"
+          echo "HEAD_REF=$head_ref" >> "$GITHUB_ENV"
+
+      - name: Require complete feature memory
+        run: |
+          if [ -f .gate-trusted/scripts/check-feature-memory.mjs ]; then
+            node .gate-trusted/scripts/check-feature-memory.mjs "$BASE_REF" "$HEAD_REF"
+          else
+            echo "::warning::Trusted gate script missing on default branch; using PR script for first-install bootstrap only."
+            node scripts/check-feature-memory.mjs "$BASE_REF" "$HEAD_REF"
+          fi
+
+      - name: Validate baseline files
+        run: |
+          if [ -f .gate-trusted/scripts/check-repo-baseline.mjs ]; then
+            node .gate-trusted/scripts/check-repo-baseline.mjs --target "$GITHUB_WORKSPACE"
+          else
+            echo "::warning::Trusted baseline script missing on default branch; using PR script for first-install bootstrap only."
+            node scripts/check-repo-baseline.mjs --target "$GITHUB_WORKSPACE"
+          fi

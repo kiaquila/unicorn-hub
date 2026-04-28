@@ -1,0 +1,36 @@
+name: AI Command Policy
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  ai-command-policy:
+    name: ai-command-policy
+    if: |
+      github.event.issue.pull_request &&
+      (
+        contains(github.event.comment.body, '@claude') ||
+        contains(github.event.comment.body, '@codex') ||
+        contains(github.event.comment.body, '/gemini')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate trusted actor
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const trusted = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+            if (!trusted.has(context.payload.comment.author_association)) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: "AI command rejected: only OWNER, MEMBER, and COLLABORATOR comments are trusted."
+              });
+              core.setFailed("Untrusted AI command.");
+            }

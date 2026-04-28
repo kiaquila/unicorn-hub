@@ -1,0 +1,10 @@
+{
+  "docsDir": "docs",
+  "specsDir": "specs",
+  "productPaths": ["docs/", "templates/", "scripts/", "profiles/", "tests/"],
+  "requiredChecks": ["baseline-checks", "guard", "AI Review"],
+  "reviewAgents": ["codex", "claude", "gemini"],
+  "defaultImplementationAgent": "claude",
+  "defaultReviewAgent": "codex",
+  "blueprint": true
+}

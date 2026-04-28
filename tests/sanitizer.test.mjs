@@ -1,0 +1,31 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+
+const root = resolve(".");
+
+test("repository sanitizer passes on the blueprint", () => {
+  const output = execFileSync("node", ["scripts/sanitize-blueprint.mjs"], {
+    cwd: root,
+    encoding: "utf8"
+  });
+  assert.match(output, /Sanitizer check passed/);
+});
+
+test("sanitizer rejects secret-like content", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-sanitize-"));
+  mkdirSync(join(target, "docs"), { recursive: true });
+  const fakeToken = `gho_${"abcdefghijklmnopqrstuvwxyz123456"}`;
+  writeFileSync(join(target, "docs", "bad.md"), `token = ${fakeToken}\n`);
+
+  assert.throws(() => {
+    execFileSync("node", ["scripts/sanitize-blueprint.mjs", "--target", target], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+  });
+});

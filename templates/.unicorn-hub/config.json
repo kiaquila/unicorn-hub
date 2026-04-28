@@ -1,0 +1,9 @@
+{
+  "docsDir": "docs_project",
+  "specsDir": "specs",
+  "productPaths": ["src/", "app/", "index.html"],
+  "requiredChecks": ["baseline-checks", "guard", "AI Review"],
+  "defaultBaseBranch": "main",
+  "defaultImplementationAgent": "claude",
+  "defaultReviewAgent": "codex"
+}

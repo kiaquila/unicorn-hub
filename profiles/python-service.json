@@ -1,0 +1,19 @@
+{
+  "id": "python-service",
+  "description": "Python service, worker, API, or scheduled job.",
+  "docsDir": "docs_project",
+  "specsDir": "specs",
+  "productPaths": ["src/", "app/", "service/", "scripts/", "pyproject.toml", "requirements.txt", "requirements-dev.txt"],
+  "packageManager": "project-specific",
+  "pythonVersion": "3.12",
+  "commands": {
+    "install": "python -m pip install -r requirements-dev.txt",
+    "test": "python -m pytest",
+    "preflight": "python -m pytest"
+  },
+  "requiredChecks": ["baseline-checks", "guard", "AI Review"],
+  "deploy": {
+    "type": "project-specific",
+    "production": "merge_to_main_or_release_workflow"
+  }
+}

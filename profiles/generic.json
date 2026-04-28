@@ -1,0 +1,14 @@
+{
+  "id": "generic",
+  "description": "Fallback profile for repositories that need manual command adaptation.",
+  "docsDir": "docs_project",
+  "specsDir": "specs",
+  "productPaths": ["src/", "app/"],
+  "commands": {
+    "preflight": "<PROJECT_PREFLIGHT_COMMAND>"
+  },
+  "requiredChecks": ["baseline-checks", "guard", "AI Review"],
+  "deploy": {
+    "type": "project-specific"
+  }
+}

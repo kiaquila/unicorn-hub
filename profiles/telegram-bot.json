@@ -1,0 +1,19 @@
+{
+  "id": "telegram-bot",
+  "description": "Bot application with handler-first architecture and isolated external ports.",
+  "docsDir": "docs_project",
+  "specsDir": "specs",
+  "productPaths": ["src/", "bot/", "handlers/", "adapters/", "pyproject.toml", "package.json"],
+  "architecture": {
+    "rule": "Each command or conversation flow should be implemented as an isolated handler with injected ports for external services."
+  },
+  "commands": {
+    "test": "<PROJECT_TEST_COMMAND>",
+    "preflight": "<PROJECT_PREFLIGHT_COMMAND>"
+  },
+  "requiredChecks": ["baseline-checks", "guard", "AI Review"],
+  "deploy": {
+    "type": "project-specific",
+    "production": "merge_to_main_or_release_workflow"
+  }
+}
