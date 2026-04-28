@@ -21,9 +21,14 @@ As a repository owner, I want the blueprint to reject secrets, private infrastru
 - FR-003: The repository must include project profiles for common target shapes.
 - FR-004: The repository must include automated tests that exercise bootstrap and review helper behavior.
 - FR-005: The repository must include sanitizer checks for secret-like and non-portable content.
+- FR-006: Root GitHub workflows must remain generated from `templates/.github/workflows/` so the blueprint repository and installed targets do not drift.
+- FR-007: GitHub workflow inputs and repository variables must not be interpolated directly into shell scripts.
+- FR-008: AI review evidence must come from exact trusted bot logins, with target repositories able to extend trusted logins through `.unicorn-hub/config.json`.
+- FR-009: Local preflight must avoid shell-only syntax so it can run on Windows, macOS, and Linux hosts.
 
 ## Success Criteria
 
 - SC-001: `pnpm run preflight` passes locally.
 - SC-002: A synthetic target repository can be bootstrapped and pass baseline checks.
 - SC-003: Extra forbidden-term sanitizer checks pass without committing the forbidden terms into the blueprint.
+- SC-004: Root workflow parity, pinned GitHub Actions, exact bot-login matching, personal path detection, and cross-platform preflight behavior are covered by local checks.

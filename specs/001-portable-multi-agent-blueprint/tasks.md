@@ -22,3 +22,14 @@
 - [x] Add Node tests for bootstrap, baseline, sanitizer, and review helpers.
 - [x] Run `pnpm run preflight`.
 - [x] Run extra forbidden-term sanitizer pass.
+
+## Review Hardening
+
+- [x] Pin external GitHub Actions by full commit SHA with tag comments.
+- [x] Route AI review workflow variables through environment before shell use.
+- [x] Generate root workflows from templates and assert parity in preflight.
+- [x] Replace substring review-login checks with exact trusted logins configurable through `.unicorn-hub/config.json`.
+- [x] Expand sanitizer personal path coverage across common host formats.
+- [x] Replace shell-only preflight syntax checks with a Node-based preflight entrypoint.
+- [x] Document the zero-human-approval branch protection default.
+- [x] Add review-fix tests for workflow parity, login matching, sanitizer coverage, and helper behavior.

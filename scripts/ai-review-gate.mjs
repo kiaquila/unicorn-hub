@@ -4,6 +4,7 @@ import {
   isAcceptableClaudeComment,
   isAcceptableNativeReview
 } from "./ai-review-helpers.mjs";
+import { readConfig } from "./shared.mjs";
 
 const token = process.env.GITHUB_TOKEN;
 const repository = process.env.GITHUB_REPOSITORY;
@@ -12,7 +13,9 @@ const headSha = process.env.AI_REVIEW_HEAD_SHA;
 const selectedAgent = (process.env.AI_REVIEW_AGENT || "codex").trim().toLowerCase();
 const triggerMode = (process.env.AI_REVIEW_TRIGGER_MODE || "skip").trim().toLowerCase();
 const maxWaitMs = Number(process.env.AI_REVIEW_WAIT_MS || 900000);
-const pollMs = Number(process.env.AI_REVIEW_POLL_MS || 15000);
+const initialPollMs = Number(process.env.AI_REVIEW_POLL_MS || 15000);
+const maxPollMs = Number(process.env.AI_REVIEW_MAX_POLL_MS || 120000);
+const config = readConfig();
 
 if (!token || !repository || !prNumber || !headSha) {
   console.error("GITHUB_TOKEN, GITHUB_REPOSITORY, AI_REVIEW_PR_NUMBER, and AI_REVIEW_HEAD_SHA are required.");
@@ -73,11 +76,11 @@ async function maybePostTriggerComment() {
 async function fetchEvidence() {
   if (selectedAgent === "claude") {
     const comments = await request(`/repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=100`);
-    return comments.some((comment) => isAcceptableClaudeComment(comment, headSha));
+    return comments.some((comment) => isAcceptableClaudeComment(comment, headSha, config));
   }
 
   const reviews = await request(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=100`);
-  return reviews.some((review) => isAcceptableNativeReview(review, selectedAgent, headSha));
+  return reviews.some((review) => isAcceptableNativeReview(review, selectedAgent, headSha, config));
 }
 
 await maybePostTriggerComment();
@@ -85,6 +88,7 @@ await maybePostTriggerComment();
 const started = Date.now();
 let accepted = false;
 let lastError = null;
+let pollMs = initialPollMs;
 
 while (Date.now() - started <= maxWaitMs) {
   try {
@@ -93,7 +97,11 @@ while (Date.now() - started <= maxWaitMs) {
   } catch (error) {
     lastError = error;
   }
-  await new Promise((resolve) => setTimeout(resolve, pollMs));
+  const elapsed = Date.now() - started;
+  const remaining = maxWaitMs - elapsed;
+  if (remaining <= 0) break;
+  await new Promise((resolve) => setTimeout(resolve, Math.min(pollMs, remaining)));
+  pollMs = Math.min(pollMs * 2, maxPollMs);
 }
 
 if (accepted) {

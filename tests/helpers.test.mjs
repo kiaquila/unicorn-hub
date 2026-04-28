@@ -6,8 +6,10 @@ import {
   extractMarkerSha,
   isAcceptableClaudeComment,
   isAcceptableNativeReview,
+  isTrustedReviewLogin,
   isTrustedAssociation
 } from "../scripts/ai-review-helpers.mjs";
+import { findRepoRoot } from "../scripts/shared.mjs";
 
 test("trusted actor associations are explicit", () => {
   assert.equal(isTrustedAssociation("OWNER"), true);
@@ -41,7 +43,7 @@ test("native Codex review must be approved and current-head", () => {
         commit_id: "abc",
         state: "APPROVED",
         body: "Looks good",
-        user: { login: "codex-reviewer[bot]" }
+        user: { login: "chatgpt-codex-connector[bot]" }
       },
       "codex",
       "abc"
@@ -61,6 +63,40 @@ test("native Codex review must be approved and current-head", () => {
       "abc"
     ),
     false
+  );
+});
+
+test("review bot logins require exact trusted matches", () => {
+  assert.equal(isTrustedReviewLogin("chatgpt-codex-connector[bot]", "codex"), true);
+  assert.equal(isTrustedReviewLogin("codex-fan-99", "codex"), false);
+
+  assert.equal(
+    isAcceptableNativeReview(
+      {
+        commit_id: "abc",
+        state: "APPROVED",
+        body: "Looks good",
+        user: { login: "codex-fan-99" }
+      },
+      "codex",
+      "abc"
+    ),
+    false
+  );
+
+  assert.equal(
+    isAcceptableNativeReview(
+      {
+        commit_id: "abc",
+        state: "APPROVED",
+        body: "Looks good",
+        user: { login: "custom-codex-review[bot]" }
+      },
+      "codex",
+      "abc",
+      { trustedReviewLoginsByAgent: { codex: ["custom-codex-review[bot]"] } }
+    ),
+    true
   );
 });
 
@@ -85,5 +121,23 @@ test("Claude comments must contain pass for the current head SHA", () => {
       "abc1234"
     ),
     false
+  );
+
+  assert.equal(
+    isAcceptableClaudeComment(
+      {
+        body: "AI_REVIEW_AGENT: claude\nAI_REVIEW_SHA: abc1234\nAI_REVIEW_OUTCOME: pass",
+        user: { login: "claude-fan-99" }
+      },
+      "abc1234"
+    ),
+    false
+  );
+});
+
+test("findRepoRoot fails clearly outside a repository", () => {
+  assert.throws(
+    () => findRepoRoot("/tmp"),
+    /Could not find repository root/
   );
 });

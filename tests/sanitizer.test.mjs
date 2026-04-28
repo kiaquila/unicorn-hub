@@ -29,3 +29,25 @@ test("sanitizer rejects secret-like content", () => {
     });
   });
 });
+
+test("sanitizer rejects common personal path formats", () => {
+  const samples = [
+    `local path /${"home"}/alice/project`,
+    "local path C:\\Users\\alice\\project",
+    `local path ~${"/"}project`
+  ];
+
+  for (const sample of samples) {
+    const target = mkdtempSync(join(tmpdir(), "unicorn-sanitize-path-"));
+    mkdirSync(join(target, "docs"), { recursive: true });
+    writeFileSync(join(target, "docs", "bad.md"), `${sample}\n`);
+
+    assert.throws(() => {
+      execFileSync("node", ["scripts/sanitize-blueprint.mjs", "--target", target], {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"]
+      });
+    });
+  }
+});

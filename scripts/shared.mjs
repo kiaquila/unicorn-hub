@@ -37,7 +37,7 @@ export function findRepoRoot(start = process.cwd()) {
     }
     current = dirname(current);
   }
-  return resolve(start);
+  throw new Error(`Could not find repository root from ${resolve(start)}. Expected a .git directory or .unicorn-hub/config.json.`);
 }
 
 export function readConfig(root = findRepoRoot()) {
@@ -58,6 +58,8 @@ export function readConfig(root = findRepoRoot()) {
 export function walkFiles(root, options = {}) {
   const ignored = new Set([
     ".git",
+    ".claude",
+    ".codex",
     "node_modules",
     "dist",
     "coverage",

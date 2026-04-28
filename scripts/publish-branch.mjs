@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { findRepoRoot, parseArgs, readConfig } from "./shared.mjs";
@@ -66,4 +66,6 @@ try {
     "--body-file",
     bodyFile
   ]);
+} finally {
+  unlinkSync(bodyFile);
 }

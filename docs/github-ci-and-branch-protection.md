@@ -36,6 +36,12 @@ allow deletions: false
 
 Use `scripts/apply-branch-protection.mjs` from a trusted local checkout.
 
+By default, `scripts/apply-branch-protection.mjs` sets required human approvals
+to `0`. This keeps the solo-owner workflow usable while still requiring green
+checks, AI review evidence, and conversation resolution. Repositories with more
+than one maintainer should pass `--approvals 1` or a stricter value when they
+want human approval to be part of branch protection.
+
 ## Review Trigger Reality
 
 Most native AI backends require human-authored comments or native app triggers. GitHub Actions bot comments should not be assumed to trigger review.

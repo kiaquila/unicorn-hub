@@ -14,9 +14,10 @@
     "agent:set": "node scripts/set-implementation-agent.mjs",
     "check:feature-memory": "node scripts/check-feature-memory.mjs",
     "check:repo": "node scripts/check-repo-baseline.mjs",
-    "check:syntax": "for file in scripts/*.mjs tests/*.mjs; do node --check \"$file\"; done",
+    "check:syntax": "node scripts/preflight.mjs --syntax-only",
+    "check:workflows": "node scripts/sync-workflows.mjs --check",
     "sanitize": "node scripts/sanitize-blueprint.mjs",
     "test": "node --test tests/*.test.mjs",
-    "preflight": "node scripts/check-feature-memory.mjs --worktree && pnpm run check:repo && pnpm run check:syntax && pnpm run sanitize && pnpm run test"
+    "preflight": "node scripts/preflight.mjs"
   }
 }

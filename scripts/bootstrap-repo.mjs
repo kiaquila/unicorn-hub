@@ -87,6 +87,8 @@ const config = {
   defaultBaseBranch: "main",
   defaultImplementationAgent: "claude",
   defaultReviewAgent: "codex",
+  trustedReviewLogins: [],
+  trustedReviewLoginsByAgent: {},
   profile: profile.id
 };
 

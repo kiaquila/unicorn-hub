@@ -9,7 +9,7 @@ on:
         description: Pull request number to validate
         required: true
       trigger_mode:
-        description: Review trigger mode
+        description: Review trigger mode; use skip unless a backend explicitly supports automation
         required: false
         default: skip
 
@@ -17,6 +17,10 @@ permissions:
   contents: read
   pull-requests: read
   issues: write
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   ai-review:
@@ -28,7 +32,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout trusted gate scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ github.event.repository.default_branch }}
 
@@ -42,18 +46,36 @@ jobs:
       - name: Resolve selected review policy
         id: policy
         shell: bash
+        env:
+          SELECTED_AGENT: ${{ vars.AI_REVIEW_AGENT }}
+          REQUESTED_TRIGGER_MODE: ${{ inputs.trigger_mode }}
         run: |
           set -euo pipefail
-          selected="${{ vars.AI_REVIEW_AGENT }}"
+          selected="${SELECTED_AGENT:-codex}"
           selected="${selected:-codex}"
           case "$selected" in
             codex|claude|gemini) ;;
-            *) echo "::error::Unsupported AI_REVIEW_AGENT value: '$selected'"; exit 1 ;;
+            *)
+              echo "::error::Unsupported AI_REVIEW_AGENT value: '$selected'. Allowed: codex, claude, gemini."
+              exit 1
+              ;;
+          esac
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            trigger_mode="${REQUESTED_TRIGGER_MODE:-skip}"
+          else
+            trigger_mode="skip"
+          fi
+          case "$trigger_mode" in
+            skip|comment) ;;
+            *)
+              echo "::error::Unsupported AI_REVIEW_TRIGGER_MODE value: '$trigger_mode'. Allowed: skip, comment."
+              exit 1
+              ;;
           esac
           echo "selected_agent=$selected" >> "$GITHUB_OUTPUT"
-          echo "trigger_mode=${{ inputs.trigger_mode || 'skip' }}" >> "$GITHUB_OUTPUT"
+          echo "trigger_mode=$trigger_mode" >> "$GITHUB_OUTPUT"
 
-      - name: Validate selected native review
+      - name: Route and validate selected native review
         run: node scripts/ai-review-gate.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -61,3 +83,5 @@ jobs:
           AI_REVIEW_PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           AI_REVIEW_HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           AI_REVIEW_TRIGGER_MODE: ${{ steps.policy.outputs.trigger_mode }}
+          AI_REVIEW_WAIT_MS: "1200000"
+          AI_REVIEW_POLL_MS: "15000"

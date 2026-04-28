@@ -8,8 +8,8 @@
     "rule": "Each command or conversation flow should be implemented as an isolated handler with injected ports for external services."
   },
   "commands": {
-    "test": "<PROJECT_TEST_COMMAND>",
-    "preflight": "<PROJECT_PREFLIGHT_COMMAND>"
+    "test": "npm test",
+    "preflight": "pnpm run preflight"
   },
   "requiredChecks": ["baseline-checks", "guard", "AI Review"],
   "deploy": {

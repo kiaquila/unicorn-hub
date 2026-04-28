@@ -5,7 +5,7 @@
   "specsDir": "specs",
   "productPaths": ["src/", "app/"],
   "commands": {
-    "preflight": "<PROJECT_PREFLIGHT_COMMAND>"
+    "preflight": "pnpm run preflight"
   },
   "requiredChecks": ["baseline-checks", "guard", "AI Review"],
   "deploy": {

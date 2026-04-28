@@ -25,6 +25,12 @@ The bootstrap script copies templates and scripts rather than introducing a pack
 
 The sanitizer supports extra forbidden terms through environment variables instead of committing source-project names into the repository. This preserves portability while still allowing a local final leakage scan.
 
+Review hardening keeps root workflows synchronized from templates via a local script and CI preflight check. Security-sensitive workflow values are routed through environment variables before shell use, and external Actions are pinned by commit SHA with tag comments.
+
+AI review validation uses exact trusted bot logins. Defaults cover the supported review agents, while `.unicorn-hub/config.json` can add repository-specific trusted logins without reintroducing substring matching.
+
+The preflight entrypoint is a Node.js script that orchestrates feature memory, baseline, workflow parity, syntax, sanitizer, and tests without shell-only loops.
+
 ## Verification
 
 - `pnpm run preflight`

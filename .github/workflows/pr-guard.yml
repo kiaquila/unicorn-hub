@@ -20,13 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR content
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout trusted gate scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: .gate-trusted
@@ -55,11 +55,11 @@ jobs:
             node scripts/check-feature-memory.mjs "$BASE_REF" "$HEAD_REF"
           fi
 
-      - name: Validate blueprint baseline
+      - name: Validate baseline files
         run: |
           if [ -f .gate-trusted/scripts/check-repo-baseline.mjs ]; then
             node .gate-trusted/scripts/check-repo-baseline.mjs --target "$GITHUB_WORKSPACE"
           else
             echo "::warning::Trusted baseline script missing on default branch; using PR script for first-install bootstrap only."
-            node scripts/check-repo-baseline.mjs
+            node scripts/check-repo-baseline.mjs --target "$GITHUB_WORKSPACE"
           fi

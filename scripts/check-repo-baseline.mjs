@@ -30,6 +30,7 @@ if (config.blueprint) {
     "scripts/check-feature-memory.mjs",
     "scripts/ai-review-gate.mjs",
     "scripts/set-implementation-agent.mjs",
+    "scripts/sync-workflows.mjs",
     "scripts/sanitize-blueprint.mjs",
     "profiles/generic.json",
     "tests/sanitizer.test.mjs"
