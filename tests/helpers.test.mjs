@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  classifyCodexNativeReview,
   containsBlockingSeverity,
+  extractCodexPriority,
   extractClaudeOutcome,
   extractMarkerSha,
   isAcceptableClaudeComment,
@@ -34,6 +36,8 @@ test("Claude review markers are parsed", () => {
 test("blocking severity is backend aware", () => {
   assert.equal(containsBlockingSeverity("Found P1 issue", "codex"), true);
   assert.equal(containsBlockingSeverity("Found P3 issue", "codex"), false);
+  assert.equal(extractCodexPriority("Found P2 issue"), 2);
+  assert.equal(extractCodexPriority("No priority marker"), null);
   assert.equal(containsBlockingSeverity("Critical bug", "gemini"), true);
   assert.equal(containsBlockingSeverity("Medium note", "gemini"), false);
 });
@@ -71,9 +75,9 @@ test("native Codex review must be approved and current-head", () => {
 test("Codex no-findings summary comment is accepted from trusted bot only", () => {
   assert.equal(
     isAcceptableCodexSummaryComment({
-      body: "Codex Review: Didn't find any major issues. Nice work!",
+      body: "Codex Review: Didn't find any major issues for abc123def4. Nice work!",
       user: { login: "chatgpt-codex-connector[bot]" }
-    }),
+    }, "abc123def456"),
     true
   );
 
@@ -81,7 +85,15 @@ test("Codex no-findings summary comment is accepted from trusted bot only", () =
     isAcceptableCodexSummaryComment({
       body: "Codex Review: Found a P1 issue.",
       user: { login: "chatgpt-codex-connector[bot]" }
-    }),
+    }, "abc123def456"),
+    false
+  );
+
+  assert.equal(
+    isAcceptableCodexSummaryComment({
+      body: "Codex Review: Didn't find any major issues.",
+      user: { login: "chatgpt-codex-connector[bot]" }
+    }, "abc123def456"),
     false
   );
 
@@ -89,9 +101,30 @@ test("Codex no-findings summary comment is accepted from trusted bot only", () =
     isAcceptableCodexSummaryComment({
       body: "Codex Review: Didn't find any major issues.",
       user: { login: "codex-fan-99" }
-    }),
+    }, "abc123def456"),
     false
   );
+});
+
+test("Codex commented reviews are classified by inline priorities", () => {
+  const review = {
+    id: 123,
+    commit_id: "abc",
+    state: "COMMENTED",
+    user: { login: "chatgpt-codex-connector[bot]" }
+  };
+
+  assert.equal(classifyCodexNativeReview(review, [], "abc"), "pass");
+  assert.equal(classifyCodexNativeReview(review, [
+    { pull_request_review_id: 123, body: "![P3 Badge] advisory" }
+  ], "abc"), "pass");
+  assert.equal(classifyCodexNativeReview(review, [
+    { pull_request_review_id: 123, body: "![P1 Badge] blocker" }
+  ], "abc"), "fail");
+  assert.equal(classifyCodexNativeReview(review, [
+    { pull_request_review_id: 123, body: "untagged finding" }
+  ], "abc"), "fail");
+  assert.equal(classifyCodexNativeReview(review, [], "new-head"), null);
 });
 
 test("Codex trigger comments must come from trusted non-review actors", () => {

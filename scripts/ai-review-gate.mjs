@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {
+  classifyCodexNativeReview,
   extractClaudeOutcome,
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
@@ -87,6 +88,15 @@ async function fetchEvidence(evidenceSinceMs) {
   }
 
   const reviews = await request(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=100`);
+  if (selectedAgent === "codex") {
+    const reviewComments = await request(`/repos/${owner}/${repo}/pulls/${prNumber}/comments?per_page=100`);
+    if (reviews.some((review) =>
+      classifyCodexNativeReview(review, reviewComments, headSha, config) === "pass"
+    )) {
+      return true;
+    }
+  }
+
   if (reviews.some((review) => isAcceptableNativeReview(review, selectedAgent, headSha, config))) {
     return true;
   }
@@ -107,7 +117,7 @@ async function fetchEvidence(evidenceSinceMs) {
 
   return comments.some((comment) =>
     isFreshEvidence(comment, latestTriggerMs) &&
-    isAcceptableCodexSummaryComment(comment, config)
+    isAcceptableCodexSummaryComment(comment, headSha, config)
   );
 }
 
