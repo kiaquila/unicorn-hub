@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import {
-  classifyCodexNativeReview,
   extractClaudeOutcome,
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
-  isAcceptableNativeReview
+  isAcceptableNativeReview,
+  latestCodexNativeReviewResult
 } from "./ai-review-helpers.mjs";
 import { readConfig } from "./shared.mjs";
 
@@ -94,11 +94,7 @@ async function fetchEvidence() {
   const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (selectedAgent === "codex") {
     const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
-    if (reviews.some((review) =>
-      classifyCodexNativeReview(review, reviewComments, headSha, config) === "pass"
-    )) {
-      return true;
-    }
+    return latestCodexNativeReviewResult(reviews, reviewComments, headSha, config) === "pass";
   }
 
   if (reviews.some((review) => isAcceptableNativeReview(review, selectedAgent, headSha, config))) {

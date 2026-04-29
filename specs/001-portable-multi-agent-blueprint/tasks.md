@@ -38,4 +38,5 @@
 - [x] Require trusted Codex no-findings summary comments to name the current head.
 - [x] Read paginated GitHub review, review-comment, and issue-comment evidence in the AI Review gate.
 - [x] Preserve Codex review-body blocking severity checks and ignore non-Codex inline replies during priority classification.
+- [x] Use the latest classifiable Codex review for a head when multiple reviews exist.
 - [x] Document Codex summary-comment review evidence in blueprint and generated contract docs.

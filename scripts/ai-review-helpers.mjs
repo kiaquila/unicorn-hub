@@ -85,6 +85,18 @@ export function classifyCodexNativeReview(review, reviewComments = [], headSha, 
   return Math.min(...priorities) <= 2 ? "fail" : "pass";
 }
 
+export function latestCodexNativeReviewResult(reviews = [], reviewComments = [], headSha, config = {}) {
+  return reviews
+    .map((review) => ({
+      review,
+      result: classifyCodexNativeReview(review, reviewComments, headSha, config)
+    }))
+    .filter((entry) => entry.result !== null)
+    .sort((left, right) =>
+      Date.parse(right.review.submitted_at || "") - Date.parse(left.review.submitted_at || "")
+    )[0]?.result || null;
+}
+
 export function isAcceptableNativeReview(review, agent, headSha, config = {}) {
   if (!review) return false;
   if (review.commit_id && headSha && review.commit_id !== headSha) return false;

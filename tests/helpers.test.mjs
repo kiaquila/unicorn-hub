@@ -9,6 +9,7 @@ import {
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
   isAcceptableNativeReview,
+  latestCodexNativeReviewResult,
   isTrustedReviewLogin,
   isTrustedAssociation
 } from "../scripts/ai-review-helpers.mjs";
@@ -153,6 +154,33 @@ test("Codex commented reviews are classified by inline priorities", () => {
     }
   ], "abc"), "pass");
   assert.equal(classifyCodexNativeReview(review, [], "new-head"), null);
+});
+
+test("latest Codex native review result wins for a head", () => {
+  const olderPass = {
+    id: 1,
+    commit_id: "abc",
+    state: "COMMENTED",
+    submitted_at: "2026-01-01T00:00:00Z",
+    user: { login: "chatgpt-codex-connector[bot]" }
+  };
+  const newerFail = {
+    id: 2,
+    commit_id: "abc",
+    state: "COMMENTED",
+    submitted_at: "2026-01-01T00:01:00Z",
+    user: { login: "chatgpt-codex-connector[bot]" }
+  };
+
+  assert.equal(latestCodexNativeReviewResult([olderPass, newerFail], [
+    {
+      pull_request_review_id: 2,
+      body: "![P1 Badge] blocker",
+      user: { login: "chatgpt-codex-connector[bot]" }
+    }
+  ], "abc"), "fail");
+
+  assert.equal(latestCodexNativeReviewResult([newerFail, olderPass], [], "different-head"), null);
 });
 
 test("review bot logins require exact trusted matches", () => {
