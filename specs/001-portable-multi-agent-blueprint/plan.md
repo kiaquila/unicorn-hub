@@ -31,6 +31,8 @@ AI review validation uses exact trusted bot logins. Defaults cover the supported
 
 Codex review validation accepts native `COMMENTED` reviews for the current head when inline findings are absent or advisory-only `P3`. Trusted no-findings `Codex Review:` summary comments remain acceptable only when they name the current head SHA, avoiding stale summary evidence.
 
+AI review evidence collection reads paginated GitHub API results for reviews, review comments, and issue comments. This avoids missing recent Codex findings or trusted triggers on long-running PRs with more than one page of discussion.
+
 The preflight entrypoint is a Node.js script that orchestrates feature memory, baseline, workflow parity, syntax, sanitizer, and tests without shell-only loops.
 
 ## Verification

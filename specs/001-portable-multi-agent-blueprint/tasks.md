@@ -36,4 +36,5 @@
 - [x] Fix pnpm optional test/build invocation in the generated CI workflow.
 - [x] Accept native Codex `COMMENTED` reviews without blocking inline findings.
 - [x] Require trusted Codex no-findings summary comments to name the current head.
+- [x] Read paginated GitHub review, review-comment, and issue-comment evidence in the AI Review gate.
 - [x] Document Codex summary-comment review evidence in blueprint and generated contract docs.

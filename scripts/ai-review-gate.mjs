@@ -54,6 +54,16 @@ async function request(path, options = {}) {
   return response.json();
 }
 
+async function listPaginated(path) {
+  const items = [];
+  const separator = path.includes("?") ? "&" : "?";
+  for (let page = 1; ; page += 1) {
+    const batch = await request(`${path}${separator}per_page=100&page=${page}`);
+    items.push(...batch);
+    if (batch.length < 100) return items;
+  }
+}
+
 async function createComment(body) {
   await request(`/repos/${owner}/${repo}/issues/${prNumber}/comments`, {
     method: "POST",
@@ -83,13 +93,13 @@ async function maybePostTriggerComment() {
 
 async function fetchEvidence(evidenceSinceMs) {
   if (selectedAgent === "claude") {
-    const comments = await request(`/repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=100`);
+    const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
     return comments.some((comment) => isAcceptableClaudeComment(comment, headSha, config));
   }
 
-  const reviews = await request(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=100`);
+  const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (selectedAgent === "codex") {
-    const reviewComments = await request(`/repos/${owner}/${repo}/pulls/${prNumber}/comments?per_page=100`);
+    const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
     if (reviews.some((review) =>
       classifyCodexNativeReview(review, reviewComments, headSha, config) === "pass"
     )) {
@@ -103,7 +113,7 @@ async function fetchEvidence(evidenceSinceMs) {
 
   if (selectedAgent !== "codex") return false;
 
-  const comments = await request(`/repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=100`);
+  const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
   const latestTriggerMs = comments
     .filter((comment) =>
       isFreshEvidence(comment, evidenceSinceMs) &&
