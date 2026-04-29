@@ -94,7 +94,9 @@ async function fetchEvidence() {
   const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (selectedAgent === "codex") {
     const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
-    return latestCodexNativeReviewResult(reviews, reviewComments, headSha, config) === "pass";
+    const latestCodexResult = latestCodexNativeReviewResult(reviews, reviewComments, headSha, config);
+    if (latestCodexResult === "pass") return true;
+    if (latestCodexResult === "fail") return false;
   }
 
   if (reviews.some((review) => isAcceptableNativeReview(review, selectedAgent, headSha, config))) {
