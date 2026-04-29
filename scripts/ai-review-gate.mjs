@@ -85,6 +85,11 @@ async function maybePostTriggerComment() {
   ].join("\n"));
 }
 
+async function fetchHeadCommittedAt() {
+  const commit = await request(`/repos/${owner}/${repo}/commits/${headSha}`);
+  return commit?.commit?.committer?.date || null;
+}
+
 async function fetchEvidence() {
   if (selectedAgent === "claude") {
     const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
@@ -105,9 +110,10 @@ async function fetchEvidence() {
 
   if (selectedAgent !== "codex") return false;
 
+  const headCommittedAt = await fetchHeadCommittedAt();
   const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
   return comments.some((comment) =>
-    isAcceptableCodexSummaryComment(comment, headSha, config)
+    isAcceptableCodexSummaryComment(comment, headSha, headCommittedAt, config)
   );
 }
 

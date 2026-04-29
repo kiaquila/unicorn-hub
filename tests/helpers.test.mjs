@@ -106,6 +106,37 @@ test("Codex no-findings summary comment is accepted from trusted bot only", () =
   );
 });
 
+test("Codex no-findings summary is accepted when posted at-or-after the head commit", () => {
+  const headCommittedAt = "2026-04-29T19:29:46Z";
+
+  assert.equal(
+    isAcceptableCodexSummaryComment({
+      body: "Codex Review: Didn't find any major issues. Can't wait for the next one!",
+      user: { login: "chatgpt-codex-connector[bot]" },
+      created_at: "2026-04-29T19:32:55Z"
+    }, "abc123def456", headCommittedAt),
+    true
+  );
+
+  assert.equal(
+    isAcceptableCodexSummaryComment({
+      body: "Codex Review: Didn't find any major issues. Can't wait for the next one!",
+      user: { login: "chatgpt-codex-connector[bot]" },
+      created_at: "2026-04-29T19:29:46Z"
+    }, "abc123def456", headCommittedAt),
+    true
+  );
+
+  assert.equal(
+    isAcceptableCodexSummaryComment({
+      body: "Codex Review: Didn't find any major issues on a stale head.",
+      user: { login: "chatgpt-codex-connector[bot]" },
+      created_at: "2026-04-29T19:00:00Z"
+    }, "abc123def456", headCommittedAt),
+    false
+  );
+});
+
 test("Codex commented reviews are classified by inline priorities", () => {
   const review = {
     id: 123,

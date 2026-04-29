@@ -6,5 +6,7 @@ node_modules/
 .unicorn-hub/local.json
 .claude/worktrees/
 .claude/settings.local.json
+.codex/
+.omc/
 dist/
 coverage/

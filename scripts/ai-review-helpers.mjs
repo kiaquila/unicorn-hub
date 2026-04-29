@@ -52,15 +52,19 @@ export function extractCodexPriority(body) {
   return match ? Number(match[1]) : null;
 }
 
-export function isAcceptableCodexSummaryComment(comment, headSha, config = {}) {
+export function isAcceptableCodexSummaryComment(comment, headSha, headCommittedAt = null, config = {}) {
   const body = String(comment?.body || "").trim();
   const login = normalizeLogin(comment?.user?.login);
+  if (!isTrustedReviewLogin(login, "codex", config)) return false;
+  if (!/^Codex Review:/i.test(body)) return false;
+  if (!/did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues/i.test(body)) return false;
+
   const shortSha = String(headSha || "").slice(0, 10);
-  return isTrustedReviewLogin(login, "codex", config) &&
-    /^Codex Review:/i.test(body) &&
-    Boolean(shortSha) &&
-    (body.includes(headSha) || body.includes(shortSha)) &&
-    /did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues/i.test(body);
+  if (shortSha && (body.includes(headSha) || body.includes(shortSha))) return true;
+
+  const committedAt = Date.parse(headCommittedAt || "");
+  const createdAt = Date.parse(comment?.created_at || "");
+  return Number.isFinite(committedAt) && Number.isFinite(createdAt) && createdAt >= committedAt;
 }
 
 export function classifyCodexNativeReview(review, reviewComments = [], headSha, config = {}) {
