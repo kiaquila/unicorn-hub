@@ -25,6 +25,7 @@ As a repository owner, I want the blueprint to reject secrets, private infrastru
 - FR-007: GitHub workflow inputs and repository variables must not be interpolated directly into shell scripts.
 - FR-008: AI review evidence must come from exact trusted bot logins, with target repositories able to extend trusted logins through `.unicorn-hub/config.json`.
 - FR-009: Local preflight must avoid shell-only syntax so it can run on Windows, macOS, and Linux hosts.
+- FR-010: Codex review validation must accept a trusted fresh no-findings `Codex Review:` summary comment when the native connector does not publish an approval review.
 
 ## Success Criteria
 
@@ -32,3 +33,4 @@ As a repository owner, I want the blueprint to reject secrets, private infrastru
 - SC-002: A synthetic target repository can be bootstrapped and pass baseline checks.
 - SC-003: Extra forbidden-term sanitizer checks pass without committing the forbidden terms into the blueprint.
 - SC-004: Root workflow parity, pinned GitHub Actions, exact bot-login matching, personal path detection, and cross-platform preflight behavior are covered by local checks.
+- SC-005: Codex no-findings summary comments are covered by review-helper tests and documented in the generated review contract.

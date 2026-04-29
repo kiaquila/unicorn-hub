@@ -5,6 +5,7 @@ import {
   extractClaudeOutcome,
   extractMarkerSha,
   isAcceptableClaudeComment,
+  isAcceptableCodexSummaryComment,
   isAcceptableNativeReview,
   isTrustedReviewLogin,
   isTrustedAssociation
@@ -62,6 +63,32 @@ test("native Codex review must be approved and current-head", () => {
       "codex",
       "abc"
     ),
+    false
+  );
+});
+
+test("Codex no-findings summary comment is accepted from trusted bot only", () => {
+  assert.equal(
+    isAcceptableCodexSummaryComment({
+      body: "Codex Review: Didn't find any major issues. Nice work!",
+      user: { login: "chatgpt-codex-connector[bot]" }
+    }),
+    true
+  );
+
+  assert.equal(
+    isAcceptableCodexSummaryComment({
+      body: "Codex Review: Found a P1 issue.",
+      user: { login: "chatgpt-codex-connector[bot]" }
+    }),
+    false
+  );
+
+  assert.equal(
+    isAcceptableCodexSummaryComment({
+      body: "Codex Review: Didn't find any major issues.",
+      user: { login: "codex-fan-99" }
+    }),
     false
   );
 });

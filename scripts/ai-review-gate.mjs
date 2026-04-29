@@ -2,6 +2,7 @@
 import {
   extractClaudeOutcome,
   isAcceptableClaudeComment,
+  isAcceptableCodexSummaryComment,
   isAcceptableNativeReview
 } from "./ai-review-helpers.mjs";
 import { readConfig } from "./shared.mjs";
@@ -59,6 +60,11 @@ async function createComment(body) {
   });
 }
 
+function isFreshEvidence(entry, sinceMs) {
+  const timestamp = Date.parse(entry?.created_at || entry?.submitted_at || "");
+  return Number.isFinite(timestamp) && timestamp >= sinceMs;
+}
+
 async function maybePostTriggerComment() {
   if (triggerMode !== "comment") return;
   const triggers = {
@@ -73,16 +79,27 @@ async function maybePostTriggerComment() {
   ].join("\n"));
 }
 
-async function fetchEvidence() {
+async function fetchEvidence(evidenceSinceMs) {
   if (selectedAgent === "claude") {
     const comments = await request(`/repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=100`);
     return comments.some((comment) => isAcceptableClaudeComment(comment, headSha, config));
   }
 
   const reviews = await request(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=100`);
-  return reviews.some((review) => isAcceptableNativeReview(review, selectedAgent, headSha, config));
+  if (reviews.some((review) => isAcceptableNativeReview(review, selectedAgent, headSha, config))) {
+    return true;
+  }
+
+  if (selectedAgent !== "codex") return false;
+
+  const comments = await request(`/repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=100`);
+  return comments.some((comment) =>
+    isFreshEvidence(comment, evidenceSinceMs) &&
+    isAcceptableCodexSummaryComment(comment, config)
+  );
 }
 
+const evidenceSinceMs = Date.now() - 30000;
 await maybePostTriggerComment();
 
 const started = Date.now();
@@ -92,7 +109,7 @@ let pollMs = initialPollMs;
 
 while (Date.now() - started <= maxWaitMs) {
   try {
-    accepted = await fetchEvidence();
+    accepted = await fetchEvidence(evidenceSinceMs);
     if (accepted) break;
   } catch (error) {
     lastError = error;
@@ -112,16 +129,24 @@ if (accepted) {
 const detail = lastError ? ` Last API error: ${lastError.message}` : "";
 const reviewHint = selectedAgent === "claude"
   ? "Claude must post AI_REVIEW_OUTCOME: pass for the current head SHA."
-  : `${selectedAgent} must provide an acceptable native review for the current head SHA.`;
+  : selectedAgent === "codex"
+    ? "Codex must provide an acceptable native review for the current head SHA or a fresh no-findings Codex Review summary comment."
+    : `${selectedAgent} must provide an acceptable native review for the current head SHA.`;
 
-await createComment([
+const failureComment = [
   "AI Review gate failed.",
   "",
   `- agent: ${selectedAgent}`,
   `- head SHA: ${headSha}`,
   `- expected: ${reviewHint}`,
   detail ? `- detail: ${detail}` : ""
-].filter(Boolean).join("\n"));
+].filter(Boolean).join("\n");
+
+try {
+  await createComment(failureComment);
+} catch (error) {
+  console.warn(`Could not post AI Review gate failure comment: ${error.message}`);
+}
 
 console.error(`AI Review gate failed for ${selectedAgent} on ${headSha}.${detail}`);
 process.exit(1);

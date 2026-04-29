@@ -47,6 +47,14 @@ export function containsBlockingSeverity(body, agent) {
   return false;
 }
 
+export function isAcceptableCodexSummaryComment(comment, config = {}) {
+  const body = String(comment?.body || "").trim();
+  const login = normalizeLogin(comment?.user?.login);
+  return isTrustedReviewLogin(login, "codex", config) &&
+    /^Codex Review:/i.test(body) &&
+    /did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues/i.test(body);
+}
+
 export function isAcceptableNativeReview(review, agent, headSha, config = {}) {
   if (!review) return false;
   if (review.commit_id && headSha && review.commit_id !== headSha) return false;

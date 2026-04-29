@@ -72,7 +72,7 @@ Agent selection is controlled by repository variables:
 
 Supported review backends:
 
-- `codex`: native GitHub PR review with `P0`-`P3` findings.
+- `codex`: native GitHub PR review with `P0`-`P3` findings, or a fresh no-findings `Codex Review:` summary comment.
 - `claude`: top-level comment containing `AI_REVIEW_AGENT`, `AI_REVIEW_SHA`, and `AI_REVIEW_OUTCOME: pass|advisory|block`.
 - `gemini`: native GitHub PR review from the configured app.
 

@@ -43,7 +43,7 @@ AI_REVIEW_AGENT=codex
 
 Supported review backends:
 
-- `codex`: native GitHub PR review with `P0`-`P3` severity markers
+- `codex`: native GitHub PR review with `P0`-`P3` severity markers, or a fresh no-findings `Codex Review:` summary comment
 - `claude`: top-level comment with `AI_REVIEW_OUTCOME: pass|advisory|block`
 - `gemini`: native GitHub PR review from the configured app
 
