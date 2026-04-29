@@ -55,6 +55,14 @@ export function isAcceptableCodexSummaryComment(comment, config = {}) {
     /did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues/i.test(body);
 }
 
+export function isTrustedCodexTriggerComment(comment, config = {}) {
+  const body = String(comment?.body || "").trim();
+  const login = normalizeLogin(comment?.user?.login);
+  return /@codex\s+review\b/i.test(body) &&
+    !isTrustedReviewLogin(login, "codex", config) &&
+    isTrustedAssociation(comment?.author_association);
+}
+
 export function isAcceptableNativeReview(review, agent, headSha, config = {}) {
   if (!review) return false;
   if (review.commit_id && headSha && review.commit_id !== headSha) return false;

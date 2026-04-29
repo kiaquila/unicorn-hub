@@ -7,6 +7,7 @@ import {
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
   isAcceptableNativeReview,
+  isTrustedCodexTriggerComment,
   isTrustedReviewLogin,
   isTrustedAssociation
 } from "../scripts/ai-review-helpers.mjs";
@@ -88,6 +89,35 @@ test("Codex no-findings summary comment is accepted from trusted bot only", () =
     isAcceptableCodexSummaryComment({
       body: "Codex Review: Didn't find any major issues.",
       user: { login: "codex-fan-99" }
+    }),
+    false
+  );
+});
+
+test("Codex trigger comments must come from trusted non-review actors", () => {
+  assert.equal(
+    isTrustedCodexTriggerComment({
+      body: "@codex review",
+      author_association: "OWNER",
+      user: { login: "repo-owner" }
+    }),
+    true
+  );
+
+  assert.equal(
+    isTrustedCodexTriggerComment({
+      body: "@codex review",
+      author_association: "CONTRIBUTOR",
+      user: { login: "external-user" }
+    }),
+    false
+  );
+
+  assert.equal(
+    isTrustedCodexTriggerComment({
+      body: "@codex review",
+      author_association: "OWNER",
+      user: { login: "chatgpt-codex-connector[bot]" }
     }),
     false
   );

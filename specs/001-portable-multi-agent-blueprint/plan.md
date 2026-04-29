@@ -29,7 +29,7 @@ Review hardening keeps root workflows synchronized from templates via a local sc
 
 AI review validation uses exact trusted bot logins. Defaults cover the supported review agents, while `.unicorn-hub/config.json` can add repository-specific trusted logins without reintroducing substring matching.
 
-Codex review validation accepts a trusted fresh no-findings `Codex Review:` summary comment for the active gate cycle. This matches the connector behavior observed when Codex finds no inline findings and does not publish a native approval review.
+Codex review validation accepts a trusted no-findings `Codex Review:` summary comment only after a fresh trusted `@codex review` trigger in the active gate cycle. This matches the connector behavior observed when Codex finds no inline findings and does not publish a native approval review while avoiding stale summary evidence.
 
 The preflight entrypoint is a Node.js script that orchestrates feature memory, baseline, workflow parity, syntax, sanitizer, and tests without shell-only loops.
 

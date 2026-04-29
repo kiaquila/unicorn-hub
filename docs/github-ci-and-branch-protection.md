@@ -14,7 +14,7 @@ GitHub is the control plane for pull requests, checks, and AI review routing.
 
 - Unsupported `AI_REVIEW_AGENT` values fail the check.
 - Missing review evidence fails the check.
-- Review evidence must match the current PR head SHA, or be a fresh Codex no-findings summary comment for the active gate cycle.
+- Review evidence must match the current PR head SHA, or be a Codex no-findings summary comment after a fresh trusted trigger in the active gate cycle.
 - Gate scripts must run from the trusted default branch, not PR-supplied code.
 - Skipped required gates must not be used as a successful state.
 

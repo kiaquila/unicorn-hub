@@ -34,5 +34,5 @@
 - [x] Document the zero-human-approval branch protection default.
 - [x] Add review-fix tests for workflow parity, login matching, sanitizer coverage, and helper behavior.
 - [x] Fix pnpm optional test/build invocation in the generated CI workflow.
-- [x] Accept trusted fresh Codex no-findings summary comments in the AI Review gate.
+- [x] Accept trusted Codex no-findings summary comments after a fresh trusted trigger in the AI Review gate.
 - [x] Document Codex summary-comment review evidence in blueprint and generated contract docs.

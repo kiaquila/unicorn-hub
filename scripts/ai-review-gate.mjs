@@ -3,7 +3,8 @@ import {
   extractClaudeOutcome,
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
-  isAcceptableNativeReview
+  isAcceptableNativeReview,
+  isTrustedCodexTriggerComment
 } from "./ai-review-helpers.mjs";
 import { readConfig } from "./shared.mjs";
 
@@ -93,13 +94,24 @@ async function fetchEvidence(evidenceSinceMs) {
   if (selectedAgent !== "codex") return false;
 
   const comments = await request(`/repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=100`);
+  const latestTriggerMs = comments
+    .filter((comment) =>
+      isFreshEvidence(comment, evidenceSinceMs) &&
+      isTrustedCodexTriggerComment(comment, config)
+    )
+    .map((comment) => Date.parse(comment.created_at || ""))
+    .filter(Number.isFinite)
+    .sort((left, right) => right - left)[0];
+
+  if (!Number.isFinite(latestTriggerMs)) return false;
+
   return comments.some((comment) =>
-    isFreshEvidence(comment, evidenceSinceMs) &&
+    isFreshEvidence(comment, latestTriggerMs) &&
     isAcceptableCodexSummaryComment(comment, config)
   );
 }
 
-const evidenceSinceMs = Date.now() - 30000;
+const evidenceSinceMs = Date.now() - 1000;
 await maybePostTriggerComment();
 
 const started = Date.now();
