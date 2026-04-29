@@ -35,6 +35,8 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
     "CLAUDE.md",
     "docs_project/README.md",
     ".specify/memory/constitution.md",
+    ".specify/templates/spec-template.md",
+    ".github/pull_request_template.md",
     ".github/workflows/ai-review.yml",
     "scripts/check-feature-memory.mjs",
     ".unicorn-hub/config.json"
@@ -48,6 +50,13 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
   assert.equal(config.profile, "generic");
+
+  const specTemplate = readFileSync(join(target, ".specify/templates/spec-template.md"), "utf8");
+  assert.match(specTemplate, /## Goal/);
+  assert.match(specTemplate, /## Negative Scenarios/);
+
+  const prTemplate = readFileSync(join(target, ".github/pull_request_template.md"), "utf8");
+  assert.match(prTemplate, /SENAR Done Gate/);
 });
 
 test("bootstrapped target passes baseline check", () => {

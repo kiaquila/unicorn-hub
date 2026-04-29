@@ -1,5 +1,9 @@
 # Review Contract
 
+Reviewers check the pull request against the active feature spec, not only
+against the implementation diff. Acceptance criteria, negative scenarios, and
+known issues are the source of truth for expected behavior.
+
 ## Codex
 
 Native GitHub PR review. Blocking findings use `P0`, `P1`, or `P2`. Advisory findings use `P3`.

@@ -9,8 +9,9 @@ Unicorn Hub is a portable multi-agent development blueprint. It must stay generi
 3. `docs/bootstrap-flow.md`
 4. `docs/multi-agent-workflow.md`
 5. `docs/github-ci-and-branch-protection.md`
-6. `docs/portability-and-sanitization.md`
-7. relevant files under `templates/`, `scripts/`, and `profiles/`
+6. `docs/senar-mapping.md`
+7. `docs/portability-and-sanitization.md`
+8. relevant files under `templates/`, `scripts/`, and `profiles/`
 
 ## Rules
 

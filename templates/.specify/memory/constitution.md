@@ -14,32 +14,41 @@ Product behavior must be implemented behind boundaries that can be tested withou
 
 New behavior should begin with failing tests or a documented reason why tests are deferred. PRs without verification are not merge-ready.
 
-### IV. PR-Only Workflow
+### IV. Supervised Verification
+
+Every product-code PR must name its goal, scope, acceptance criteria, negative scenario, and verification evidence before merge. AI-written summaries do not replace evidence tied to the requested behavior.
+
+### V. PR-Only Workflow
 
 Direct pushes to the default branch are forbidden after branch protection is enabled.
 
-### V. One Worktree Per Task
+### VI. One Worktree Per Task
 
 Parallel implementation work must use separate worktrees, branches, and PRs.
 
-### VI. Deployability Contract
+### VII. Deployability Contract
 
 The default branch must remain deployable. Broken default branch status has priority over feature work.
 
-### VII. Simplicity
+### VIII. Simplicity
 
 New abstractions require a current reason documented in `plan.md`.
+
+### IX. Process Memory
+
+Feature tasks must record dead ends, decisions, and known issues before merge so future agents inherit the working context.
 
 ## Workflow
 
 1. Create or update project docs.
 2. Create feature memory.
-3. Plan verification.
+3. Name scope, acceptance criteria, and negative scenarios.
 4. Implement in an isolated worktree.
-5. Run local preflight.
-6. Open a PR.
-7. Resolve CI and review.
-8. Merge only when gates are green.
+5. Record verification evidence and process memory.
+6. Run local preflight.
+7. Open a PR.
+8. Resolve CI and review.
+9. Merge only when gates are green.
 
 ## Governance
 

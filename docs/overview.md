@@ -9,6 +9,10 @@ The blueprint has four layers:
 3. **Agent orchestration**: explicit roles for implementation agents, review agents, and humans.
 4. **Gates**: local preflight, CI, PR guard, AI review, security scanning, and branch protection.
 
+The feature-memory layer also carries a lightweight SENAR contract: every
+product-code task names its goal, scope, acceptance criteria, negative scenario,
+verification evidence, and process memory before merge.
+
 The result is a repository where agents can work independently without losing context, bypassing review, or turning local assumptions into production changes.
 
 ## Design Goals
@@ -16,6 +20,7 @@ The result is a repository where agents can work independently without losing co
 - Portable across repositories and stacks.
 - Safe by default for public and private projects.
 - Explicit about what agents read, write, and verify.
+- Explicit about what was tried, decided, accepted, and left known.
 - Fail-closed when automation cannot prove a required condition.
 - Free of source-project secrets and source-project product details.
 

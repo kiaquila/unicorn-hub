@@ -16,8 +16,10 @@ Claude Code is the default implementation agent unless repository policy says ot
 
 - All product changes go through pull requests.
 - Product changes start from an active `specs/<feature-id>/` folder.
+- Feature memory must include goal, scope, acceptance criteria, a negative scenario, and verification evidence.
 - One implementation loop equals one worktree, one branch, and one PR.
 - Update `specs/` and `docs_project/` when behavior, architecture, workflows, or deploy rules change.
+- Record dead ends, decisions, and known issues before calling work complete.
 - Before every push, run `pnpm run preflight` or the project-equivalent command.
 - Never merge while required checks are queued, running, red, or missing.
 - Keep commit subjects short, conventional, and focused.

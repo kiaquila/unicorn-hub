@@ -8,6 +8,7 @@ This repository uses a portable multi-agent development workflow:
 
 - durable project docs in `docs_project/`
 - feature memory in `specs/<feature-id>/`
+- SENAR-style verification evidence and process memory
 - agent onboarding in `AGENTS.md`
 - Claude-specific guidance in `CLAUDE.md`
 - local preflight before push

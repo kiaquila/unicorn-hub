@@ -44,6 +44,10 @@ specs/<feature-id>/
   tasks.md
 ```
 
+Feature memory should include the SENAR fields from the installed templates:
+goal, scope, acceptance criteria, negative scenario, verification evidence, and
+process memory.
+
 ## Phase 3: Local Orchestration
 
 Install scripts for:

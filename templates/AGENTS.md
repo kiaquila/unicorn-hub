@@ -29,6 +29,7 @@ Before implementation work, read in this order:
 
 - Reads repository memory before starting.
 - Creates or updates feature memory before product-code changes.
+- Ensures feature memory names goal, scope, acceptance criteria, negative scenario, and verification evidence.
 - Slices work into one branch and one PR per task.
 - Keeps docs, specs, and PR state aligned.
 - Does not declare completion until the PR is merge-ready.
@@ -38,6 +39,7 @@ Before implementation work, read in this order:
 - Works only from an assigned isolated worktree.
 - Stays within one branch and one PR per task slice.
 - Updates `specs/<feature-id>/tasks.md` in the same PR.
+- Records dead ends, decisions, and known issues in the active feature memory.
 - Updates durable docs when behavior, architecture, workflows, or deploy rules change.
 - Never merges directly to the default branch.
 
@@ -52,6 +54,7 @@ Before implementation work, read in this order:
 - One worker equals one worktree.
 - One implementation loop equals one branch and one PR.
 - Product-code PRs require complete feature memory: `spec.md`, `plan.md`, and `tasks.md`.
+- Acceptance criteria must be verified with evidence, not only an AI-written summary.
 - `docs_project/`, `.specify/`, and `specs/` are durable memory, not disposable session notes.
 - Do not edit secrets or production resources directly.
 
@@ -89,5 +92,7 @@ A task is complete only when the current PR head SHA has:
 - green required checks
 - no blocking review findings
 - no unresolved merge conflicts
+- evidence for every acceptance criterion
+- current process memory for dead ends, decisions, and known issues
 - updated specs and docs where needed
 - only final human approval or merge mechanics remaining

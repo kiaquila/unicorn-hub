@@ -42,6 +42,10 @@ checks, AI review evidence, and conversation resolution. Repositories with more
 than one maintainer should pass `--approvals 1` or a stricter value when they
 want human approval to be part of branch protection.
 
+The PR checklist complements these checks by asking the author to attach SENAR
+verification evidence for each acceptance criterion and to update process memory
+before merge.
+
 ## Review Trigger Reality
 
 Most native AI backends require human-authored comments or native app triggers. GitHub Actions bot comments should not be assumed to trigger review.

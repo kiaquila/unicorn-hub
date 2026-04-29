@@ -32,6 +32,11 @@ specs/001-example-feature/
 ```
 
 The feature-memory gate requires all three files for product-code changes.
+The SENAR layer gives those files a shared contract:
+
+- `spec.md` names the goal, scope, acceptance criteria, and negative scenario
+- `plan.md` maps acceptance criteria to verification evidence
+- `tasks.md` captures dead ends, decisions, and known issues so future agents do not repeat discarded work or erase accepted tradeoffs
 
 ## Interview Protocol
 

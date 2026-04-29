@@ -10,3 +10,7 @@ specs/<feature-id>/
   plan.md
   tasks.md
 ```
+
+Feature folders should record goal, scope, acceptance evidence, negative
+scenarios, and process memory so agents can continue work without losing
+context.

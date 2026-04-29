@@ -30,6 +30,7 @@ Profiles live in [`profiles/`](./profiles). If no profile fits, use `generic` va
 
 - Durable documentation system under `docs_project/`
 - Spec-driven feature memory under `specs/<feature-id>/`
+- SENAR-style supervised verification fields for goals, scope, acceptance evidence, negative scenarios, and process memory
 - Agent rules: `AGENTS.md` and `CLAUDE.md`
 - Local orchestration scripts for worktrees, PR publishing, feature-memory gates, AI review gates, and branch protection
 - GitHub Actions workflows for CI, PR guard, trusted AI review routing, and OSV scanning
@@ -47,6 +48,7 @@ Profiles live in [`profiles/`](./profiles). If no profile fits, use `generic` va
 ## Repository Map
 
 - [`docs/`](./docs) explains the blueprint and operating model.
+- [`docs/senar-mapping.md`](./docs/senar-mapping.md) maps the SENAR layer onto Unicorn Hub.
 - [`templates/`](./templates) contains files copied into target repositories.
 - [`scripts/`](./scripts) contains reusable Node.js automation.
 - [`profiles/`](./profiles) describes project-type defaults.

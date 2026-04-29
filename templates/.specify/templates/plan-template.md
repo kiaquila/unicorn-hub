@@ -11,6 +11,11 @@
 - product paths:
 - data changes:
 
+## Scope Boundaries
+
+- in scope:
+- out of scope:
+
 ## Constitution Check
 
 - Spec-first:
@@ -25,7 +30,13 @@
 
 ## Verification
 
-- `[Command or manual check]`
+| Acceptance criterion | Evidence |
+| --- | --- |
+| AC-001 | `[Command, test, screenshot, diff, or manual check]` |
+
+Negative scenario evidence:
+
+- `[Command, test, screenshot, diff, or manual check]`
 
 ## Risks
 

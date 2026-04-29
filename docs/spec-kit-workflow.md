@@ -27,9 +27,20 @@ If another document conflicts with the constitution, update the lower-priority d
 
 Every product-code change must have:
 
-- `spec.md`: user stories, requirements, acceptance scenarios, assumptions
-- `plan.md`: implementation approach, risks, complexity tracking, verification
-- `tasks.md`: atomic tasks grouped by user story or phase
+- `spec.md`: goal, scope, user stories, acceptance scenarios, negative scenario, requirements, assumptions
+- `plan.md`: implementation approach, risks, complexity tracking, verification evidence
+- `tasks.md`: atomic tasks plus process memory for decisions, dead ends, and known issues
+
+## SENAR Contract
+
+Unicorn Hub treats SENAR as the supervised verification layer on top of the
+spec-kit flow:
+
+- goal and scope are written before product code changes
+- every feature has at least one negative scenario or an explicit reason why none applies
+- acceptance criteria are verified with evidence, not just an AI-written summary
+- process memory records dead ends, decisions, and known issues before merge
+- a human remains responsible for accepting unresolved risks and triggering native AI review when required
 
 ## Clarification Discipline
 
