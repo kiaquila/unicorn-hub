@@ -9,7 +9,6 @@ import {
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
   isAcceptableNativeReview,
-  isTrustedCodexTriggerComment,
   isTrustedReviewLogin,
   isTrustedAssociation
 } from "../scripts/ai-review-helpers.mjs";
@@ -125,35 +124,6 @@ test("Codex commented reviews are classified by inline priorities", () => {
     { pull_request_review_id: 123, body: "untagged finding" }
   ], "abc"), "fail");
   assert.equal(classifyCodexNativeReview(review, [], "new-head"), null);
-});
-
-test("Codex trigger comments must come from trusted non-review actors", () => {
-  assert.equal(
-    isTrustedCodexTriggerComment({
-      body: "@codex review",
-      author_association: "OWNER",
-      user: { login: "repo-owner" }
-    }),
-    true
-  );
-
-  assert.equal(
-    isTrustedCodexTriggerComment({
-      body: "@codex review",
-      author_association: "CONTRIBUTOR",
-      user: { login: "external-user" }
-    }),
-    false
-  );
-
-  assert.equal(
-    isTrustedCodexTriggerComment({
-      body: "@codex review",
-      author_association: "OWNER",
-      user: { login: "chatgpt-codex-connector[bot]" }
-    }),
-    false
-  );
 });
 
 test("review bot logins require exact trusted matches", () => {

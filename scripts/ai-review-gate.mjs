@@ -4,8 +4,7 @@ import {
   extractClaudeOutcome,
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
-  isAcceptableNativeReview,
-  isTrustedCodexTriggerComment
+  isAcceptableNativeReview
 } from "./ai-review-helpers.mjs";
 import { readConfig } from "./shared.mjs";
 
@@ -72,11 +71,6 @@ async function createComment(body) {
   });
 }
 
-function isFreshEvidence(entry, sinceMs) {
-  const timestamp = Date.parse(entry?.created_at || entry?.submitted_at || "");
-  return Number.isFinite(timestamp) && timestamp >= sinceMs;
-}
-
 async function maybePostTriggerComment() {
   if (triggerMode !== "comment") return;
   const triggers = {
@@ -91,7 +85,7 @@ async function maybePostTriggerComment() {
   ].join("\n"));
 }
 
-async function fetchEvidence(evidenceSinceMs) {
+async function fetchEvidence() {
   if (selectedAgent === "claude") {
     const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
     return comments.some((comment) => isAcceptableClaudeComment(comment, headSha, config));
@@ -114,24 +108,11 @@ async function fetchEvidence(evidenceSinceMs) {
   if (selectedAgent !== "codex") return false;
 
   const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
-  const latestTriggerMs = comments
-    .filter((comment) =>
-      isFreshEvidence(comment, evidenceSinceMs) &&
-      isTrustedCodexTriggerComment(comment, config)
-    )
-    .map((comment) => Date.parse(comment.created_at || ""))
-    .filter(Number.isFinite)
-    .sort((left, right) => right - left)[0];
-
-  if (!Number.isFinite(latestTriggerMs)) return false;
-
   return comments.some((comment) =>
-    isFreshEvidence(comment, latestTriggerMs) &&
     isAcceptableCodexSummaryComment(comment, headSha, config)
   );
 }
 
-const evidenceSinceMs = Date.now() - 1000;
 await maybePostTriggerComment();
 
 const started = Date.now();
@@ -141,7 +122,7 @@ let pollMs = initialPollMs;
 
 while (Date.now() - started <= maxWaitMs) {
   try {
-    accepted = await fetchEvidence(evidenceSinceMs);
+    accepted = await fetchEvidence();
     if (accepted) break;
   } catch (error) {
     lastError = error;

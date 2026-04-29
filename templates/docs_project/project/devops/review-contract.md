@@ -4,7 +4,7 @@
 
 Native GitHub PR review. Blocking findings use `P0`, `P1`, or `P2`. Advisory findings use `P3`.
 
-When Codex has no inline findings, a top-level `Codex Review:` summary comment from the trusted Codex bot also satisfies the active gate cycle only if it names the current head SHA.
+When Codex has no inline findings, a top-level `Codex Review:` summary comment from the trusted Codex bot also satisfies the gate only if it names the current head SHA.
 
 ## Claude
 

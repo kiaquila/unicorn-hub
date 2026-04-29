@@ -29,7 +29,7 @@ Review hardening keeps root workflows synchronized from templates via a local sc
 
 AI review validation uses exact trusted bot logins. Defaults cover the supported review agents, while `.unicorn-hub/config.json` can add repository-specific trusted logins without reintroducing substring matching.
 
-Codex review validation accepts native `COMMENTED` reviews for the current head when inline findings are absent or advisory-only `P3`. Trusted no-findings `Codex Review:` summary comments remain acceptable only when they name the current head SHA, avoiding stale summary evidence.
+Codex review validation accepts native `COMMENTED` reviews for the current head when inline findings are absent or advisory-only `P3`. Trusted no-findings `Codex Review:` summary comments remain acceptable only when they name the current head SHA, avoiding stale summary evidence without requiring an extra trigger boundary.
 
 AI review evidence collection reads paginated GitHub API results for reviews, review comments, and issue comments. This avoids missing recent Codex findings or trusted triggers on long-running PRs with more than one page of discussion.
 
