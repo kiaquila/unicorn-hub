@@ -115,14 +115,43 @@ test("Codex commented reviews are classified by inline priorities", () => {
 
   assert.equal(classifyCodexNativeReview(review, [], "abc"), "pass");
   assert.equal(classifyCodexNativeReview(review, [
-    { pull_request_review_id: 123, body: "![P3 Badge] advisory" }
+    {
+      pull_request_review_id: 123,
+      body: "![P3 Badge] advisory",
+      user: { login: "chatgpt-codex-connector[bot]" }
+    }
   ], "abc"), "pass");
   assert.equal(classifyCodexNativeReview(review, [
-    { pull_request_review_id: 123, body: "![P1 Badge] blocker" }
+    {
+      pull_request_review_id: 123,
+      body: "![P1 Badge] blocker",
+      user: { login: "chatgpt-codex-connector[bot]" }
+    }
   ], "abc"), "fail");
   assert.equal(classifyCodexNativeReview(review, [
-    { pull_request_review_id: 123, body: "untagged finding" }
+    {
+      pull_request_review_id: 123,
+      body: "untagged finding",
+      user: { login: "chatgpt-codex-connector[bot]" }
+    }
   ], "abc"), "fail");
+  assert.equal(classifyCodexNativeReview({
+    ...review,
+    state: "APPROVED",
+    body: "Contains P1"
+  }, [], "abc"), "fail");
+  assert.equal(classifyCodexNativeReview(review, [
+    {
+      pull_request_review_id: 123,
+      body: "thanks",
+      user: { login: "repo-owner" }
+    },
+    {
+      pull_request_review_id: 123,
+      body: "![P3 Badge] advisory",
+      user: { login: "chatgpt-codex-connector[bot]" }
+    }
+  ], "abc"), "pass");
   assert.equal(classifyCodexNativeReview(review, [], "new-head"), null);
 });
 

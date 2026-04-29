@@ -68,13 +68,15 @@ export function classifyCodexNativeReview(review, reviewComments = [], headSha, 
   if (review.commit_id && headSha && review.commit_id !== headSha) return null;
   const login = normalizeLogin(review.user?.login);
   if (!isTrustedReviewLogin(login, "codex", config)) return null;
+  if (containsBlockingSeverity(review.body, "codex")) return "fail";
 
   if (review.state === "APPROVED") return "pass";
   if (review.state === "CHANGES_REQUESTED") return "fail";
   if (review.state !== "COMMENTED") return null;
 
   const commentsForReview = reviewComments.filter((comment) =>
-    comment.pull_request_review_id === review.id
+    comment.pull_request_review_id === review.id &&
+    isTrustedReviewLogin(comment.user?.login, "codex", config)
   );
   if (commentsForReview.length === 0) return "pass";
 
