@@ -60,6 +60,7 @@ export function walkFiles(root, options = {}) {
     ".git",
     ".claude",
     ".codex",
+    ".omc",
     "node_modules",
     "dist",
     "coverage",
