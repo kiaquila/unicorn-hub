@@ -236,6 +236,56 @@ test("bootstrap merges profile packageScripts into a pre-existing package.json",
     "node scripts/check-feature-memory.mjs",
     "baseline check:feature-memory script must be filled in for the merged preflight"
   );
+  assert.match(
+    String(packageJson.packageManager || ""),
+    /^pnpm@/,
+    "packageManager must be filled from template defaults so baseline check passes"
+  );
+  assert.ok(packageJson.engines?.node, "engines.node must be filled from template defaults");
+
+  const baselineOutput = run(["scripts/check-repo-baseline.mjs", "--target", target]);
+  assert.match(
+    baselineOutput,
+    /Repository baseline check passed/,
+    "baseline must pass against a target whose package.json was minimal pre-bootstrap"
+  );
+});
+
+test("bootstrap into pre-existing package.json preserves user-defined packageManager", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-flutter-user-pkg-mgr-"));
+  writeFileSync(join(target, "pubspec.yaml"), "name: synthetic_flutter_app\n");
+  writeFileSync(
+    join(target, "package.json"),
+    `${JSON.stringify(
+      {
+        name: "existing-app",
+        private: true,
+        packageManager: "pnpm@9.0.0",
+        scripts: { custom: "echo custom" }
+      },
+      null,
+      2
+    )}\n`
+  );
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "flutter-app",
+    "--project-name",
+    "User Pkg Mgr Flutter"
+  ]);
+
+  const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
+  assert.equal(
+    packageJson.packageManager,
+    "pnpm@9.0.0",
+    "user-defined packageManager must outrank template defaults"
+  );
 });
 
 test("dependabot renderer preserves explicit zero values", () => {
@@ -301,6 +351,45 @@ test("dependabot renderer preserves explicit zero values", () => {
   assert.match(dependabot, /semver-major-days: 0/);
   assert.match(dependabot, /semver-minor-days: 0/);
   assert.match(dependabot, /semver-patch-days: 0/);
+});
+
+test("baseline check ignores excludeTemplates entries outside the profile-safe allowlist", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-baseline-allowlist-"));
+  writeFileSync(join(target, "pubspec.yaml"), "name: synthetic_flutter_app\n");
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "flutter-app",
+    "--project-name",
+    "Allowlist Probe Flutter"
+  ]);
+
+  const configPath = join(target, ".unicorn-hub/config.json");
+  const tampered = JSON.parse(readFileSync(configPath, "utf8"));
+  tampered.excludeTemplates = [".github/workflows/ci.yml", "AGENTS.md"];
+  writeFileSync(configPath, `${JSON.stringify(tampered, null, 2)}\n`);
+
+  execFileSync("rm", [join(target, "AGENTS.md")]);
+
+  let failed = false;
+  let stderr = "";
+  try {
+    execFileSync("node", ["scripts/check-repo-baseline.mjs", "--target", target], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+  } catch (error) {
+    failed = true;
+    stderr = String(error.stderr || "");
+  }
+  assert.equal(failed, true, "baseline must reject AGENTS.md exclusion via config tampering");
+  assert.match(stderr, /AGENTS\.md/, "baseline error should name the missing required path");
 });
 
 test("bootstrap into pre-existing package.json preserves user-defined baseline scripts", () => {

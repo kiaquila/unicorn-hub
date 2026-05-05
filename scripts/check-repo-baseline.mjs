@@ -38,7 +38,9 @@ if (config.blueprint) {
     requirePath(path);
   }
 } else {
-  const excluded = new Set(config.excludeTemplates || []);
+  const PROFILE_EXCLUDABLE = new Set([".github/workflows/ci.yml"]);
+  const requestedExclusions = new Set(config.excludeTemplates || []);
+  const excluded = new Set([...requestedExclusions].filter((path) => PROFILE_EXCLUDABLE.has(path)));
   for (const path of [
     "AGENTS.md",
     "CLAUDE.md",

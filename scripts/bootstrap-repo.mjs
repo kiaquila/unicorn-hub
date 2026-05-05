@@ -158,11 +158,15 @@ if (!dryRun && profile.packageScripts) {
   if (existsSync(packageJsonPath)) {
     const packageJson = readJson(packageJsonPath);
     const templatePackagePath = join(sourceRoot, "templates", "package.json");
-    const templateScripts = existsSync(templatePackagePath)
-      ? readJson(templatePackagePath).scripts || {}
-      : {};
+    const templatePackageJson = existsSync(templatePackagePath) ? readJson(templatePackagePath) : {};
+    if (!packageJson.packageManager && typeof templatePackageJson.packageManager === "string") {
+      packageJson.packageManager = templatePackageJson.packageManager;
+    }
+    if (!packageJson.engines && templatePackageJson.engines) {
+      packageJson.engines = templatePackageJson.engines;
+    }
     packageJson.scripts = {
-      ...templateScripts,
+      ...(templatePackageJson.scripts || {}),
       ...(packageJson.scripts || {}),
       ...profile.packageScripts
     };

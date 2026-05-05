@@ -23,6 +23,9 @@
 - [x] T018 Trim `flutter-app` `requiredChecks` to only Unicorn-controlled contexts (`guard`, `AI Review`); document in `docs/github-ci-and-branch-protection.md` that targets must add real CI job names post-bootstrap.
 - [x] T019 Replace `||` with `??` for numeric Dependabot defaults in `scripts/bootstrap-repo.mjs` so explicit `0` survives rendering.
 - [x] T020 Extend `tests/bootstrap.test.mjs` to assert (a) flutter-app `requiredChecks` ships without presumed job names, and (b) Dependabot rendering preserves explicit zero values via a synthetic profile.
+- [x] T021 Restrict `scripts/check-repo-baseline.mjs` exclusions to a `PROFILE_EXCLUDABLE` allowlist (currently `.github/workflows/ci.yml`) so a tampered `.unicorn-hub/config.json` cannot drop required scaffold files like `AGENTS.md`.
+- [x] T022 Fill `packageManager` and `engines` from `templates/package.json` when merging into a pre-existing `package.json`, with user-defined values winning.
+- [x] T023 Cover both fix-ups in `tests/bootstrap.test.mjs`: tampered-config baseline rejection, `packageManager` fill + baseline pass, and user-defined `packageManager` preservation.
 
 ## Verification
 
@@ -39,6 +42,8 @@
 - Initial `packageScripts` merge dropped baseline scripts when `package.json` already existed. Profile `preflight` chains that called `pnpm run check:repo` then failed at runtime with `ERR_PNPM_NO_SCRIPT`. Fixed by layering `templates/package.json` scripts as defaults under user-defined scripts under profile overrides, so the baseline chain always has its dependencies while user overrides still win.
 - First draft of `flutter-app.requiredChecks` listed presumed job names (`Lint`, `Unit tests`, `Widget tests`, `Build Web`, `Build Android APK`). `scripts/apply-branch-protection.mjs` consumes that list verbatim as required status contexts, so any mismatch with the target's real CI job names becomes a permanently-pending required check that blocks every merge. Fixed by trimming the shipped list to `guard` + `AI Review` and documenting that installers extend it with the repository's actual job names. The blueprint should never guess label strings on behalf of the target stack.
 - Dependabot renderer used `||` for numeric defaults, which silently overwrote explicit `0` values (e.g., zero-day cooldowns). Fixed by switching to `??` so `0` survives rendering; only `undefined`/`null` values fall back to the documented defaults.
+- First pass at `excludeTemplates` filtering in `scripts/check-repo-baseline.mjs` honored every config entry generically. Because PR Guard runs the trusted baseline script against the PR workspace using the PR's `.unicorn-hub/config.json`, a hostile PR could have set `excludeTemplates: ["AGENTS.md"]`, deleted `AGENTS.md`, and still passed baseline. Fixed by hard-coding a `PROFILE_EXCLUDABLE` allowlist (`.github/workflows/ci.yml` only) and intersecting requested exclusions with it. The trust boundary is the trusted script, not the PR-controlled config.
+- Cycle 1's `packageScripts` fix only filled scripts; the merged `package.json` still had no `packageManager`, so `scripts/check-repo-baseline.mjs` failed on its `pnpm@*` check whenever a target's pre-existing `package.json` was minimal. Fixed by also filling `packageManager` and `engines` from `templates/package.json` while preserving user-defined values for those keys.
 
 ### Decisions
 
