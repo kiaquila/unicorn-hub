@@ -31,7 +31,7 @@ As an agent installing Unicorn Hub into an existing Flutter app, I want a Flutte
 
 1. Given a synthetic target repository with an existing Flutter CI workflow, when bootstrap runs with `--profile flutter-app`, then the existing CI workflow remains unchanged.
 2. Given a bootstrapped Flutter target, when `.unicorn-hub/config.json` is inspected, then product paths include Flutter source, tests, and platform folders.
-3. Given a bootstrapped Flutter target, when required checks are inspected, then they include Flutter CI job names plus `guard` and `AI Review`, and do not require the default Node `baseline-checks` job.
+3. Given a bootstrapped Flutter target, when required checks are inspected, then they include only the Unicorn-controlled contexts (`guard` and `AI Review`) and do not require the default Node `baseline-checks` job. The installing team is responsible for extending `requiredChecks` with the target repository's real CI job names before applying branch protection (see AC-12 and `docs/github-ci-and-branch-protection.md`).
 4. Given a bootstrapped Flutter target, when Dependabot config is inspected, then it includes `github-actions` and `pub` ecosystems.
 5. Given this blueprint PR, when preflight runs, then sanitizer, baseline, workflow sync, syntax, and tests pass.
 6. Given local runtime state exists under `.omx/`, when sanitizer runs, then that state is ignored like other local agent runtime directories.
