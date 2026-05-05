@@ -21,6 +21,8 @@ It should run, at minimum:
 - tests
 - sanitizer for blueprint/template repositories
 
+Profiles may override the installed control-plane `preflight` script to call target-native checks after Unicorn gates. For example, a Flutter target can keep its existing `make check` and `make test` workflow while still running repository baseline and feature-memory validation first.
+
 ## Pre-Push Guard
 
 Optionally install a local hook or agent pre-tool hook that blocks `git push` when product paths changed without a complete feature-memory folder.

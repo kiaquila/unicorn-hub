@@ -16,6 +16,8 @@ The installing agent inspects the target repository and captures the minimum con
 
 If important context is unknown, the agent writes `[NEEDS CLARIFICATION]` into the relevant document instead of inventing details.
 
+Choose the closest profile before copying files. Profiles may provide stack-specific product paths, local commands, required checks, and dependency-update ecosystems. For example, a Flutter profile should preserve an existing Flutter CI workflow and use that workflow's job names as required checks instead of assuming the default Node `baseline-checks` job exists.
+
 ## Phase 1: Repository Memory
 
 Install:
@@ -69,6 +71,8 @@ Install workflows:
 - AI Command Policy
 - AI Review
 - OSV Scan
+
+When a target repository already has a mature CI workflow, do not overwrite it. Keep the existing workflow, install the additional guard/review/security workflows, and set `.unicorn-hub/config.json` `requiredChecks` to the target's real CI job names plus the Unicorn guard and review jobs.
 
 Set repository variables:
 

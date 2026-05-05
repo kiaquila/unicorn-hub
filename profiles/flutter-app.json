@@ -1,0 +1,64 @@
+{
+  "id": "flutter-app",
+  "description": "Flutter/Dart application with mobile targets and optional web demo builds.",
+  "docsDir": "docs_project",
+  "specsDir": "specs",
+  "productPaths": [
+    "lib/",
+    "test/",
+    "integration_test/",
+    "test_driver/",
+    "pubspec.yaml",
+    "pubspec.lock",
+    "analysis_options.yaml",
+    "l10n.yaml",
+    "android/",
+    "ios/",
+    "web/",
+    "macos/",
+    "linux/",
+    "windows/",
+    "docker/",
+    "script/",
+    "Makefile",
+    ".github/workflows/ci.yml"
+  ],
+  "packageManager": "pnpm",
+  "nodeVersion": "20",
+  "commands": {
+    "install": "make deps && make gen-l10n",
+    "lint": "make check",
+    "test": "make test",
+    "unitTest": "make test-unit",
+    "widgetTest": "make test-widget",
+    "buildWeb": "flutter build web --release",
+    "buildAndroid": "flutter build apk --release",
+    "preflight": "pnpm run check:repo && node scripts/check-feature-memory.mjs --worktree && make check && make test"
+  },
+  "packageScripts": {
+    "check:flutter": "make check && make test",
+    "preflight": "pnpm run check:repo && node scripts/check-feature-memory.mjs --worktree && pnpm run check:flutter"
+  },
+  "requiredChecks": [
+    "Lint",
+    "Unit tests",
+    "Widget tests",
+    "Build Web",
+    "Build Android APK",
+    "guard",
+    "AI Review"
+  ],
+  "dependabotUpdates": [
+    {
+      "packageEcosystem": "github-actions",
+      "directory": "/"
+    },
+    {
+      "packageEcosystem": "pub",
+      "directory": "/"
+    }
+  ],
+  "deploy": {
+    "type": "mobile-app-store-with-web-demo"
+  }
+}

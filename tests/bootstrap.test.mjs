@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -76,4 +76,42 @@ test("bootstrapped target passes baseline check", () => {
 
   const output = run(["scripts/check-repo-baseline.mjs", "--target", target]);
   assert.match(output, /Repository baseline check passed/);
+});
+
+test("bootstrap preserves Flutter CI and installs Flutter profile controls", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-flutter-"));
+  mkdirSync(join(target, ".github/workflows"), { recursive: true });
+  writeFileSync(join(target, ".github/workflows/ci.yml"), "name: Existing Flutter CI\n");
+  writeFileSync(join(target, "pubspec.yaml"), "name: synthetic_flutter_app\n");
+  writeFileSync(join(target, "Makefile"), "check:\n\tflutter analyze lib test\n");
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "flutter-app",
+    "--project-name",
+    "Synthetic Flutter App"
+  ]);
+
+  assert.equal(readFileSync(join(target, ".github/workflows/ci.yml"), "utf8"), "name: Existing Flutter CI\n");
+
+  const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
+  assert.equal(config.profile, "flutter-app");
+  assert.deepEqual(config.productPaths.slice(0, 4), ["lib/", "test/", "integration_test/", "test_driver/"]);
+  assert.equal(config.requiredChecks.includes("baseline-checks"), false);
+  assert.equal(config.requiredChecks.includes("Build Android APK"), true);
+  assert.equal(config.commands.preflight.includes("make check"), true);
+
+  const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
+  assert.equal(packageJson.scripts.preflight.includes("pnpm run check:flutter"), true);
+  assert.equal(packageJson.scripts["check:flutter"], "make check && make test");
+
+  const dependabot = readFileSync(join(target, ".github/dependabot.yml"), "utf8");
+  assert.match(dependabot, /package-ecosystem: "github-actions"/);
+  assert.match(dependabot, /package-ecosystem: "pub"/);
+  assert.doesNotMatch(dependabot, /package-ecosystem: "npm"/);
 });

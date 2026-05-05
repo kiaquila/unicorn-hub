@@ -26,6 +26,15 @@ node /path/to/unicorn-hub/scripts/bootstrap-repo.mjs \
 
 Profiles live in [`profiles/`](./profiles). If no profile fits, use `generic` values in `.unicorn-hub/config.json` after bootstrapping.
 
+Current profiles include:
+
+- `generic`: fallback for repositories that need manual command adaptation
+- `next-app`: Next.js applications with TypeScript and hosted previews
+- `python-service`: Python services with API or worker entrypoints
+- `static-vercel`: static frontends deployed through Vercel Git integration
+- `telegram-bot`: Telegram bots with service-style deployment
+- `flutter-app`: Flutter/Dart apps with mobile targets and optional web demo builds
+
 ## What Gets Installed
 
 - Durable documentation system under `docs_project/`
