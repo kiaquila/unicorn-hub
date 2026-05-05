@@ -74,6 +74,8 @@ Install workflows:
 
 When a target repository already has a mature CI workflow, do not overwrite it. Keep the existing workflow, install the additional guard/review/security workflows, and set `.unicorn-hub/config.json` `requiredChecks` to the target's real CI job names plus the Unicorn guard and review jobs.
 
+Profiles can declare `excludeTemplates` to skip blueprint templates that conflict with the target stack. The `flutter-app` profile excludes the default Node `ci.yml`, so fresh Flutter targets are not handed a `baseline-checks` workflow that would never match their CI. `excludeTemplates` is enforced even under `--force`; the flag only refreshes templates the profile considers compatible.
+
 Set repository variables:
 
 - `AI_IMPLEMENTATION_AGENT`

@@ -28,7 +28,6 @@ const packageName = projectName
 const profile = readJson(profilePath);
 const force = Boolean(args.force);
 const dryRun = Boolean(args["dry-run"]);
-const installedPaths = new Set();
 
 const replacements = {
   PROJECT_NAME: projectName,
@@ -46,42 +45,45 @@ function dependabotLabel(ecosystem) {
 }
 
 function renderDependabot(updates) {
-  return [
-    "version: 2",
-    "updates:",
-    ...updates.flatMap((update) => {
-      const ecosystem = String(update["package-ecosystem"] || update.packageEcosystem || "");
-      const directory = String(update.directory || "/");
-      const interval = String(update.schedule?.interval || "weekly");
-      const day = String(update.schedule?.day || "monday");
-      const time = String(update.schedule?.time || "07:00");
-      const timezone = String(update.schedule?.timezone || "UTC");
-      const label = dependabotLabel(ecosystem);
+  const blocks = updates.map((update, index) => {
+    const ecosystem = String(update["package-ecosystem"] || update.packageEcosystem || "").trim();
+    if (!ecosystem) {
+      throw new Error(`dependabotUpdates entry ${index} is missing 'packageEcosystem'`);
+    }
+    const directory = String(update.directory || "/");
+    const interval = String(update.schedule?.interval || "weekly");
+    const time = String(update.schedule?.time || "07:00");
+    const timezone = String(update.schedule?.timezone || "UTC");
+    const label = dependabotLabel(ecosystem);
 
-      return [
-        `  - package-ecosystem: "${ecosystem}"`,
-        `    directory: "${directory}"`,
-        "    schedule:",
-        `      interval: "${interval}"`,
-        `      day: "${day}"`,
-        `      time: "${time}"`,
-        `      timezone: "${timezone}"`,
-        `    open-pull-requests-limit: ${Number(update.openPullRequestsLimit || update["open-pull-requests-limit"] || 5)}`,
-        "    labels:",
-        "      - \"dependencies\"",
-        `      - "${label}"`,
-        "    commit-message:",
-        `      prefix: "${String(update.commitMessage?.prefix || update["commit-message"]?.prefix || "chore")}"`,
-        "      include: \"scope\"",
-        "    cooldown:",
-        `      default-days: ${Number(update.cooldown?.defaultDays || update.cooldown?.["default-days"] || 7)}`,
-        `      semver-major-days: ${Number(update.cooldown?.semverMajorDays || update.cooldown?.["semver-major-days"] || 14)}`,
-        `      semver-minor-days: ${Number(update.cooldown?.semverMinorDays || update.cooldown?.["semver-minor-days"] || 7)}`,
-        `      semver-patch-days: ${Number(update.cooldown?.semverPatchDays || update.cooldown?.["semver-patch-days"] || 3)}`,
-        ""
-      ];
-    })
-  ].join("\n");
+    const lines = [
+      `  - package-ecosystem: "${ecosystem}"`,
+      `    directory: "${directory}"`,
+      "    schedule:",
+      `      interval: "${interval}"`
+    ];
+    if (interval === "weekly") {
+      lines.push(`      day: "${String(update.schedule?.day || "monday")}"`);
+    }
+    lines.push(
+      `      time: "${time}"`,
+      `      timezone: "${timezone}"`,
+      `    open-pull-requests-limit: ${Number(update.openPullRequestsLimit || update["open-pull-requests-limit"] || 5)}`,
+      "    labels:",
+      "      - \"dependencies\"",
+      `      - "${label}"`,
+      "    commit-message:",
+      `      prefix: "${String(update.commitMessage?.prefix || update["commit-message"]?.prefix || "chore")}"`,
+      "      include: \"scope\"",
+      "    cooldown:",
+      `      default-days: ${Number(update.cooldown?.defaultDays || update.cooldown?.["default-days"] || 7)}`,
+      `      semver-major-days: ${Number(update.cooldown?.semverMajorDays || update.cooldown?.["semver-major-days"] || 14)}`,
+      `      semver-minor-days: ${Number(update.cooldown?.semverMinorDays || update.cooldown?.["semver-minor-days"] || 7)}`,
+      `      semver-patch-days: ${Number(update.cooldown?.semverPatchDays || update.cooldown?.["semver-patch-days"] || 3)}`
+    );
+    return lines.join("\n");
+  });
+  return `version: 2\nupdates:\n${blocks.join("\n\n")}\n`;
 }
 
 function copyFileFromSource(sourceFile, targetFile, { template = true } = {}) {
@@ -98,12 +100,16 @@ function copyFileFromSource(sourceFile, targetFile, { template = true } = {}) {
   if (!dryRun) {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, content);
-    installedPaths.add(targetFile);
   }
 }
 
+const excludeTemplates = new Set(profile.excludeTemplates || []);
 for (const rel of walkFiles(join(sourceRoot, "templates"))) {
   if (rel === ".unicorn-hub/config.json") continue;
+  if (excludeTemplates.has(rel)) {
+    planned.push({ action: "exclude", target: rel });
+    continue;
+  }
   copyFileFromSource(join(sourceRoot, "templates", rel), rel);
 }
 
@@ -146,14 +152,19 @@ if (!dryRun && (force || !existsSync(join(targetRoot, ".unicorn-hub/config.json"
   writeFileSync(join(targetRoot, ".unicorn-hub/config.json"), `${JSON.stringify(config, null, 2)}\n`);
 }
 
-if (!dryRun && profile.packageScripts && installedPaths.has("package.json")) {
+if (!dryRun && profile.packageScripts) {
   const packageJsonPath = join(targetRoot, "package.json");
-  const packageJson = readJson(packageJsonPath);
-  packageJson.scripts = {
-    ...(packageJson.scripts || {}),
-    ...profile.packageScripts
-  };
-  writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  if (existsSync(packageJsonPath)) {
+    const packageJson = readJson(packageJsonPath);
+    packageJson.scripts = {
+      ...(packageJson.scripts || {}),
+      ...profile.packageScripts
+    };
+    writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+    planned.push({ action: "scripts", target: "package.json" });
+  } else {
+    planned.push({ action: "warn", target: "package.json (missing; profile packageScripts not merged)" });
+  }
 }
 
 if (!dryRun && args["copy-profiles"]) {

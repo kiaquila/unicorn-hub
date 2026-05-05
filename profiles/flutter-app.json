@@ -17,10 +17,9 @@
     "web/",
     "macos/",
     "linux/",
-    "windows/",
-    "docker/",
-    "script/",
-    "Makefile",
+    "windows/"
+  ],
+  "excludeTemplates": [
     ".github/workflows/ci.yml"
   ],
   "packageManager": "pnpm",
@@ -33,7 +32,7 @@
     "widgetTest": "make test-widget",
     "buildWeb": "flutter build web --release",
     "buildAndroid": "flutter build apk --release",
-    "preflight": "pnpm run check:repo && node scripts/check-feature-memory.mjs --worktree && make check && make test"
+    "preflight": "pnpm run preflight"
   },
   "packageScripts": {
     "check:flutter": "make check && make test",

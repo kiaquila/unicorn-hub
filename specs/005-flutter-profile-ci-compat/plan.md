@@ -26,7 +26,13 @@ Add a stack-specific Flutter profile and make bootstrap honor profile-defined lo
 
 ## Complexity Tracking
 
-Bootstrap gains two profile-aware extension points: `packageScripts` for installed control-plane `package.json`, and `dependabotUpdates` for profile-matched Dependabot ecosystems. Both are opt-in and preserve existing behavior for profiles that do not set them. Repository walking also learns `.omx/` as local runtime state, matching existing `.omc/` handling.
+Bootstrap gains three profile-aware extension points:
+
+- `packageScripts` for the installed control-plane `package.json`, merged whether bootstrap freshly created the file or it already existed.
+- `dependabotUpdates` for profile-matched Dependabot ecosystems with required `packageEcosystem` and weekly-only `day` emission.
+- `excludeTemplates` for templates that the profile considers incompatible (e.g., the default Node CI workflow for Flutter), enforced regardless of `--force`.
+
+All three are opt-in and preserve existing behavior for profiles that do not set them. Repository walking also learns `.omx/` as local runtime state, matching existing `.omc/` handling.
 
 ## Verification
 
@@ -34,10 +40,13 @@ Bootstrap gains two profile-aware extension points: `packageScripts` for install
 | --- | --- |
 | AC-001 | `tests/bootstrap.test.mjs` preserves a synthetic existing `.github/workflows/ci.yml`. |
 | AC-002 | `tests/bootstrap.test.mjs` asserts Flutter product paths in `.unicorn-hub/config.json`. |
-| AC-003 | `tests/bootstrap.test.mjs` asserts Flutter required checks include `Build Android APK` and exclude `baseline-checks`. |
+| AC-003 | `tests/bootstrap.test.mjs` asserts Flutter required checks include `Build Android APK`, `guard`, `AI Review`, and exclude `baseline-checks`. |
 | AC-004 | `tests/bootstrap.test.mjs` asserts generated Dependabot includes `github-actions` and `pub`, not `npm`. |
-| AC-005 | `pnpm run preflight` passed locally with sanitizer, baseline, workflow sync, syntax, and 19 tests green. |
+| AC-005 | `pnpm run preflight` passes locally with sanitizer, baseline, workflow sync, syntax, and the updated test suite. |
 | AC-006 | `tests/sanitizer.test.mjs` asserts `.omx/` runtime state is ignored. |
+| AC-007 | `tests/bootstrap.test.mjs` "fresh Flutter target" case asserts no `ci.yml` is installed and Unicorn guard / AI review / OSV workflows still land. |
+| AC-008 | `tests/bootstrap.test.mjs` "--force still preserves Flutter ci.yml" case asserts `excludeTemplates` overrides `--force`. |
+| AC-009 | `tests/bootstrap.test.mjs` "merges profile packageScripts into a pre-existing package.json" case asserts user scripts survive and profile scripts are merged in. |
 
 Negative scenario evidence:
 
