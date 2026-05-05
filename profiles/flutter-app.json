@@ -39,11 +39,6 @@
     "preflight": "pnpm run check:repo && node scripts/check-feature-memory.mjs --worktree && pnpm run check:flutter"
   },
   "requiredChecks": [
-    "Lint",
-    "Unit tests",
-    "Widget tests",
-    "Build Web",
-    "Build Android APK",
     "guard",
     "AI Review"
   ],

@@ -49,6 +49,8 @@ All three are opt-in and preserve existing behavior for profiles that do not set
 | AC-009 | `tests/bootstrap.test.mjs` "merges profile packageScripts into a pre-existing package.json" case asserts user scripts survive and profile scripts are merged in. |
 | AC-010 | `tests/bootstrap.test.mjs` "merges profile packageScripts into a pre-existing package.json" case asserts that `check:repo` and `check:feature-memory` are filled from template defaults; "preserves user-defined baseline scripts" case asserts that user values outrank template defaults. |
 | AC-011 | `tests/bootstrap.test.mjs` "fresh Flutter target" case runs `scripts/check-repo-baseline.mjs` against the target and asserts the baseline passes despite `.github/workflows/ci.yml` being excluded. |
+| AC-012 | `tests/bootstrap.test.mjs` "preserves Flutter CI" case asserts `requiredChecks` is exactly `["guard", "AI Review"]` and explicitly excludes presumed job names (`Lint`, `Unit tests`, `Widget tests`, `Build Web`, `Build Android APK`, `baseline-checks`). |
+| AC-013 | `tests/bootstrap.test.mjs` "dependabot renderer preserves explicit zero values" case asserts that `openPullRequestsLimit: 0` and zero-day `cooldown` values render verbatim in the generated `.github/dependabot.yml`. |
 
 Negative scenario evidence:
 

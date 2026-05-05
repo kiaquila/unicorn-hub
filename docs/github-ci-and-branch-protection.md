@@ -36,7 +36,7 @@ allow force pushes: false
 allow deletions: false
 ```
 
-If a profile preserves existing CI, replace `baseline-checks` with that repository's required job names before applying branch protection. For a Flutter app, that can be a set such as `Lint`, `Unit tests`, `Widget tests`, `Build Web`, and `Build Android APK`.
+If a profile preserves existing CI, replace `baseline-checks` with the repository's actual job names before applying branch protection. Stack-specific profiles (e.g., `flutter-app`) ship `requiredChecks` containing only Unicorn-controlled contexts (`guard`, `AI Review`); the installing team must add the target repository's real CI job names to `.unicorn-hub/config.json` after bootstrap. Hard-coded label guesses are intentionally avoided — `scripts/apply-branch-protection.mjs` consumes `requiredChecks` verbatim, so a mismatch becomes a permanently-pending required status that blocks every merge.
 
 Use `scripts/apply-branch-protection.mjs` from a trusted local checkout.
 

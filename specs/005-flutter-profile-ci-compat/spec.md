@@ -40,6 +40,8 @@ As an agent installing Unicorn Hub into an existing Flutter app, I want a Flutte
 9. Given a target with a pre-existing `package.json`, when bootstrap runs with a profile that defines `packageScripts`, then those scripts are merged into the existing file, profile entries override colliding keys, and unrelated user-defined scripts are preserved.
 10. Given a target with a pre-existing `package.json`, when bootstrap merges `packageScripts` whose `preflight` chain references baseline scripts (`check:repo`, `check:feature-memory`), then any baseline scripts not already present in the user file are filled in from the template defaults so the merged `preflight` can run without `ERR_PNPM_NO_SCRIPT`. User-defined values for the same script keys are preserved over template defaults.
 11. Given a fresh target bootstrapped with a profile whose `excludeTemplates` removes a baseline-required workflow file (e.g., `.github/workflows/ci.yml`), when `scripts/check-repo-baseline.mjs` runs against that target, then the excluded path is not required and the baseline check passes.
+12. Given a stack-specific profile that preserves an existing target CI workflow (e.g., `flutter-app`), when bootstrap writes `.unicorn-hub/config.json`, then `requiredChecks` lists only Unicorn-controlled status contexts (`guard`, `AI Review`) and contains no presumed target job names. The installing team is expected to add the target's real CI job names before running `scripts/apply-branch-protection.mjs` — otherwise mismatched names would become required-but-never-reporting status contexts that block all merges.
+13. Given a profile with `dependabotUpdates` that explicitly sets a numeric field to `0` (e.g., `openPullRequestsLimit: 0` or `cooldown.defaultDays: 0`), when bootstrap renders `.github/dependabot.yml`, then the `0` is preserved verbatim instead of being silently replaced by the default.
 
 ## Negative Scenarios
 
@@ -56,6 +58,8 @@ As an agent installing Unicorn Hub into an existing Flutter app, I want a Flutte
 - FR-006: Profiles may declare an `excludeTemplates` list. Templates listed there must never be installed into the target, including under `--force`.
 - FR-007: Bootstrap must persist `excludeTemplates` into `.unicorn-hub/config.json`, and `scripts/check-repo-baseline.mjs` must skip those paths when verifying non-blueprint repositories.
 - FR-008: When merging `packageScripts` into a pre-existing `package.json`, bootstrap must layer template baseline scripts under user-defined scripts under profile overrides, so the merged `preflight` chain has the baseline scripts it depends on while preserving any user-customized values.
+- FR-009: Stack-specific profiles that preserve an existing target CI workflow must not ship presumed target CI job names in `requiredChecks`. The shipped list must contain only Unicorn-controlled contexts (`guard`, `AI Review`); the docs must direct installers to extend that list with the target's real CI job names before applying branch protection.
+- FR-010: Numeric Dependabot fields (e.g., `openPullRequestsLimit`, `cooldown.*Days`) must use nullish coalescing for defaults so an explicit `0` configured in a profile is rendered as `0` rather than silently rewritten to the default.
 
 ## Success Criteria
 

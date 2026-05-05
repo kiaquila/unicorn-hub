@@ -20,6 +20,9 @@
 - [x] T015 Persist `excludeTemplates` into `.unicorn-hub/config.json` and have `scripts/check-repo-baseline.mjs` skip excluded paths so fresh targets that opt out of the default Node `ci.yml` still pass baseline.
 - [x] T016 Fill baseline `check:repo` / `check:feature-memory` from `templates/package.json` when merging `packageScripts` into a pre-existing `package.json`, with user-defined values winning over template defaults and profile overrides winning over both.
 - [x] T017 Cover both fix-ups in `tests/bootstrap.test.mjs`: run baseline against fresh Flutter target, assert merged baseline scripts in pre-existing `package.json`, and verify user-defined baseline scripts are preserved.
+- [x] T018 Trim `flutter-app` `requiredChecks` to only Unicorn-controlled contexts (`guard`, `AI Review`); document in `docs/github-ci-and-branch-protection.md` that targets must add real CI job names post-bootstrap.
+- [x] T019 Replace `||` with `??` for numeric Dependabot defaults in `scripts/bootstrap-repo.mjs` so explicit `0` survives rendering.
+- [x] T020 Extend `tests/bootstrap.test.mjs` to assert (a) flutter-app `requiredChecks` ships without presumed job names, and (b) Dependabot rendering preserves explicit zero values via a synthetic profile.
 
 ## Verification
 
@@ -34,6 +37,8 @@
 - Initial implementation relied on the generic "skip if exists" rule to preserve target CI. That broke for fresh Flutter targets, which received the default Node `ci.yml`, and for `--force` re-runs, which clobbered an existing Flutter CI. Replaced with profile-level `excludeTemplates`, enforced regardless of `--force`.
 - Initial `excludeTemplates` left `scripts/check-repo-baseline.mjs` unchanged, so fresh Flutter targets passed bootstrap but failed baseline because that script unconditionally required `.github/workflows/ci.yml`. Fixed by persisting `excludeTemplates` into `.unicorn-hub/config.json` and filtering required paths through it. The bootstrap test for the fresh-target case now also runs the baseline script as proof.
 - Initial `packageScripts` merge dropped baseline scripts when `package.json` already existed. Profile `preflight` chains that called `pnpm run check:repo` then failed at runtime with `ERR_PNPM_NO_SCRIPT`. Fixed by layering `templates/package.json` scripts as defaults under user-defined scripts under profile overrides, so the baseline chain always has its dependencies while user overrides still win.
+- First draft of `flutter-app.requiredChecks` listed presumed job names (`Lint`, `Unit tests`, `Widget tests`, `Build Web`, `Build Android APK`). `scripts/apply-branch-protection.mjs` consumes that list verbatim as required status contexts, so any mismatch with the target's real CI job names becomes a permanently-pending required check that blocks every merge. Fixed by trimming the shipped list to `guard` + `AI Review` and documenting that installers extend it with the repository's actual job names. The blueprint should never guess label strings on behalf of the target stack.
+- Dependabot renderer used `||` for numeric defaults, which silently overwrote explicit `0` values (e.g., zero-day cooldowns). Fixed by switching to `??` so `0` survives rendering; only `undefined`/`null` values fall back to the documented defaults.
 
 ### Decisions
 

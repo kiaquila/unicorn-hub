@@ -102,10 +102,18 @@ test("bootstrap preserves Flutter CI and installs Flutter profile controls", () 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
   assert.equal(config.profile, "flutter-app");
   assert.deepEqual(config.productPaths.slice(0, 4), ["lib/", "test/", "integration_test/", "test_driver/"]);
-  assert.equal(config.requiredChecks.includes("baseline-checks"), false);
-  assert.equal(config.requiredChecks.includes("Build Android APK"), true);
-  assert.equal(config.requiredChecks.includes("guard"), true);
-  assert.equal(config.requiredChecks.includes("AI Review"), true);
+  assert.deepEqual(
+    config.requiredChecks,
+    ["guard", "AI Review"],
+    "flutter-app must ship only Unicorn-controlled checks; teams add real CI job names post-bootstrap"
+  );
+  for (const guessedJob of ["Lint", "Unit tests", "Widget tests", "Build Web", "Build Android APK", "baseline-checks"]) {
+    assert.equal(
+      config.requiredChecks.includes(guessedJob),
+      false,
+      `requiredChecks must not assume the target uses '${guessedJob}' as a status context`
+    );
+  }
   assert.equal(config.commands.lint, "make check");
   assert.equal(config.commands.preflight, "pnpm run preflight");
 
@@ -228,6 +236,71 @@ test("bootstrap merges profile packageScripts into a pre-existing package.json",
     "node scripts/check-feature-memory.mjs",
     "baseline check:feature-memory script must be filled in for the merged preflight"
   );
+});
+
+test("dependabot renderer preserves explicit zero values", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-dependabot-zero-"));
+  writeFileSync(join(target, "pubspec.yaml"), "name: synthetic_flutter_app\n");
+
+  const customProfile = {
+    id: "flutter-app-zero-test",
+    description: "Synthetic Flutter profile that exercises explicit zero defaults.",
+    docsDir: "docs_project",
+    specsDir: "specs",
+    productPaths: ["lib/"],
+    excludeTemplates: [".github/workflows/ci.yml"],
+    requiredChecks: ["guard", "AI Review"],
+    dependabotUpdates: [
+      {
+        packageEcosystem: "pub",
+        directory: "/",
+        openPullRequestsLimit: 0,
+        cooldown: {
+          defaultDays: 0,
+          semverMajorDays: 0,
+          semverMinorDays: 0,
+          semverPatchDays: 0
+        }
+      }
+    ],
+    deploy: { type: "mobile-app-store" }
+  };
+
+  const profilesDir = mkdtempSync(join(tmpdir(), "unicorn-profiles-"));
+  mkdirSync(join(profilesDir, "profiles"), { recursive: true });
+  writeFileSync(
+    join(profilesDir, "profiles", "flutter-app-zero-test.json"),
+    `${JSON.stringify(customProfile, null, 2)}\n`
+  );
+  for (const dir of ["templates", "scripts"]) {
+    mkdirSync(join(profilesDir, dir), { recursive: true });
+  }
+  for (const file of ["templates", "scripts"]) {
+    execFileSync("cp", ["-R", join(root, file) + "/.", join(profilesDir, file)], { stdio: "ignore" });
+  }
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    profilesDir,
+    "--target",
+    target,
+    "--profile",
+    "flutter-app-zero-test",
+    "--project-name",
+    "Zero Defaults Flutter"
+  ]);
+
+  const dependabot = readFileSync(join(target, ".github/dependabot.yml"), "utf8");
+  assert.match(
+    dependabot,
+    /open-pull-requests-limit: 0/,
+    "explicit openPullRequestsLimit: 0 must survive rendering"
+  );
+  assert.match(dependabot, /default-days: 0/);
+  assert.match(dependabot, /semver-major-days: 0/);
+  assert.match(dependabot, /semver-minor-days: 0/);
+  assert.match(dependabot, /semver-patch-days: 0/);
 });
 
 test("bootstrap into pre-existing package.json preserves user-defined baseline scripts", () => {
