@@ -143,7 +143,8 @@ const config = {
   trustedReviewLogins: [],
   trustedReviewLoginsByAgent: {},
   profile: profile.id,
-  commands: profile.commands || {}
+  commands: profile.commands || {},
+  excludeTemplates: Array.isArray(profile.excludeTemplates) ? [...profile.excludeTemplates] : []
 };
 
 planned.push({ action: existsSync(join(targetRoot, ".unicorn-hub/config.json")) && !force ? "skip" : "create", target: ".unicorn-hub/config.json" });
@@ -156,7 +157,12 @@ if (!dryRun && profile.packageScripts) {
   const packageJsonPath = join(targetRoot, "package.json");
   if (existsSync(packageJsonPath)) {
     const packageJson = readJson(packageJsonPath);
+    const templatePackagePath = join(sourceRoot, "templates", "package.json");
+    const templateScripts = existsSync(templatePackagePath)
+      ? readJson(templatePackagePath).scripts || {}
+      : {};
     packageJson.scripts = {
+      ...templateScripts,
       ...(packageJson.scripts || {}),
       ...profile.packageScripts
     };

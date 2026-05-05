@@ -38,6 +38,8 @@ As an agent installing Unicorn Hub into an existing Flutter app, I want a Flutte
 7. Given a fresh Flutter target with no pre-existing `.github/workflows/ci.yml`, when bootstrap runs with `--profile flutter-app`, then the default Node `baseline-checks` workflow is not installed; the target keeps full ownership of its CI workflow file while still receiving Unicorn guard, AI review, and OSV workflows.
 8. Given a Flutter target with an existing `.github/workflows/ci.yml`, when bootstrap runs with `--force` and `--profile flutter-app`, then the target CI file is still preserved because the profile excludes that template.
 9. Given a target with a pre-existing `package.json`, when bootstrap runs with a profile that defines `packageScripts`, then those scripts are merged into the existing file, profile entries override colliding keys, and unrelated user-defined scripts are preserved.
+10. Given a target with a pre-existing `package.json`, when bootstrap merges `packageScripts` whose `preflight` chain references baseline scripts (`check:repo`, `check:feature-memory`), then any baseline scripts not already present in the user file are filled in from the template defaults so the merged `preflight` can run without `ERR_PNPM_NO_SCRIPT`. User-defined values for the same script keys are preserved over template defaults.
+11. Given a fresh target bootstrapped with a profile whose `excludeTemplates` removes a baseline-required workflow file (e.g., `.github/workflows/ci.yml`), when `scripts/check-repo-baseline.mjs` runs against that target, then the excluded path is not required and the baseline check passes.
 
 ## Negative Scenarios
 
@@ -52,6 +54,8 @@ As an agent installing Unicorn Hub into an existing Flutter app, I want a Flutte
 - FR-004: Documentation must explain how stack-specific profiles use existing CI job names.
 - FR-005: Local OMX runtime state must be ignored by repository file walks and git.
 - FR-006: Profiles may declare an `excludeTemplates` list. Templates listed there must never be installed into the target, including under `--force`.
+- FR-007: Bootstrap must persist `excludeTemplates` into `.unicorn-hub/config.json`, and `scripts/check-repo-baseline.mjs` must skip those paths when verifying non-blueprint repositories.
+- FR-008: When merging `packageScripts` into a pre-existing `package.json`, bootstrap must layer template baseline scripts under user-defined scripts under profile overrides, so the merged `preflight` chain has the baseline scripts it depends on while preserving any user-customized values.
 
 ## Success Criteria
 

@@ -47,6 +47,8 @@ All three are opt-in and preserve existing behavior for profiles that do not set
 | AC-007 | `tests/bootstrap.test.mjs` "fresh Flutter target" case asserts no `ci.yml` is installed and Unicorn guard / AI review / OSV workflows still land. |
 | AC-008 | `tests/bootstrap.test.mjs` "--force still preserves Flutter ci.yml" case asserts `excludeTemplates` overrides `--force`. |
 | AC-009 | `tests/bootstrap.test.mjs` "merges profile packageScripts into a pre-existing package.json" case asserts user scripts survive and profile scripts are merged in. |
+| AC-010 | `tests/bootstrap.test.mjs` "merges profile packageScripts into a pre-existing package.json" case asserts that `check:repo` and `check:feature-memory` are filled from template defaults; "preserves user-defined baseline scripts" case asserts that user values outrank template defaults. |
+| AC-011 | `tests/bootstrap.test.mjs` "fresh Flutter target" case runs `scripts/check-repo-baseline.mjs` against the target and asserts the baseline passes despite `.github/workflows/ci.yml` being excluded. |
 
 Negative scenario evidence:
 

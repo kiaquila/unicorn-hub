@@ -38,6 +38,7 @@ if (config.blueprint) {
     requirePath(path);
   }
 } else {
+  const excluded = new Set(config.excludeTemplates || []);
   for (const path of [
     "AGENTS.md",
     "CLAUDE.md",
@@ -52,6 +53,7 @@ if (config.blueprint) {
     ".github/workflows/ai-review.yml",
     ".github/workflows/ai-command-policy.yml"
   ]) {
+    if (excluded.has(path)) continue;
     requirePath(path);
   }
 }

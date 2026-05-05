@@ -146,6 +146,14 @@ test("bootstrap into a fresh Flutter target excludes the default Node CI workflo
 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
   assert.equal(config.requiredChecks.includes("baseline-checks"), false);
+  assert.deepEqual(config.excludeTemplates, [".github/workflows/ci.yml"]);
+
+  const baselineOutput = run(["scripts/check-repo-baseline.mjs", "--target", target]);
+  assert.match(
+    baselineOutput,
+    /Repository baseline check passed/,
+    "fresh Flutter target must pass baseline without an installed ci.yml"
+  );
 });
 
 test("bootstrap with --force still preserves Flutter ci.yml via excludeTemplates", () => {
@@ -210,4 +218,52 @@ test("bootstrap merges profile packageScripts into a pre-existing package.json",
   assert.equal(packageJson.scripts.custom, "echo custom", "user-defined scripts must be preserved");
   assert.equal(packageJson.scripts["check:flutter"], "make check && make test");
   assert.match(packageJson.scripts.preflight, /pnpm run check:flutter/, "profile preflight must override the user one");
+  assert.equal(
+    packageJson.scripts["check:repo"],
+    "node scripts/check-repo-baseline.mjs",
+    "baseline check:repo script must be filled in so the merged preflight can run"
+  );
+  assert.equal(
+    packageJson.scripts["check:feature-memory"],
+    "node scripts/check-feature-memory.mjs",
+    "baseline check:feature-memory script must be filled in for the merged preflight"
+  );
+});
+
+test("bootstrap into pre-existing package.json preserves user-defined baseline scripts", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-flutter-preserve-baseline-"));
+  writeFileSync(join(target, "pubspec.yaml"), "name: synthetic_flutter_app\n");
+  writeFileSync(
+    join(target, "package.json"),
+    `${JSON.stringify(
+      {
+        name: "existing-app",
+        private: true,
+        scripts: {
+          "check:repo": "echo user-baseline"
+        }
+      },
+      null,
+      2
+    )}\n`
+  );
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "flutter-app",
+    "--project-name",
+    "Preserve Baseline Flutter"
+  ]);
+
+  const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
+  assert.equal(
+    packageJson.scripts["check:repo"],
+    "echo user-baseline",
+    "user-defined baseline scripts must outrank template defaults"
+  );
 });

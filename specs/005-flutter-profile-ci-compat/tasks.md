@@ -17,6 +17,9 @@
 - [x] T012 Wire `flutter-app` to exclude the default Node `ci.yml` template so fresh Flutter targets do not receive `baseline-checks`.
 - [x] T013 Trim `flutter-app` `productPaths` to standard Flutter folders and collapse `commands.preflight` to the canonical `pnpm run preflight` to remove duplication with `packageScripts.preflight`.
 - [x] T014 Extend `tests/bootstrap.test.mjs` with fresh-target, `--force`-preserve, and pre-existing-`package.json` scenarios.
+- [x] T015 Persist `excludeTemplates` into `.unicorn-hub/config.json` and have `scripts/check-repo-baseline.mjs` skip excluded paths so fresh targets that opt out of the default Node `ci.yml` still pass baseline.
+- [x] T016 Fill baseline `check:repo` / `check:feature-memory` from `templates/package.json` when merging `packageScripts` into a pre-existing `package.json`, with user-defined values winning over template defaults and profile overrides winning over both.
+- [x] T017 Cover both fix-ups in `tests/bootstrap.test.mjs`: run baseline against fresh Flutter target, assert merged baseline scripts in pre-existing `package.json`, and verify user-defined baseline scripts are preserved.
 
 ## Verification
 
@@ -29,6 +32,8 @@
 
 - Initial implementation gated `packageScripts` merging on `installedPaths.has("package.json")`. That silently dropped profile scripts when the target already had a `package.json`, leaving the generated `preflight` referencing nonexistent commands. Replaced with an `existsSync` check at merge time and removed the dead `installedPaths` set.
 - Initial implementation relied on the generic "skip if exists" rule to preserve target CI. That broke for fresh Flutter targets, which received the default Node `ci.yml`, and for `--force` re-runs, which clobbered an existing Flutter CI. Replaced with profile-level `excludeTemplates`, enforced regardless of `--force`.
+- Initial `excludeTemplates` left `scripts/check-repo-baseline.mjs` unchanged, so fresh Flutter targets passed bootstrap but failed baseline because that script unconditionally required `.github/workflows/ci.yml`. Fixed by persisting `excludeTemplates` into `.unicorn-hub/config.json` and filtering required paths through it. The bootstrap test for the fresh-target case now also runs the baseline script as proof.
+- Initial `packageScripts` merge dropped baseline scripts when `package.json` already existed. Profile `preflight` chains that called `pnpm run check:repo` then failed at runtime with `ERR_PNPM_NO_SCRIPT`. Fixed by layering `templates/package.json` scripts as defaults under user-defined scripts under profile overrides, so the baseline chain always has its dependencies while user overrides still win.
 
 ### Decisions
 
