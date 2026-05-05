@@ -4,11 +4,13 @@ GitHub is the control plane for pull requests, checks, and AI review routing.
 
 ## Required Workflows
 
-- `ci.yml`: runs repository baseline checks as `baseline-checks`
+- `ci.yml`: runs repository baseline checks as `baseline-checks`, unless a stack-specific profile preserves an existing target CI workflow
 - `pr-guard.yml`: enforces documentation and feature-memory coverage as `guard`
 - `ai-command-policy.yml`: validates trusted AI command comments
 - `ai-review.yml`: normalizes native review output into a required `AI Review` check
 - `osv-scan.yml`: scans dependencies for known vulnerabilities
+
+For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json`. Profiles that preserve a target CI workflow should list the target's current job names there, plus `guard` and `AI Review`.
 
 ## Fail-Closed Rules
 
@@ -33,6 +35,8 @@ require conversation resolution: true
 allow force pushes: false
 allow deletions: false
 ```
+
+If a profile preserves existing CI, replace `baseline-checks` with that repository's required job names before applying branch protection. For a Flutter app, that can be a set such as `Lint`, `Unit tests`, `Widget tests`, `Build Web`, and `Build Android APK`.
 
 Use `scripts/apply-branch-protection.mjs` from a trusted local checkout.
 

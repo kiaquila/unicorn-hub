@@ -33,6 +33,8 @@ Dependabot should run weekly with cooldown:
 - minor: 7 days
 - patch: 3 days
 
+Profiles should include only ecosystems that match the target repository. JavaScript-oriented profiles use `npm`; Flutter profiles should use `pub`; all profiles can keep `github-actions` for workflow updates.
+
 ## GitHub Actions
 
 Third-party actions should be pinned by commit SHA with a trailing `# v<tag>` comment. Official `actions/*` may use pinned major versions or SHA pinning according to the target repository's policy.

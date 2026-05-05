@@ -51,3 +51,18 @@ test("sanitizer rejects common personal path formats", () => {
     });
   }
 });
+
+test("sanitizer ignores local OMX runtime state", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-sanitize-omx-"));
+  mkdirSync(join(target, ".omx/state"), { recursive: true });
+  writeFileSync(join(target, ".omx/state/session.json"), JSON.stringify({
+    cwd: `/${"Users"}/synthetic/project`
+  }));
+
+  const output = execFileSync("node", ["scripts/sanitize-blueprint.mjs", "--target", target], {
+    cwd: root,
+    encoding: "utf8"
+  });
+
+  assert.match(output, /Sanitizer check passed/);
+});
