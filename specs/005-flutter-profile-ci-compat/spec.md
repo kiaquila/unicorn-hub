@@ -44,6 +44,7 @@ As an agent installing Unicorn Hub into an existing Flutter app, I want a Flutte
 13. Given a profile with `dependabotUpdates` that explicitly sets a numeric field to `0` (e.g., `openPullRequestsLimit: 0` or `cooldown.defaultDays: 0`), when bootstrap renders `.github/dependabot.yml`, then the `0` is preserved verbatim instead of being silently replaced by the default.
 14. Given `.unicorn-hub/config.json` lists an `excludeTemplates` entry that is not in the baseline-allowed exclusion set (currently only `.github/workflows/ci.yml`), when `scripts/check-repo-baseline.mjs` runs, then the disallowed entry is ignored and the corresponding required path is still enforced. This protects PR Guard from a malicious config tweak that could otherwise drop required scaffold files like `AGENTS.md`.
 15. Given a target with a pre-existing `package.json` that lacks `packageManager`, when bootstrap merges the profile into that file, then `packageManager` and `engines` are filled from `templates/package.json` so `scripts/check-repo-baseline.mjs` passes against the bootstrapped target. User-defined values for those keys must be preserved over template defaults.
+16. Given a stack-specific profile that ships a non-default `requiredChecks` (e.g., `flutter-app` shipping only `guard` and `AI Review`), when bootstrap copies template documentation into the target, then no installed doc (`AGENTS.md`, `README.md`, `docs_project/project/devops/ai-pr-workflow.md`) hard-codes the legacy `baseline-checks` triplet. Each doc points at `.unicorn-hub/config.json` (`requiredChecks`) as the source of truth for the active list.
 
 ## Negative Scenarios
 
@@ -64,6 +65,7 @@ As an agent installing Unicorn Hub into an existing Flutter app, I want a Flutte
 - FR-010: Numeric Dependabot fields (e.g., `openPullRequestsLimit`, `cooldown.*Days`) must use nullish coalescing for defaults so an explicit `0` configured in a profile is rendered as `0` rather than silently rewritten to the default.
 - FR-011: `scripts/check-repo-baseline.mjs` must restrict `config.excludeTemplates` to a known-safe allowlist (currently only `.github/workflows/ci.yml`). Any other entry must be ignored so a tampered config cannot drop required scaffold files (`AGENTS.md`, control-plane scripts, Unicorn workflows) from the baseline contract.
 - FR-012: When merging into a pre-existing `package.json`, bootstrap must fill missing `packageManager` and `engines` from `templates/package.json` so `scripts/check-repo-baseline.mjs` (which requires `packageManager` to start with `pnpm@`) passes. User-defined values for those keys must be preserved.
+- FR-013: Installed documentation (`templates/AGENTS.md`, `templates/README.md`, `templates/docs_project/project/devops/ai-pr-workflow.md`) must not hard-code a specific `requiredChecks` list. Each doc must direct readers to `.unicorn-hub/config.json` (`requiredChecks`) so the guidance stays accurate for every profile, including stack-specific ones that preserve existing target CI.
 
 ## Success Criteria
 

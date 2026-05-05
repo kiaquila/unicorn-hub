@@ -93,7 +93,7 @@ AI_REVIEW_AGENT=codex
 After the workflows exist on the default branch, apply branch protection:
 
 - require pull requests
-- require `baseline-checks`, `guard`, and `AI Review`
+- require the contexts listed in `.unicorn-hub/config.json` (`requiredChecks`) — the generic profile ships `baseline-checks`, `guard`, `AI Review`, while stack-specific profiles such as `flutter-app` ship only `guard` and `AI Review` and expect the team to extend the list with the target's real CI job names
 - require branches to be up to date when appropriate
 - enforce admins
 - dismiss stale reviews

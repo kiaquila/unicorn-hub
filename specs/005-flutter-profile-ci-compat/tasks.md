@@ -26,6 +26,8 @@
 - [x] T021 Restrict `scripts/check-repo-baseline.mjs` exclusions to a `PROFILE_EXCLUDABLE` allowlist (currently `.github/workflows/ci.yml`) so a tampered `.unicorn-hub/config.json` cannot drop required scaffold files like `AGENTS.md`.
 - [x] T022 Fill `packageManager` and `engines` from `templates/package.json` when merging into a pre-existing `package.json`, with user-defined values winning.
 - [x] T023 Cover both fix-ups in `tests/bootstrap.test.mjs`: tampered-config baseline rejection, `packageManager` fill + baseline pass, and user-defined `packageManager` preservation.
+- [x] T024 Replace hard-coded `baseline-checks` lists in `templates/AGENTS.md`, `templates/README.md`, `templates/docs_project/project/devops/ai-pr-workflow.md`, and `docs/bootstrap-flow.md` with pointers to `.unicorn-hub/config.json` (`requiredChecks`) so installed docs match the active profile.
+- [x] T025 Extend `tests/bootstrap.test.mjs` Flutter case to assert the installed docs do not contain the legacy `baseline-checks` triplet and reference `.unicorn-hub/config.json`.
 
 ## Verification
 
@@ -44,6 +46,7 @@
 - Dependabot renderer used `||` for numeric defaults, which silently overwrote explicit `0` values (e.g., zero-day cooldowns). Fixed by switching to `??` so `0` survives rendering; only `undefined`/`null` values fall back to the documented defaults.
 - First pass at `excludeTemplates` filtering in `scripts/check-repo-baseline.mjs` honored every config entry generically. Because PR Guard runs the trusted baseline script against the PR workspace using the PR's `.unicorn-hub/config.json`, a hostile PR could have set `excludeTemplates: ["AGENTS.md"]`, deleted `AGENTS.md`, and still passed baseline. Fixed by hard-coding a `PROFILE_EXCLUDABLE` allowlist (`.github/workflows/ci.yml` only) and intersecting requested exclusions with it. The trust boundary is the trusted script, not the PR-controlled config.
 - Cycle 1's `packageScripts` fix only filled scripts; the merged `package.json` still had no `packageManager`, so `scripts/check-repo-baseline.mjs` failed on its `pnpm@*` check whenever a target's pre-existing `package.json` was minimal. Fixed by also filling `packageManager` and `engines` from `templates/package.json` while preserving user-defined values for those keys.
+- Trimming `flutter-app.requiredChecks` left the installed `AGENTS.md`, `README.md`, and `ai-pr-workflow.md` still hard-coded to the legacy `baseline-checks, guard, AI Review` triplet, giving Flutter targets contradictory agent guidance. Fixed by replacing the hard-coded list in every installed doc with a pointer to `.unicorn-hub/config.json` `requiredChecks`. Same edit applied to `docs/bootstrap-flow.md` Phase 5 so the blueprint's own Phase 5 stays consistent.
 
 ### Decisions
 

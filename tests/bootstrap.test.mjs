@@ -125,6 +125,24 @@ test("bootstrap preserves Flutter CI and installs Flutter profile controls", () 
   assert.match(dependabot, /package-ecosystem: "github-actions"/);
   assert.match(dependabot, /package-ecosystem: "pub"/);
   assert.doesNotMatch(dependabot, /package-ecosystem: "npm"/);
+
+  for (const docPath of [
+    "AGENTS.md",
+    "README.md",
+    "docs_project/project/devops/ai-pr-workflow.md"
+  ]) {
+    const content = readFileSync(join(target, docPath), "utf8");
+    assert.doesNotMatch(
+      content,
+      /^- ?`baseline-checks`/m,
+      `${docPath} must not list 'baseline-checks' as a hard-coded required check for flutter-app`
+    );
+    assert.match(
+      content,
+      /\.unicorn-hub\/config\.json/,
+      `${docPath} should point readers at .unicorn-hub/config.json for the active requiredChecks list`
+    );
+  }
 });
 
 test("bootstrap into a fresh Flutter target excludes the default Node CI workflow", () => {

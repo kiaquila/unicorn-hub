@@ -53,6 +53,7 @@ All three are opt-in and preserve existing behavior for profiles that do not set
 | AC-013 | `tests/bootstrap.test.mjs` "dependabot renderer preserves explicit zero values" case asserts that `openPullRequestsLimit: 0` and zero-day `cooldown` values render verbatim in the generated `.github/dependabot.yml`. |
 | AC-014 | `tests/bootstrap.test.mjs` "baseline check ignores excludeTemplates entries outside the profile-safe allowlist" case bootstraps a target, tampers `excludeTemplates` to drop `AGENTS.md`, and asserts `scripts/check-repo-baseline.mjs` still fails on the missing path. |
 | AC-015 | `tests/bootstrap.test.mjs` "merges profile packageScripts" case asserts `packageManager` is filled from template defaults and the bootstrapped target passes baseline; "preserves user-defined packageManager" case asserts a pinned user value (e.g., `pnpm@9.0.0`) outranks template defaults. |
+| AC-016 | `tests/bootstrap.test.mjs` "preserves Flutter CI" case asserts that the installed `AGENTS.md`, `README.md`, and `docs_project/project/devops/ai-pr-workflow.md` no longer mention the legacy `baseline-checks` triplet and instead reference `.unicorn-hub/config.json` `requiredChecks`. |
 
 Negative scenario evidence:
 

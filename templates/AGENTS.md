@@ -61,7 +61,7 @@ Before implementation work, read in this order:
 ## Delivery Workflow
 
 - Product changes land through pull requests.
-- Required checks: `baseline-checks`, `guard`, and `AI Review`.
+- Required checks for this repository are defined in `.unicorn-hub/config.json` (`requiredChecks`) and applied to branch protection via `scripts/apply-branch-protection.mjs`. The installed defaults reflect the active profile (e.g., a stack-specific profile that preserves existing target CI ships only `guard` and `AI Review`, leaving the team to add the target's real CI job names).
 - Run local preflight before pushing.
 - A human remains the final merge authority.
 - Merge only after required checks are green, blocking findings are resolved, and the PR has no conflicts.
