@@ -18,7 +18,7 @@ function run(args, cwd = root) {
 test("bootstrap installs generic blueprint into a synthetic target", () => {
   const target = mkdtempSync(join(tmpdir(), "unicorn-bootstrap-"));
 
-  run([
+  const output = run([
     "scripts/bootstrap-repo.mjs",
     "--source",
     root,
@@ -29,6 +29,11 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
     "--project-name",
     "Synthetic App"
   ]);
+
+  assert.match(output, /CREATE-DOCS\.md/);
+  assert.match(output, /docs_project/);
+  assert.match(output, /specs\/<feature-id>/);
+  assert.match(output, /preflight/);
 
   for (const path of [
     "AGENTS.md",
@@ -47,6 +52,20 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
   const agents = readFileSync(join(target, "AGENTS.md"), "utf8");
   assert.match(agents, /Synthetic App/);
   assert.doesNotMatch(agents, /<PROJECT_NAME>/);
+  assert.match(agents, /first setup documentation interview/i);
+  assert.match(agents, /CREATE-DOCS\.md/);
+
+  const readme = readFileSync(join(target, "README.md"), "utf8");
+  assert.match(readme, /First Setup After Bootstrap/);
+  assert.match(readme, /CREATE-DOCS\.md/);
+
+  const claude = readFileSync(join(target, "CLAUDE.md"), "utf8");
+  assert.match(claude, /## First Setup/);
+  assert.match(claude, /CREATE-DOCS\.md/);
+
+  const docsReadme = readFileSync(join(target, "docs_project/README.md"), "utf8");
+  assert.match(docsReadme, /## First Setup/);
+  assert.match(docsReadme, /specs\/<feature-id>/);
 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
   assert.equal(config.profile, "generic");

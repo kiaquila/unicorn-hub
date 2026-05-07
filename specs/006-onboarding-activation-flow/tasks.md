@@ -11,11 +11,11 @@
 - [x] T004 Update blueprint docs to surface `CREATE-DOCS.md` as the first setup path.
 - [x] T005 Update installed templates with first-setup guidance for empty or under-documented repositories.
 - [x] T006 Update `scripts/bootstrap-repo.mjs` final output with concrete next steps.
-- [ ] T007 Add bootstrap tests for the new output and installed guidance.
+- [x] T007 Add bootstrap tests for the new output and installed guidance.
 
 ## Verification
 
-- [ ] T008 Run focused tests.
+- [x] T008 Run focused tests.
 - [ ] T009 Run local preflight.
 - [ ] T010 Update verification evidence after checks complete.
 
