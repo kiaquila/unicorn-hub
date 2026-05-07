@@ -130,7 +130,9 @@ test("bootstrap idempotent re-run reports nothing new to review", () => {
   ]);
 
   const nextStepsBlock = output.split("\nNext:\n")[1] ?? "";
-  assert.match(nextStepsBlock, /^1\. No new files were written/m);
+  assert.match(nextStepsBlock, /^1\. No new files were written\. Existing/m);
+  assert.match(nextStepsBlock, /not compared to the blueprint/);
+  assert.match(nextStepsBlock, /--force/);
 });
 
 test("bootstrapped target passes baseline check", () => {

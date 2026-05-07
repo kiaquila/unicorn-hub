@@ -31,6 +31,7 @@
 - Reuse the existing `CREATE-DOCS.md` protocol instead of introducing a second onboarding script or document.
 - Keep the PR documentation-only plus bootstrap-output behavior; no workflow or branch-protection semantics change.
 - Bootstrap output branches on `--dry-run` and on whether anything was actually written, so a dry run or idempotent re-run no longer prints a misleading "Review placeholders" line.
+- The idempotent-re-run message states explicitly that existing files were preserved and not compared to the blueprint, and points users at `--force` to refresh, instead of claiming the targets "already match the blueprint" (which the script cannot verify).
 - `--source` is documented as a local filesystem path only; the README provides an explicit `git clone` step rather than implying URL support that the script does not have.
 - Local `pnpm run preflight` passed with baseline, workflow sync, syntax, sanitizer, and tests.
 

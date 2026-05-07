@@ -200,7 +200,7 @@ if (dryRun) {
   if (wroteSomething) {
     console.log("1. Review placeholders in AGENTS.md, CLAUDE.md, docs_project/, and .unicorn-hub/config.json.");
   } else {
-    console.log("1. No new files were written; existing AGENTS.md, CLAUDE.md, docs_project/, and .unicorn-hub/config.json already match the blueprint.");
+    console.log("1. No new files were written. Existing AGENTS.md, CLAUDE.md, docs_project/, and .unicorn-hub/config.json were preserved as-is (their contents were not compared to the blueprint); review them for stale placeholders or re-run with --force to refresh from the blueprint.");
   }
   console.log("2. For a new or under-documented project, ask an agent to follow CREATE-DOCS.md before product code.");
   console.log("3. Create the first specs/<feature-id>/{spec.md,plan.md,tasks.md}.");
