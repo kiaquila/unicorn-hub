@@ -41,8 +41,7 @@ As an agent working inside a newly bootstrapped target repository, I want instal
 2. Given the root `README.md`, when a user has already cloned Unicorn Hub locally, then the bootstrap command still shows explicit `--source /path/to/unicorn-hub` usage.
 3. Given bootstrap finishes successfully, when the terminal output is inspected, then it names `CREATE-DOCS.md`, `docs_project`, `specs/<feature-id>`, and the project preflight as next steps.
 4. Given a target repository is bootstrapped, when installed `README.md`, `AGENTS.md`, or `CLAUDE.md` are inspected, then they include first-setup guidance for running the documentation interview before product code.
-5. Given installed docs are generated for stack-specific profiles, when those docs describe required checks, then they still point at `.unicorn-hub/config.json` instead of hard-coding profile-sensitive status contexts.
-6. Given this blueprint PR, when `pnpm run preflight` runs, then sanitizer, baseline, workflow sync, syntax, and tests pass.
+5. Given this blueprint PR, when `pnpm run preflight` runs, then sanitizer, baseline, workflow sync, syntax, and tests pass.
 
 ## Negative Scenarios
 

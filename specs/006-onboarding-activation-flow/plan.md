@@ -32,12 +32,11 @@ This change adds no new abstraction. The only behavior change is replacing the f
 
 | Acceptance criterion | Evidence |
 | --- | --- |
-| AC-001 | Root `README.md` quickstart names `https://github.com/kiaquila/unicorn-hub` and tells agents to clone or open it if needed. |
+| AC-001 | Root `README.md` quickstart names `https://github.com/kiaquila/unicorn-hub`, includes a `git clone` example, and clarifies that `--source` only accepts a local filesystem path. |
 | AC-002 | Root `README.md` keeps explicit `--source /path/to/unicorn-hub` bootstrap usage. |
-| AC-003 | `tests/bootstrap.test.mjs` asserts bootstrap output names `CREATE-DOCS.md`, `docs_project`, `specs/<feature-id>`, and `preflight`. |
-| AC-004 | `tests/bootstrap.test.mjs` asserts installed `README.md`, `AGENTS.md`, and `CLAUDE.md` include first-setup guidance. |
-| AC-005 | Existing Flutter installed-doc assertions continue to check `.unicorn-hub/config.json` guidance for required checks. |
-| AC-006 | `pnpm run preflight` passes locally before publication. |
+| AC-003 | `tests/bootstrap.test.mjs` parses the `Next:` block from bootstrap output and asserts the four numbered steps name `CREATE-DOCS.md`, `docs_project`, `specs/<feature-id>`, and `preflight`. A dry-run test confirms bootstrap announces a dry run instead, and an idempotent re-run test confirms the message switches to "no new files were written". |
+| AC-004 | `tests/bootstrap.test.mjs` asserts installed `README.md`, `AGENTS.md`, `CLAUDE.md`, and `docs_project/README.md` include first-setup guidance, and `tests/sanitizer.test.mjs` asserts the canonical hub owner name does not appear in `templates/`. |
+| AC-005 | `pnpm run preflight` passes locally before publication. |
 
 Negative scenario evidence:
 

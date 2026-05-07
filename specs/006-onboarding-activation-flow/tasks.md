@@ -30,8 +30,10 @@
 - Keep this as one PR with separate commits for feature memory, public docs, installed docs, and behavior/tests.
 - Reuse the existing `CREATE-DOCS.md` protocol instead of introducing a second onboarding script or document.
 - Keep the PR documentation-only plus bootstrap-output behavior; no workflow or branch-protection semantics change.
-- Local `pnpm run preflight` passed with baseline, workflow sync, syntax, sanitizer, and 26 tests.
+- Bootstrap output branches on `--dry-run` and on whether anything was actually written, so a dry run or idempotent re-run no longer prints a misleading "Review placeholders" line.
+- `--source` is documented as a local filesystem path only; the README provides an explicit `git clone` step rather than implying URL support that the script does not have.
+- Local `pnpm run preflight` passed with baseline, workflow sync, syntax, sanitizer, and tests.
 
 ### Known Issues
 
-- Native AI review still depends on a trusted human `@codex review` comment after PR creation, matching the current repository review contract.
+- None.
