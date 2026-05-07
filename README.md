@@ -15,24 +15,31 @@ Use this prompt in the target repository when you want to install the blueprint:
 
 ```text
 Use the Unicorn Hub repository at https://github.com/kiaquila/unicorn-hub as
-the process blueprint. If you need a local copy, clone or open it first.
-Install the portable multi-agent development blueprint into the current
-repository, choose the closest project profile, adapt placeholders, run local
-verification, and prepare a pull request. After bootstrap, follow CREATE-DOCS.md
-to build docs_project before creating the first feature spec. Do not copy
+the process blueprint. If you do not already have a local copy, clone it
+first (the bootstrap script needs a filesystem path). Install the portable
+multi-agent development blueprint into the current repository, choose the
+closest project profile, adapt placeholders, run local verification, and
+prepare a pull request. After bootstrap, follow CREATE-DOCS.md to build
+docs_project before creating the first feature spec. Do not copy
 project-specific examples or secrets.
 ```
 
-Then run, from the target repository, using your local Unicorn Hub path:
+If you do not already have a local clone, get one first:
 
 ```bash
-node /path/to/unicorn-hub/scripts/bootstrap-repo.mjs \
-  --source /path/to/unicorn-hub \
+git clone https://github.com/kiaquila/unicorn-hub /tmp/unicorn-hub
+```
+
+Then run, from the target repository, pointing `--source` at the local Unicorn Hub path:
+
+```bash
+node /tmp/unicorn-hub/scripts/bootstrap-repo.mjs \
+  --source /tmp/unicorn-hub \
   --profile next-app \
   --project-name "Your Project"
 ```
 
-If the agent says it cannot find Unicorn Hub, pass the GitHub URL above or the local `--source` path explicitly.
+`--source` only accepts a local filesystem path; it does not resolve a Git URL. If the agent says it cannot find Unicorn Hub, share the GitHub URL above so the agent can clone it, then re-run the command with the resulting local path.
 
 Profiles live in [`profiles/`](./profiles). If no profile fits, use `generic` values in `.unicorn-hub/config.json` after bootstrapping.
 
