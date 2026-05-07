@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { walkFiles } from "../scripts/shared.mjs";
 
 const root = resolve(".");
 
@@ -50,6 +51,22 @@ test("sanitizer rejects common personal path formats", () => {
       });
     });
   }
+});
+
+test("installed templates do not leak the canonical hub owner name", () => {
+  const templatesRoot = join(root, "templates");
+  const offending = [];
+  for (const rel of walkFiles(templatesRoot)) {
+    const content = readFileSync(join(templatesRoot, rel), "utf8");
+    if (/kiaquila/i.test(content) || /kiaquila/i.test(rel)) {
+      offending.push(rel);
+    }
+  }
+  assert.deepEqual(
+    offending,
+    [],
+    `templates/ must not embed the canonical hub owner; found in: ${offending.join(", ")}`
+  );
 });
 
 test("sanitizer ignores local OMX runtime state", () => {
