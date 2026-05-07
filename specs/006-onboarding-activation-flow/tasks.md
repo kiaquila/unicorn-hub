@@ -16,8 +16,8 @@
 ## Verification
 
 - [x] T008 Run focused tests.
-- [ ] T009 Run local preflight.
-- [ ] T010 Update verification evidence after checks complete.
+- [x] T009 Run local preflight.
+- [x] T010 Update verification evidence after checks complete.
 
 ## Process Memory
 
@@ -30,6 +30,7 @@
 - Keep this as one PR with separate commits for feature memory, public docs, installed docs, and behavior/tests.
 - Reuse the existing `CREATE-DOCS.md` protocol instead of introducing a second onboarding script or document.
 - Keep the PR documentation-only plus bootstrap-output behavior; no workflow or branch-protection semantics change.
+- Local `pnpm run preflight` passed with baseline, workflow sync, syntax, sanitizer, and 26 tests.
 
 ### Known Issues
 
