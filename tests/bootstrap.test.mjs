@@ -30,10 +30,12 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
     "Synthetic App"
   ]);
 
-  assert.match(output, /CREATE-DOCS\.md/);
-  assert.match(output, /docs_project/);
-  assert.match(output, /specs\/<feature-id>/);
-  assert.match(output, /preflight/);
+  const nextStepsBlock = output.split("\nNext:\n")[1] ?? "";
+  assert.notEqual(nextStepsBlock, "", "bootstrap output must contain a 'Next:' block");
+  assert.match(nextStepsBlock, /^1\. Review placeholders.*AGENTS\.md.*CLAUDE\.md.*docs_project\/.*\.unicorn-hub\/config\.json/m);
+  assert.match(nextStepsBlock, /^2\. .*CREATE-DOCS\.md/m);
+  assert.match(nextStepsBlock, /^3\. Create the first specs\/<feature-id>/m);
+  assert.match(nextStepsBlock, /^4\. Run the project preflight/m);
 
   for (const path of [
     "AGENTS.md",
@@ -76,6 +78,59 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
 
   const prTemplate = readFileSync(join(target, ".github/pull_request_template.md"), "utf8");
   assert.match(prTemplate, /SENAR Done Gate/);
+});
+
+test("bootstrap --dry-run announces a dry run instead of next steps", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-bootstrap-dry-"));
+
+  const output = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Dry",
+    "--dry-run"
+  ]);
+
+  assert.match(output, /Dry run for Unicorn Hub blueprint profile 'generic'/);
+  assert.match(output, /Re-run without --dry-run to apply\./);
+  assert.doesNotMatch(output, /\nNext:\n/);
+  assert.equal(existsSync(join(target, "AGENTS.md")), false, "dry run must not write files");
+});
+
+test("bootstrap idempotent re-run reports nothing new to review", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-bootstrap-rerun-"));
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Rerun"
+  ]);
+
+  const output = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Rerun"
+  ]);
+
+  const nextStepsBlock = output.split("\nNext:\n")[1] ?? "";
+  assert.match(nextStepsBlock, /^1\. No new files were written/m);
 });
 
 test("bootstrapped target passes baseline check", () => {

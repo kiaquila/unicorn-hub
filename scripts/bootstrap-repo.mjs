@@ -189,9 +189,20 @@ for (const item of planned) {
 }
 
 console.log("");
-console.log(`Installed Unicorn Hub blueprint profile '${profileId}' into ${relative(process.cwd(), targetRoot) || "."}`);
-console.log("Next:");
-console.log("1. Review placeholders in AGENTS.md, CLAUDE.md, docs_project/, and .unicorn-hub/config.json.");
-console.log("2. For a new or under-documented project, ask an agent to follow CREATE-DOCS.md before product code.");
-console.log("3. Create the first specs/<feature-id>/{spec.md,plan.md,tasks.md}.");
-console.log("4. Run the project preflight, then open a PR.");
+const targetLabel = relative(process.cwd(), targetRoot) || ".";
+const wroteSomething = planned.some(item => item.action === "create" || item.action === "overwrite" || item.action === "scripts");
+
+if (dryRun) {
+  console.log(`Dry run for Unicorn Hub blueprint profile '${profileId}' against ${targetLabel}. Nothing was written. Re-run without --dry-run to apply.`);
+} else {
+  console.log(`Installed Unicorn Hub blueprint profile '${profileId}' into ${targetLabel}`);
+  console.log("Next:");
+  if (wroteSomething) {
+    console.log("1. Review placeholders in AGENTS.md, CLAUDE.md, docs_project/, and .unicorn-hub/config.json.");
+  } else {
+    console.log("1. No new files were written; existing AGENTS.md, CLAUDE.md, docs_project/, and .unicorn-hub/config.json already match the blueprint.");
+  }
+  console.log("2. For a new or under-documented project, ask an agent to follow CREATE-DOCS.md before product code.");
+  console.log("3. Create the first specs/<feature-id>/{spec.md,plan.md,tasks.md}.");
+  console.log("4. Run the project preflight, then open a PR.");
+}
