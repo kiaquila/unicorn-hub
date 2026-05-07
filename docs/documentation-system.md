@@ -40,7 +40,7 @@ The SENAR layer gives those files a shared contract:
 
 ## Interview Protocol
 
-The generic interview lives in [`templates/CREATE-DOCS.md`](../templates/CREATE-DOCS.md). It asks a small batch of questions at a time and writes documentation after each phase.
+The generic interview lives in [`templates/CREATE-DOCS.md`](../templates/CREATE-DOCS.md). It is the first setup protocol for new or under-documented target repositories: ask a small batch of questions at a time, summarize what was understood, write documentation after each phase, and keep implementation paused until the durable docs and first feature spec are ready.
 
 The key phases are:
 
@@ -51,6 +51,8 @@ The key phases are:
 5. screens or interaction maps
 6. agent rules
 7. final consistency validation
+
+Use the installed `ai-docs-guide.md` as supporting context for structure, file size, and validation expectations.
 
 ## Context Hygiene
 

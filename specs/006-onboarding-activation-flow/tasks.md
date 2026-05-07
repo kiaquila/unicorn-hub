@@ -7,8 +7,8 @@
 
 ## Implementation
 
-- [ ] T003 Update the root `README.md` with explicit source discovery, install, and post-bootstrap flows.
-- [ ] T004 Update blueprint docs to surface `CREATE-DOCS.md` as the first setup path.
+- [x] T003 Update the root `README.md` with explicit source discovery, install, and post-bootstrap flows.
+- [x] T004 Update blueprint docs to surface `CREATE-DOCS.md` as the first setup path.
 - [ ] T005 Update installed templates with first-setup guidance for empty or under-documented repositories.
 - [ ] T006 Update `scripts/bootstrap-repo.mjs` final output with concrete next steps.
 - [ ] T007 Add bootstrap tests for the new output and installed guidance.

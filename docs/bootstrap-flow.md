@@ -27,7 +27,7 @@ Install:
 - `docs_project/`
 - `.unicorn-hub/config.json`
 
-The target repository must have a reading route before product code changes begin.
+The target repository must have a reading route before product code changes begin. For a new or under-documented target, the installed `CREATE-DOCS.md` protocol is the first setup path: interview the user, write durable docs under `docs_project/`, and only then move into feature memory.
 
 ## Phase 2: Spec-Kit Style Feature Memory
 
@@ -102,12 +102,13 @@ After the workflows exist on the default branch, apply branch protection:
 
 ## Phase 6: First Feature PR
 
-The first feature validates the whole system:
+The first feature validates the whole system after project docs are present or refreshed:
 
-1. create a feature worktree
-2. write `spec.md`, `plan.md`, `tasks.md`
-3. implement only scoped changes
-4. run preflight
-5. publish PR
-6. trigger AI review from a trusted human account
-7. merge only after all gates are green
+1. follow `CREATE-DOCS.md` if `docs_project/` is empty, stale, or still contains placeholders
+2. create a feature worktree
+3. write `spec.md`, `plan.md`, `tasks.md`
+4. implement only scoped changes
+5. run preflight
+6. publish PR
+7. trigger AI review from a trusted human account
+8. merge only after all gates are green
