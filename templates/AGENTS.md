@@ -23,6 +23,15 @@ Before implementation work, read in this order:
 7. active `specs/<feature-id>/tasks.md`
 8. relevant source files
 
+If `docs_project/project-idea.md`, stack docs, or `AGENTS.md` still contain placeholders, run the first setup documentation interview before implementation:
+
+```text
+Read CREATE-DOCS.md and ai-docs-guide.md.
+Interview me in small batches and write durable project docs under docs_project/.
+When docs are sufficient, create the first specs/<feature-id>/spec.md, plan.md,
+and tasks.md. Do not implement product code yet.
+```
+
 ## Agent Roles
 
 ### Orchestrator

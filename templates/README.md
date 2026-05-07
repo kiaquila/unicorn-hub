@@ -14,6 +14,19 @@ This repository uses a portable multi-agent development workflow:
 - local preflight before push
 - GitHub CI, PR Guard, and AI Review gates
 
+## First Setup After Bootstrap
+
+If this repository is new or `docs_project/` still contains placeholders, start with the documentation interview before product code:
+
+```text
+Read CREATE-DOCS.md and ai-docs-guide.md.
+Interview me in small batches and write durable project docs under docs_project/.
+When docs are sufficient, create the first specs/<feature-id>/spec.md, plan.md,
+and tasks.md. Do not implement product code yet.
+```
+
+If project docs already exist, use the same protocol to review and refresh them.
+
 ## Local Commands
 
 ```bash

@@ -190,4 +190,8 @@ for (const item of planned) {
 
 console.log("");
 console.log(`Installed Unicorn Hub blueprint profile '${profileId}' into ${relative(process.cwd(), targetRoot) || "."}`);
-console.log("Next: review placeholders, run the project preflight, then open a PR.");
+console.log("Next:");
+console.log("1. Review placeholders in AGENTS.md, CLAUDE.md, docs_project/, and .unicorn-hub/config.json.");
+console.log("2. For a new or under-documented project, ask an agent to follow CREATE-DOCS.md before product code.");
+console.log("3. Create the first specs/<feature-id>/{spec.md,plan.md,tasks.md}.");
+console.log("4. Run the project preflight, then open a PR.");

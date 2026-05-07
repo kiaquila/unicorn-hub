@@ -2,6 +2,10 @@
 
 This folder stores durable project context for agents and humans.
 
+## First Setup
+
+For a new or under-documented repository, start with `CREATE-DOCS.md` and use `ai-docs-guide.md` as supporting structure. The agent should interview the user in small batches, write these docs, then create the first `specs/<feature-id>/` folder before product-code work.
+
 ## Read Order
 
 1. `project-idea.md`

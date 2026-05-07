@@ -25,6 +25,17 @@ Claude Code is the default implementation agent unless repository policy says ot
 - Keep commit subjects short, conventional, and focused.
 - Do not add abstractions for single-use logic without a current need documented in `plan.md`.
 
+## First Setup
+
+If project docs are missing, stale, or still contain placeholders, pause implementation and run the documentation interview first:
+
+```text
+Read CREATE-DOCS.md and ai-docs-guide.md.
+Interview me in small batches and write durable project docs under docs_project/.
+When docs are sufficient, create the first specs/<feature-id>/spec.md, plan.md,
+and tasks.md. Do not implement product code yet.
+```
+
 ## Review Focus
 
 When asked to review, prioritize:
