@@ -114,7 +114,7 @@ async function maybePostTriggerComment() {
 
 function isAfterRequest(value, requestMarker) {
   const valueTime = Date.parse(value || "");
-  const requestedAt = Date.parse(requestMarker?.requestedAt || requestMarker?.commentCreatedAt || "");
+  const requestedAt = Date.parse(requestMarker?.commentCreatedAt || requestMarker?.requestedAt || "");
   return Number.isFinite(valueTime) && Number.isFinite(requestedAt) && valueTime >= requestedAt;
 }
 

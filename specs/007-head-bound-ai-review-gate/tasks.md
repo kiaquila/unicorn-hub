@@ -8,4 +8,5 @@
 - [x] Update docs and template review contract.
 - [x] Add helper tests for marker binding and stale summary rejection.
 - [x] Ensure bootstrap and baseline checks install the new command-policy script.
+- [x] Compare Codex evidence against marker creation time, not the source trigger time.
 - [x] Run full preflight before publishing.

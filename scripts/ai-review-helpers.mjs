@@ -111,8 +111,8 @@ export function latestAiReviewRequestMarker(comments = [], agent, headSha) {
       marker.sha === headSha
     )
     .sort((left, right) =>
-      Date.parse(right.requestedAt || right.commentCreatedAt || "") -
-      Date.parse(left.requestedAt || left.commentCreatedAt || "")
+      Date.parse(right.commentCreatedAt || right.requestedAt || "") -
+      Date.parse(left.commentCreatedAt || left.requestedAt || "")
     )[0] || null;
 }
 
@@ -143,7 +143,7 @@ export function isAcceptableCodexSummaryComment(comment, headSha, requestMarker 
   if (shortSha && (body.includes(headSha) || body.includes(shortSha))) return true;
 
   if (!requestMarker || requestMarker.agent !== "codex" || requestMarker.sha !== headSha) return false;
-  const requestedAt = Date.parse(requestMarker.requestedAt || requestMarker.commentCreatedAt || "");
+  const requestedAt = Date.parse(requestMarker.commentCreatedAt || requestMarker.requestedAt || "");
   const createdAt = Date.parse(comment?.created_at || "");
   return Number.isFinite(requestedAt) && Number.isFinite(createdAt) && createdAt >= requestedAt;
 }

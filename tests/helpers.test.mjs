@@ -149,6 +149,7 @@ test("Codex no-findings summary is accepted only after a matching request marker
     agent: "codex",
     sha: "abc123def456",
     requestedAt: "2026-04-29T19:29:46Z",
+    commentCreatedAt: "2026-04-29T19:30:00Z",
     sourceCommentId: "10"
   };
 
@@ -166,6 +167,15 @@ test("Codex no-findings summary is accepted only after a matching request marker
       body: "Codex Review: Didn't find any major issues. Can't wait for the next one!",
       user: { login: "chatgpt-codex-connector[bot]" },
       created_at: "2026-04-29T19:29:46Z"
+    }, "abc123def456", requestMarker),
+    false
+  );
+
+  assert.equal(
+    isAcceptableCodexSummaryComment({
+      body: "Codex Review: Didn't find any major issues. Can't wait for the next one!",
+      user: { login: "chatgpt-codex-connector[bot]" },
+      created_at: "2026-04-29T19:30:00Z"
     }, "abc123def456", requestMarker),
     true
   );
