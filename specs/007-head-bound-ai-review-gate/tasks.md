@@ -9,4 +9,8 @@
 - [x] Add helper tests for marker binding and stale summary rejection.
 - [x] Ensure bootstrap and baseline checks install the new command-policy script.
 - [x] Compare Codex evidence against marker creation time, not the source trigger time.
+- [x] Skip the policy workflow on bot-authored comments to prevent recursive runs from administrative triggers.
+- [x] Replace timeline event-id matching with `created_at` boundaries so the no-findings summary path is robust to GitHub's timeline-vs-issue-comment id divergence.
+- [x] Use the source trigger comment's `created_at` as the evidence cutoff so Codex reviews that land before the marker comment is posted are still accepted for the same head.
+- [x] Document downstream-consumer migration: existing bootstrapped repos must re-run `node scripts/bootstrap-repo.mjs --force` (or copy `scripts/ai-command-policy.mjs`) before the new `AI Command Policy` workflow runs.
 - [x] Run full preflight before publishing.

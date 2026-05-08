@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {
   createAiReviewRequestMarkerBody,
-  hasHeadUpdateBetweenTimelineComments,
+  hasHeadUpdateBetweenTimestamps,
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
   isAcceptableNativeReview,
@@ -114,7 +114,12 @@ async function maybePostTriggerComment() {
 
 function isAfterRequest(value, requestMarker) {
   const valueTime = Date.parse(value || "");
-  const requestedAt = Date.parse(requestMarker?.commentCreatedAt || requestMarker?.requestedAt || "");
+  const requestedAt = Date.parse(
+    requestMarker?.sourceCommentCreatedAt ||
+    requestMarker?.requestedAt ||
+    requestMarker?.commentCreatedAt ||
+    ""
+  );
   return Number.isFinite(valueTime) && Number.isFinite(requestedAt) && valueTime >= requestedAt;
 }
 
@@ -139,14 +144,15 @@ async function fetchEvidence() {
     if (latestCodexResult === "fail") return "fail";
 
     const timeline = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/timeline`);
-    const summaryAccepted = comments.some((comment) =>
-      isAcceptableCodexSummaryComment(comment, headSha, requestMarker, config) &&
-      !hasHeadUpdateBetweenTimelineComments(
-        timeline,
-        requestMarker.sourceCommentId || requestMarker.commentId,
-        comment.id
-      )
-    );
+    const triggerAt = requestMarker.sourceCommentCreatedAt || requestMarker.requestedAt || requestMarker.commentCreatedAt;
+    const summaryAccepted = comments.some((comment) => {
+      if (!isAcceptableCodexSummaryComment(comment, headSha, requestMarker, config)) return false;
+      if (hasHeadUpdateBetweenTimestamps(timeline, triggerAt, comment.created_at)) {
+        console.warn(`AI Review gate rejected Codex summary ${comment.id}: head moved between trigger ${triggerAt} and summary ${comment.created_at}.`);
+        return false;
+      }
+      return true;
+    });
     return summaryAccepted ? "pass" : "pending";
   }
 

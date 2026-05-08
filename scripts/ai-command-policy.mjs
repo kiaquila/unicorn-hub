@@ -16,6 +16,13 @@ const event = JSON.parse(readFileSync(eventPath, "utf8"));
 const body = event.comment?.body || "";
 const prNumber = event.issue?.number;
 const authorAssociation = event.comment?.author_association;
+const commentAuthorType = event.comment?.user?.type;
+const commentAuthorLogin = String(event.comment?.user?.login || "").toLowerCase();
+
+if (commentAuthorType === "Bot" || commentAuthorLogin === "github-actions[bot]") {
+  console.log("AI command ignored: comment was posted by a bot.");
+  process.exit(0);
+}
 
 function requestedReviewAgent(commandBody) {
   if (commandBody.includes("@codex review")) return "codex";

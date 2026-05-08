@@ -61,7 +61,16 @@ Untrusted comments must not move review boundaries or satisfy gates.
 
 Trusted review comments create an `AI_REVIEW_REQUEST_ID` marker for the PR head
 SHA that was current when the comment was posted. Review evidence for Codex must
-arrive after that marker and still match the latest GitHub PR head.
+be submitted at or after the trusted source trigger time recorded in the marker
+and still match the latest GitHub PR head.
+
+Bot-authored comments cannot start the policy workflow, so the administrative
+trigger comment that `AI Review` posts in `trigger_mode=comment` does not
+recurse. The bot guard lives in both the workflow `if:` and `scripts/ai-command-policy.mjs`.
+
+Downstream repos that bootstrapped before this contract shipped must re-run
+`node scripts/bootstrap-repo.mjs --force` (or copy `scripts/ai-command-policy.mjs`
+into place) before the new `AI Command Policy` workflow runs successfully.
 
 ## Completion Contract
 

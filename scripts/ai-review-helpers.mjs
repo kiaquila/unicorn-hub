@@ -143,27 +143,25 @@ export function isAcceptableCodexSummaryComment(comment, headSha, requestMarker 
   if (shortSha && (body.includes(headSha) || body.includes(shortSha))) return true;
 
   if (!requestMarker || requestMarker.agent !== "codex" || requestMarker.sha !== headSha) return false;
-  const requestedAt = Date.parse(requestMarker.commentCreatedAt || requestMarker.requestedAt || "");
+  const requestedAt = Date.parse(
+    requestMarker.sourceCommentCreatedAt ||
+    requestMarker.requestedAt ||
+    requestMarker.commentCreatedAt ||
+    ""
+  );
   const createdAt = Date.parse(comment?.created_at || "");
   return Number.isFinite(requestedAt) && Number.isFinite(createdAt) && createdAt >= requestedAt;
 }
 
-export function hasHeadUpdateBetweenTimelineComments(timeline = [], startCommentId, endCommentId) {
-  const startId = String(startCommentId || "");
-  const endId = String(endCommentId || "");
-  if (!startId || !endId) return true;
-
-  const startIndex = timeline.findIndex((event) =>
-    event.event === "commented" && String(event.id || "") === startId
-  );
-  const endIndex = timeline.findIndex((event) =>
-    event.event === "commented" && String(event.id || "") === endId
-  );
-
-  if (startIndex < 0 || endIndex < 0 || startIndex >= endIndex) return true;
-  return timeline.slice(startIndex + 1, endIndex).some((event) =>
-    event.event === "committed" || event.event === "head_ref_force_pushed"
-  );
+export function hasHeadUpdateBetweenTimestamps(timeline = [], startCreatedAt, endCreatedAt) {
+  const startTime = Date.parse(startCreatedAt || "");
+  const endTime = Date.parse(endCreatedAt || "");
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || startTime > endTime) return true;
+  return timeline.some((event) => {
+    if (event.event !== "committed" && event.event !== "head_ref_force_pushed") return false;
+    const eventTime = Date.parse(event.created_at || event.committer?.date || "");
+    return Number.isFinite(eventTime) && eventTime > startTime && eventTime <= endTime;
+  });
 }
 
 export function classifyCodexNativeReview(review, reviewComments = [], headSha, config = {}) {
