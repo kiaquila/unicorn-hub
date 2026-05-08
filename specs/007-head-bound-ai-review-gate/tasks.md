@@ -7,4 +7,5 @@
 - [x] Update root and template workflows.
 - [x] Update docs and template review contract.
 - [x] Add helper tests for marker binding and stale summary rejection.
+- [x] Ensure bootstrap and baseline checks install the new command-policy script.
 - [x] Run full preflight before publishing.

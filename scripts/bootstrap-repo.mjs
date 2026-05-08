@@ -118,6 +118,7 @@ const scriptAllowlist = new Set([
   "check-feature-memory.mjs",
   "check-repo-baseline.mjs",
   "resolve-pr-context.mjs",
+  "ai-command-policy.mjs",
   "ai-review-helpers.mjs",
   "ai-review-gate.mjs",
   "new-worktree.mjs",

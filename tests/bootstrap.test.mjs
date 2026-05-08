@@ -45,6 +45,7 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
     ".specify/templates/spec-template.md",
     ".github/pull_request_template.md",
     ".github/workflows/ai-review.yml",
+    "scripts/ai-command-policy.mjs",
     "scripts/check-feature-memory.mjs",
     ".unicorn-hub/config.json"
   ]) {
