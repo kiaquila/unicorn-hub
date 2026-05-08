@@ -16,7 +16,8 @@ For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json
 
 - Unsupported `AI_REVIEW_AGENT` values fail the check.
 - Missing review evidence fails the check.
-- Review evidence must be bound to the current PR head SHA. Native reviews compare `commit_id` to head; trusted no-findings Codex summaries must either name the head SHA or be posted at or after the head commit timestamp.
+- Review evidence must be bound to the current PR head SHA. Codex native reviews compare `commit_id` to head and must be submitted after the latest trusted review-request marker for that head. Trusted no-findings Codex summaries that do not name the head SHA must be posted after the marker and must have no commit or force-push event between the source trigger comment and the summary.
+- The `AI Review` gate debounces briefly and re-checks GitHub's current PR head before accepting evidence; stale runs exit without satisfying the latest head.
 - Gate scripts must run from the trusted default branch, not PR-supplied code.
 - Skipped required gates must not be used as a successful state.
 
@@ -58,5 +59,6 @@ The default pull request behavior is therefore:
 
 1. `AI Review` starts in skip/poll mode.
 2. A trusted human posts the backend-native trigger, such as `@codex review`.
-3. The gate polls for current-head review evidence.
-4. The gate passes only if the configured backend returns an acceptable result.
+3. `AI Command Policy` records the PR head SHA in an `AI_REVIEW_REQUEST_ID` marker comment.
+4. The gate polls for current-head review evidence created after that marker.
+5. The gate passes only if the configured backend returns an acceptable result for the latest PR head.

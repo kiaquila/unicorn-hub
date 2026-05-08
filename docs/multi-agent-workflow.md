@@ -43,7 +43,7 @@ AI_REVIEW_AGENT=codex
 
 Supported review backends:
 
-- `codex`: native GitHub PR review with `P0`-`P3` severity markers, or a no-findings `Codex Review:` summary comment that names the current head
+- `codex`: native GitHub PR review with `P0`-`P3` severity markers, or a no-findings `Codex Review:` summary comment bound to a trusted current-head review-request marker
 - `claude`: top-level comment with `AI_REVIEW_OUTCOME: pass|advisory|block`
 - `gemini`: native GitHub PR review from the configured app
 
@@ -58,6 +58,10 @@ Only comments from these GitHub author associations should route AI commands:
 - `COLLABORATOR`
 
 Untrusted comments must not move review boundaries or satisfy gates.
+
+Trusted review comments create an `AI_REVIEW_REQUEST_ID` marker for the PR head
+SHA that was current when the comment was posted. Review evidence for Codex must
+arrive after that marker and still match the latest GitHub PR head.
 
 ## Completion Contract
 

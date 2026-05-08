@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import {
-  extractClaudeOutcome,
+  createAiReviewRequestMarkerBody,
+  hasHeadUpdateBetweenTimelineComments,
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
   isAcceptableNativeReview,
+  latestAiReviewRequestMarker,
   latestCodexNativeReviewResult
 } from "./ai-review-helpers.mjs";
 import { readConfig } from "./shared.mjs";
@@ -17,6 +19,7 @@ const triggerMode = (process.env.AI_REVIEW_TRIGGER_MODE || "skip").trim().toLowe
 const maxWaitMs = Number(process.env.AI_REVIEW_WAIT_MS || 900000);
 const initialPollMs = Number(process.env.AI_REVIEW_POLL_MS || 15000);
 const maxPollMs = Number(process.env.AI_REVIEW_MAX_POLL_MS || 120000);
+const debounceMs = Number(process.env.AI_REVIEW_DEBOUNCE_MS || 0);
 const config = readConfig();
 
 if (!token || !repository || !prNumber || !headSha) {
@@ -64,11 +67,26 @@ async function listPaginated(path) {
 }
 
 async function createComment(body) {
-  await request(`/repos/${owner}/${repo}/issues/${prNumber}/comments`, {
+  return request(`/repos/${owner}/${repo}/issues/${prNumber}/comments`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ body })
   });
+}
+
+async function fetchPull() {
+  return request(`/repos/${owner}/${repo}/pulls/${prNumber}`);
+}
+
+async function currentHeadMatches() {
+  const pull = await fetchPull();
+  return pull.head?.sha === headSha;
+}
+
+async function waitForQuietHead() {
+  if (!Number.isFinite(debounceMs) || debounceMs <= 0) return true;
+  await new Promise((resolve) => setTimeout(resolve, debounceMs));
+  return currentHeadMatches();
 }
 
 async function maybePostTriggerComment() {
@@ -78,56 +96,83 @@ async function maybePostTriggerComment() {
     claude: "@claude review once",
     gemini: "/gemini review"
   };
-  await createComment([
+  const triggerComment = await createComment([
     triggers[selectedAgent],
     "",
     "_Administrative trigger posted by the AI Review workflow. Prefer a trusted human-authored trigger if the native backend ignores bot comments._"
   ].join("\n"));
+  const requestedAt = triggerComment?.created_at || new Date().toISOString();
+  await createComment(createAiReviewRequestMarkerBody({
+    agent: selectedAgent,
+    headSha,
+    requestId: `workflow-${triggerComment?.id || Date.now()}-${headSha.slice(0, 12)}`,
+    sourceCommentId: String(triggerComment?.id || ""),
+    sourceCommentCreatedAt: triggerComment?.created_at,
+    requestedAt
+  }));
 }
 
-async function fetchHeadCommittedAt() {
-  const commit = await request(`/repos/${owner}/${repo}/commits/${headSha}`);
-  return commit?.commit?.committer?.date || null;
+function isAfterRequest(value, requestMarker) {
+  const valueTime = Date.parse(value || "");
+  const requestedAt = Date.parse(requestMarker?.requestedAt || requestMarker?.commentCreatedAt || "");
+  return Number.isFinite(valueTime) && Number.isFinite(requestedAt) && valueTime >= requestedAt;
 }
 
 async function fetchEvidence() {
+  if (!await currentHeadMatches()) return "stale";
+
   if (selectedAgent === "claude") {
     const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
-    return comments.some((comment) => isAcceptableClaudeComment(comment, headSha, config));
+    return comments.some((comment) => isAcceptableClaudeComment(comment, headSha, config)) ? "pass" : "pending";
   }
 
   const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (selectedAgent === "codex") {
+    const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
+    const requestMarker = latestAiReviewRequestMarker(comments, selectedAgent, headSha);
+    if (!requestMarker) return "pending";
+
     const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
-    const latestCodexResult = latestCodexNativeReviewResult(reviews, reviewComments, headSha, config);
-    if (latestCodexResult === "pass") return true;
-    if (latestCodexResult === "fail") return false;
+    const reviewsAfterRequest = reviews.filter((review) => isAfterRequest(review.submitted_at, requestMarker));
+    const latestCodexResult = latestCodexNativeReviewResult(reviewsAfterRequest, reviewComments, headSha, config);
+    if (latestCodexResult === "pass") return "pass";
+    if (latestCodexResult === "fail") return "fail";
+
+    const timeline = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/timeline`);
+    const summaryAccepted = comments.some((comment) =>
+      isAcceptableCodexSummaryComment(comment, headSha, requestMarker, config) &&
+      !hasHeadUpdateBetweenTimelineComments(
+        timeline,
+        requestMarker.sourceCommentId || requestMarker.commentId,
+        comment.id
+      )
+    );
+    return summaryAccepted ? "pass" : "pending";
   }
 
   if (reviews.some((review) => isAcceptableNativeReview(review, selectedAgent, headSha, config))) {
-    return true;
+    return "pass";
   }
 
-  if (selectedAgent !== "codex") return false;
-
-  const headCommittedAt = await fetchHeadCommittedAt();
-  const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
-  return comments.some((comment) =>
-    isAcceptableCodexSummaryComment(comment, headSha, headCommittedAt, config)
-  );
+  return "pending";
 }
 
 await maybePostTriggerComment();
 
+if (!await waitForQuietHead()) {
+  console.log(`AI Review gate skipped stale run for ${headSha}; PR head changed during debounce.`);
+  process.exit(0);
+}
+
 const started = Date.now();
-let accepted = false;
+let outcome = "pending";
 let lastError = null;
 let pollMs = initialPollMs;
 
 while (Date.now() - started <= maxWaitMs) {
   try {
-    accepted = await fetchEvidence();
-    if (accepted) break;
+    outcome = await fetchEvidence();
+    if (outcome !== "pending") break;
   } catch (error) {
     lastError = error;
   }
@@ -138,7 +183,12 @@ while (Date.now() - started <= maxWaitMs) {
   pollMs = Math.min(pollMs * 2, maxPollMs);
 }
 
-if (accepted) {
+if (outcome === "stale") {
+  console.log(`AI Review gate skipped stale run for ${headSha}; PR head moved.`);
+  process.exit(0);
+}
+
+if (outcome === "pass") {
   console.log(`AI Review gate passed for ${selectedAgent} on ${headSha}.`);
   process.exit(0);
 }
@@ -147,7 +197,7 @@ const detail = lastError ? ` Last API error: ${lastError.message}` : "";
 const reviewHint = selectedAgent === "claude"
   ? "Claude must post AI_REVIEW_OUTCOME: pass for the current head SHA."
   : selectedAgent === "codex"
-    ? "Codex must provide an acceptable native review for the current head SHA or a fresh no-findings Codex Review summary comment."
+    ? "Codex must provide current-head review evidence after a trusted AI review request marker."
     : `${selectedAgent} must provide an acceptable native review for the current head SHA.`;
 
 const failureComment = [

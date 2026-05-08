@@ -5,6 +5,7 @@ on:
     types: [created]
 
 permissions:
+  contents: read
   issues: write
   pull-requests: read
 
@@ -20,43 +21,14 @@ jobs:
       )
     runs-on: ubuntu-latest
     steps:
-      - name: Validate trusted actor and selected agent
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+      - name: Checkout trusted policy scripts
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Validate trusted actor and record review request
+        run: node scripts/ai-command-policy.mjs
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           AI_IMPLEMENTATION_AGENT: ${{ vars.AI_IMPLEMENTATION_AGENT }}
           AI_REVIEW_AGENT: ${{ vars.AI_REVIEW_AGENT }}
-        with:
-          script: |
-            const body = context.payload.comment.body || "";
-            const authorAssociation = context.payload.comment.author_association;
-            const trusted = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
-            const isReview =
-              body.includes("@codex review") ||
-              body.includes("@claude review once") ||
-              body.includes("/gemini review");
-            const selected = (isReview
-              ? process.env.AI_REVIEW_AGENT || "codex"
-              : process.env.AI_IMPLEMENTATION_AGENT || "claude").trim().toLowerCase();
-            const allowed = isReview
-              ? new Set(["codex", "claude", "gemini"])
-              : new Set(["claude", "codex"]);
-
-            const lines = [];
-            if (!trusted.has(authorAssociation)) {
-              lines.push("AI command rejected: only OWNER, MEMBER, and COLLABORATOR comments are trusted.");
-            }
-            if (!allowed.has(selected)) {
-              lines.push(`AI command rejected: unsupported selected agent '${selected}'.`);
-            }
-            if (lines.length) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: lines.join("\n")
-              });
-              core.setFailed(lines.join(" "));
-              return;
-            }
-
-            core.notice(`Trusted AI ${isReview ? "review" : "implementation"} command for ${selected}.`);

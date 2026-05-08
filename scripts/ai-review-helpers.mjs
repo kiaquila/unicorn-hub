@@ -14,6 +14,54 @@ export function extractMarkerSha(body) {
   return match?.[1] || null;
 }
 
+export function createAiReviewRequestMarkerBody({
+  agent,
+  headSha,
+  requestId,
+  sourceCommentId,
+  sourceCommentCreatedAt,
+  requestedAt
+}) {
+  const recordedAt = requestedAt || new Date().toISOString();
+  return [
+    `AI review request recorded for \`${String(headSha || "").slice(0, 10)}\`.`,
+    "",
+    "<!-- unicorn-hub:ai-review-request",
+    `AI_REVIEW_REQUEST_ID: ${requestId}`,
+    `AI_REVIEW_AGENT: ${String(agent || "").trim().toLowerCase()}`,
+    `AI_REVIEW_SHA: ${headSha}`,
+    `AI_REVIEW_SOURCE_COMMENT_ID: ${sourceCommentId}`,
+    `AI_REVIEW_SOURCE_COMMENT_CREATED_AT: ${sourceCommentCreatedAt || recordedAt}`,
+    `AI_REVIEW_REQUESTED_AT: ${recordedAt}`,
+    "-->"
+  ].join("\n");
+}
+
+export function extractAiReviewRequestMarker(body) {
+  const text = String(body || "");
+  if (!text.includes("unicorn-hub:ai-review-request")) return null;
+
+  const field = (name) => text.match(new RegExp(`^${name}:\\s*(.+?)\\s*$`, "im"))?.[1]?.trim() || null;
+  const requestId = field("AI_REVIEW_REQUEST_ID");
+  const agent = field("AI_REVIEW_AGENT")?.toLowerCase();
+  const sha = field("AI_REVIEW_SHA");
+  const sourceCommentId = field("AI_REVIEW_SOURCE_COMMENT_ID");
+  const sourceCommentCreatedAt = field("AI_REVIEW_SOURCE_COMMENT_CREATED_AT");
+  const requestedAt = field("AI_REVIEW_REQUESTED_AT");
+
+  if (!requestId || !agent || !sha || !sourceCommentId || !requestedAt) return null;
+  if (!/^[a-f0-9]{7,40}$/i.test(sha)) return null;
+
+  return {
+    requestId,
+    agent,
+    sha,
+    sourceCommentId,
+    sourceCommentCreatedAt,
+    requestedAt
+  };
+}
+
 export function normalizeLogin(login) {
   return String(login || "").toLowerCase();
 }
@@ -36,6 +84,38 @@ export function isTrustedReviewLogin(login, agent, config = {}) {
   return trustedReviewLoginsForAgent(agent, config).has(normalizeLogin(login));
 }
 
+export function isAiReviewRequestMarkerComment(comment, agent, headSha) {
+  const login = normalizeLogin(comment?.user?.login);
+  if (login !== "github-actions[bot]") return false;
+  const marker = extractAiReviewRequestMarker(comment?.body);
+  if (!marker) return false;
+  return marker.agent === String(agent || "").toLowerCase() && marker.sha === headSha;
+}
+
+export function latestAiReviewRequestMarker(comments = [], agent, headSha) {
+  return comments
+    .map((comment) => {
+      const marker = extractAiReviewRequestMarker(comment?.body);
+      if (!marker) return null;
+      return {
+        ...marker,
+        commentId: String(comment.id || ""),
+        commentCreatedAt: comment.created_at || null,
+        author: comment.user?.login || null
+      };
+    })
+    .filter((marker) =>
+      marker &&
+      normalizeLogin(marker.author) === "github-actions[bot]" &&
+      marker.agent === String(agent || "").toLowerCase() &&
+      marker.sha === headSha
+    )
+    .sort((left, right) =>
+      Date.parse(right.requestedAt || right.commentCreatedAt || "") -
+      Date.parse(left.requestedAt || left.commentCreatedAt || "")
+    )[0] || null;
+}
+
 export function containsBlockingSeverity(body, agent) {
   const text = String(body || "");
   if (agent === "codex") {
@@ -52,7 +132,7 @@ export function extractCodexPriority(body) {
   return match ? Number(match[1]) : null;
 }
 
-export function isAcceptableCodexSummaryComment(comment, headSha, headCommittedAt = null, config = {}) {
+export function isAcceptableCodexSummaryComment(comment, headSha, requestMarker = null, config = {}) {
   const body = String(comment?.body || "").trim();
   const login = normalizeLogin(comment?.user?.login);
   if (!isTrustedReviewLogin(login, "codex", config)) return false;
@@ -62,9 +142,28 @@ export function isAcceptableCodexSummaryComment(comment, headSha, headCommittedA
   const shortSha = String(headSha || "").slice(0, 10);
   if (shortSha && (body.includes(headSha) || body.includes(shortSha))) return true;
 
-  const committedAt = Date.parse(headCommittedAt || "");
+  if (!requestMarker || requestMarker.agent !== "codex" || requestMarker.sha !== headSha) return false;
+  const requestedAt = Date.parse(requestMarker.requestedAt || requestMarker.commentCreatedAt || "");
   const createdAt = Date.parse(comment?.created_at || "");
-  return Number.isFinite(committedAt) && Number.isFinite(createdAt) && createdAt >= committedAt;
+  return Number.isFinite(requestedAt) && Number.isFinite(createdAt) && createdAt >= requestedAt;
+}
+
+export function hasHeadUpdateBetweenTimelineComments(timeline = [], startCommentId, endCommentId) {
+  const startId = String(startCommentId || "");
+  const endId = String(endCommentId || "");
+  if (!startId || !endId) return true;
+
+  const startIndex = timeline.findIndex((event) =>
+    event.event === "commented" && String(event.id || "") === startId
+  );
+  const endIndex = timeline.findIndex((event) =>
+    event.event === "commented" && String(event.id || "") === endId
+  );
+
+  if (startIndex < 0 || endIndex < 0 || startIndex >= endIndex) return true;
+  return timeline.slice(startIndex + 1, endIndex).some((event) =>
+    event.event === "committed" || event.event === "head_ref_force_pushed"
+  );
 }
 
 export function classifyCodexNativeReview(review, reviewComments = [], headSha, config = {}) {

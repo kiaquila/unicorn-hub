@@ -3,12 +3,17 @@ import assert from "node:assert/strict";
 import {
   classifyCodexNativeReview,
   containsBlockingSeverity,
+  createAiReviewRequestMarkerBody,
   extractCodexPriority,
+  extractAiReviewRequestMarker,
   extractClaudeOutcome,
   extractMarkerSha,
+  hasHeadUpdateBetweenTimelineComments,
+  isAiReviewRequestMarkerComment,
   isAcceptableClaudeComment,
   isAcceptableCodexSummaryComment,
   isAcceptableNativeReview,
+  latestAiReviewRequestMarker,
   latestCodexNativeReviewResult,
   isTrustedReviewLogin,
   isTrustedAssociation
@@ -106,15 +111,53 @@ test("Codex no-findings summary comment is accepted from trusted bot only", () =
   );
 });
 
-test("Codex no-findings summary is accepted when posted at-or-after the head commit", () => {
-  const headCommittedAt = "2026-04-29T19:29:46Z";
+test("AI review request markers bind trusted comments to a head SHA", () => {
+  const body = createAiReviewRequestMarkerBody({
+    agent: "codex",
+    headSha: "abc123def456",
+    requestId: "10-abc123def456",
+    sourceCommentId: "10",
+    sourceCommentCreatedAt: "2026-04-29T19:29:46Z",
+    requestedAt: "2026-04-29T19:29:46Z"
+  });
+
+  assert.deepEqual(extractAiReviewRequestMarker(body), {
+    requestId: "10-abc123def456",
+    agent: "codex",
+    sha: "abc123def456",
+    sourceCommentId: "10",
+    sourceCommentCreatedAt: "2026-04-29T19:29:46Z",
+    requestedAt: "2026-04-29T19:29:46Z"
+  });
+
+  const markerComment = {
+    id: 11,
+    body,
+    created_at: "2026-04-29T19:29:47Z",
+    user: { login: "github-actions[bot]" }
+  };
+  assert.equal(isAiReviewRequestMarkerComment(markerComment, "codex", "abc123def456"), true);
+  assert.equal(isAiReviewRequestMarkerComment({
+    ...markerComment,
+    user: { login: "repo-owner" }
+  }, "codex", "abc123def456"), false);
+  assert.equal(latestAiReviewRequestMarker([markerComment], "codex", "abc123def456").requestId, "10-abc123def456");
+});
+
+test("Codex no-findings summary is accepted only after a matching request marker", () => {
+  const requestMarker = {
+    agent: "codex",
+    sha: "abc123def456",
+    requestedAt: "2026-04-29T19:29:46Z",
+    sourceCommentId: "10"
+  };
 
   assert.equal(
     isAcceptableCodexSummaryComment({
       body: "Codex Review: Didn't find any major issues. Can't wait for the next one!",
       user: { login: "chatgpt-codex-connector[bot]" },
       created_at: "2026-04-29T19:32:55Z"
-    }, "abc123def456", headCommittedAt),
+    }, "abc123def456", requestMarker),
     true
   );
 
@@ -123,7 +166,7 @@ test("Codex no-findings summary is accepted when posted at-or-after the head com
       body: "Codex Review: Didn't find any major issues. Can't wait for the next one!",
       user: { login: "chatgpt-codex-connector[bot]" },
       created_at: "2026-04-29T19:29:46Z"
-    }, "abc123def456", headCommittedAt),
+    }, "abc123def456", requestMarker),
     true
   );
 
@@ -132,9 +175,37 @@ test("Codex no-findings summary is accepted when posted at-or-after the head com
       body: "Codex Review: Didn't find any major issues on a stale head.",
       user: { login: "chatgpt-codex-connector[bot]" },
       created_at: "2026-04-29T19:00:00Z"
-    }, "abc123def456", headCommittedAt),
+    }, "abc123def456", requestMarker),
     false
   );
+
+  assert.equal(
+    isAcceptableCodexSummaryComment({
+      body: "Codex Review: Didn't find any major issues.",
+      user: { login: "chatgpt-codex-connector[bot]" },
+      created_at: "2026-04-29T19:32:55Z"
+    }, "abc123def456", "2026-04-29T19:29:46Z"),
+    false
+  );
+});
+
+test("summary comments are rejected when the head moved after the source trigger", () => {
+  assert.equal(hasHeadUpdateBetweenTimelineComments([
+    { event: "commented", id: 10 },
+    { event: "commented", id: 11 }
+  ], 10, 11), false);
+
+  assert.equal(hasHeadUpdateBetweenTimelineComments([
+    { event: "commented", id: 10 },
+    { event: "committed", sha: "new" },
+    { event: "commented", id: 11 }
+  ], 10, 11), true);
+
+  assert.equal(hasHeadUpdateBetweenTimelineComments([
+    { event: "commented", id: 10 },
+    { event: "head_ref_force_pushed", commit_id: "new" },
+    { event: "commented", id: 11 }
+  ], 10, 11), true);
 });
 
 test("Codex commented reviews are classified by inline priorities", () => {
