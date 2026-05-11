@@ -73,3 +73,10 @@ whichever comes first.
   transient Actions API error does not blank the marker comment that the gate
   depends on. The next trusted review event (or the next `synchronize`) will
   cover the missed rerun.
+- `ai-command-policy.yml` and `ai-review.yml` were granted `pull-requests:
+  write` after the marker write started failing with `403 Resource not
+  accessible by integration`. Issue comments on a pull request require the
+  `pull-requests` scope (not the `issues` scope) when the repository's
+  default workflow permissions are set to read-only. The `ai-review-rerun.yml`
+  workflow keeps `pull-requests: read` because it only calls the
+  workflow-runs rerun endpoint.

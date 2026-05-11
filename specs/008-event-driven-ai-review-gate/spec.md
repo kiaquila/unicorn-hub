@@ -81,6 +81,10 @@ Post-change sample:
 - AC-006: The A/B metrics above are captured before and after the change, with
   the baseline numbers in this spec and the post-change result recorded in
   `tasks.md`.
+- AC-007: `AI Command Policy` and `AI Review` workflows can post issue
+  comments on the pull request from the workflow `GITHUB_TOKEN`. Without this,
+  the trusted current-head marker is never recorded and the gate cannot reach
+  the `pass` outcome regardless of review evidence.
 
 ## Negative Scenarios
 

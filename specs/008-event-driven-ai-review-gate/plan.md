@@ -75,3 +75,8 @@ Treatment cohort:
   use native Actions and repository permissions.
 - Keep the post-change measurement honest by counting any new rerun-router
   workflow in the secondary control-plane metric.
+- Grant `pull-requests: write` to `ai-command-policy.yml` and `ai-review.yml`.
+  Issue comments on pull requests require the `pull-requests` permission, not
+  `issues`, even though the REST endpoint lives under `/issues/{n}/comments`.
+  Without this, the marker write fails with `403 Resource not accessible by
+  integration` and the gate can never observe a trusted current-head request.
