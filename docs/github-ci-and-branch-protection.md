@@ -8,6 +8,7 @@ GitHub is the control plane for pull requests, checks, and AI review routing.
 - `pr-guard.yml`: enforces documentation and feature-memory coverage as `guard`
 - `ai-command-policy.yml`: validates trusted AI command comments
 - `ai-review.yml`: normalizes native review output into a required `AI Review` check
+- `ai-review-rerun.yml`: reruns `AI Review` when trusted review evidence appears
 - `osv-scan.yml`: scans dependencies for known vulnerabilities
 
 For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json`. Profiles that preserve a target CI workflow should list the target's current job names there, plus `guard` and `AI Review`.
@@ -15,8 +16,9 @@ For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json
 ## Fail-Closed Rules
 
 - Unsupported `AI_REVIEW_AGENT` values fail the check.
-- Missing review evidence fails the check.
-- Review evidence must be bound to the current PR head SHA. Codex native reviews compare `commit_id` to head and must be submitted after the latest trusted review-request marker for that head. Trusted no-findings Codex summaries that do not name the head SHA must be posted after the marker and must have no commit or force-push event between the source trigger comment and the summary.
+- Missing review-request markers and missing review evidence fail quickly instead
+  of holding a runner open for the old polling window.
+- Review evidence must be bound to the current PR head SHA. Native reviews compare `commit_id` to head and must be submitted after the latest trusted review-request marker for that head. Trusted no-findings Codex summaries that do not name the head SHA must be posted after the marker and must have no commit or force-push event between the source trigger comment and the summary.
 - The `AI Review` gate debounces briefly and re-checks GitHub's current PR head before accepting evidence; stale runs exit without satisfying the latest head.
 - Gate scripts must run from the trusted default branch, not PR-supplied code.
 - Skipped required gates must not be used as a successful state.
@@ -57,8 +59,14 @@ Most native AI backends require human-authored comments or native app triggers. 
 
 The default pull request behavior is therefore:
 
-1. `AI Review` starts in skip/poll mode.
+1. `AI Review` starts in validation mode. If no trusted current-head marker or
+   review evidence exists yet, it fails fast with an actionable required-check
+   summary.
 2. A trusted human posts the backend-native trigger, such as `@codex review`.
 3. `AI Command Policy` records the PR head SHA in an `AI_REVIEW_REQUEST_ID` marker comment.
-4. The gate polls for current-head review evidence created after that marker.
-5. The gate passes only if the configured backend returns an acceptable result for the latest PR head.
+4. `AI Command Policy` reruns the failed `AI Review` check for the current PR
+   head.
+5. When trusted native review evidence or a trusted summary/outcome comment
+   appears, `ai-review-rerun.yml` reruns `AI Review` again.
+6. The gate passes only if the configured backend returns an acceptable result
+   for the latest PR head.

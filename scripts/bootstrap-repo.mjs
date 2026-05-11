@@ -121,6 +121,7 @@ const scriptAllowlist = new Set([
   "ai-command-policy.mjs",
   "ai-review-helpers.mjs",
   "ai-review-gate.mjs",
+  "ai-review-rerun.mjs",
   "new-worktree.mjs",
   "publish-branch.mjs",
   "set-implementation-agent.mjs",

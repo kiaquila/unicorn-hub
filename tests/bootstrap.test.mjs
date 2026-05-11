@@ -45,7 +45,9 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
     ".specify/templates/spec-template.md",
     ".github/pull_request_template.md",
     ".github/workflows/ai-review.yml",
+    ".github/workflows/ai-review-rerun.yml",
     "scripts/ai-command-policy.mjs",
+    "scripts/ai-review-rerun.mjs",
     "scripts/check-feature-memory.mjs",
     ".unicorn-hub/config.json"
   ]) {
@@ -245,6 +247,7 @@ test("bootstrap into a fresh Flutter target excludes the default Node CI workflo
   );
   assert.equal(existsSync(join(target, ".github/workflows/pr-guard.yml")), true);
   assert.equal(existsSync(join(target, ".github/workflows/ai-review.yml")), true);
+  assert.equal(existsSync(join(target, ".github/workflows/ai-review-rerun.yml")), true);
   assert.equal(existsSync(join(target, ".github/workflows/osv-scan.yml")), true);
 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));

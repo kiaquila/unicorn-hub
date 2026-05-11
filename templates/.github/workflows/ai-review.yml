@@ -84,6 +84,7 @@ jobs:
           AI_REVIEW_PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           AI_REVIEW_HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           AI_REVIEW_TRIGGER_MODE: ${{ steps.policy.outputs.trigger_mode }}
-          AI_REVIEW_WAIT_MS: "1200000"
-          AI_REVIEW_POLL_MS: "15000"
-          AI_REVIEW_DEBOUNCE_MS: "45000"
+          AI_REVIEW_WAIT_MS: "30000"
+          AI_REVIEW_POLL_MS: "5000"
+          AI_REVIEW_MAX_POLL_MS: "10000"
+          AI_REVIEW_DEBOUNCE_MS: "5000"

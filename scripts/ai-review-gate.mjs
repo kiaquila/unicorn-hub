@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { appendFileSync } from "node:fs";
 import {
   createAiReviewRequestMarkerBody,
   hasHeadUpdateBetweenTimestamps,
@@ -16,10 +17,10 @@ const prNumber = process.env.AI_REVIEW_PR_NUMBER;
 const headSha = process.env.AI_REVIEW_HEAD_SHA;
 const selectedAgent = (process.env.AI_REVIEW_AGENT || "codex").trim().toLowerCase();
 const triggerMode = (process.env.AI_REVIEW_TRIGGER_MODE || "skip").trim().toLowerCase();
-const maxWaitMs = Number(process.env.AI_REVIEW_WAIT_MS || 900000);
-const initialPollMs = Number(process.env.AI_REVIEW_POLL_MS || 15000);
-const maxPollMs = Number(process.env.AI_REVIEW_MAX_POLL_MS || 120000);
-const debounceMs = Number(process.env.AI_REVIEW_DEBOUNCE_MS || 0);
+const maxWaitMs = Number(process.env.AI_REVIEW_WAIT_MS || 30000);
+const initialPollMs = Number(process.env.AI_REVIEW_POLL_MS || 5000);
+const maxPollMs = Number(process.env.AI_REVIEW_MAX_POLL_MS || 10000);
+const debounceMs = Number(process.env.AI_REVIEW_DEBOUNCE_MS || 5000);
 const config = readConfig();
 
 if (!token || !repository || !prNumber || !headSha) {
@@ -126,17 +127,19 @@ function isAfterRequest(value, requestMarker) {
 async function fetchEvidence() {
   if (!await currentHeadMatches()) return "stale";
 
+  const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
+  const requestMarker = latestAiReviewRequestMarker(comments, selectedAgent, headSha);
+  if (!requestMarker) return "missing_marker";
+
   if (selectedAgent === "claude") {
-    const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
-    return comments.some((comment) => isAcceptableClaudeComment(comment, headSha, config)) ? "pass" : "pending";
+    return comments.some((comment) =>
+      isAfterRequest(comment.created_at, requestMarker) &&
+      isAcceptableClaudeComment(comment, headSha, config)
+    ) ? "pass" : "pending";
   }
 
   const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (selectedAgent === "codex") {
-    const comments = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/comments`);
-    const requestMarker = latestAiReviewRequestMarker(comments, selectedAgent, headSha);
-    if (!requestMarker) return "pending";
-
     const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
     const reviewsAfterRequest = reviews.filter((review) => isAfterRequest(review.submitted_at, requestMarker));
     const latestCodexResult = latestCodexNativeReviewResult(reviewsAfterRequest, reviewComments, headSha, config);
@@ -156,7 +159,10 @@ async function fetchEvidence() {
     return summaryAccepted ? "pass" : "pending";
   }
 
-  if (reviews.some((review) => isAcceptableNativeReview(review, selectedAgent, headSha, config))) {
+  if (reviews.some((review) =>
+    isAfterRequest(review.submitted_at, requestMarker) &&
+    isAcceptableNativeReview(review, selectedAgent, headSha, config)
+  )) {
     return "pass";
   }
 
@@ -201,10 +207,10 @@ if (outcome === "pass") {
 
 const detail = lastError ? ` Last API error: ${lastError.message}` : "";
 const reviewHint = selectedAgent === "claude"
-  ? "Claude must post AI_REVIEW_OUTCOME: pass for the current head SHA."
+  ? "A trusted human must request Claude review, then Claude must post AI_REVIEW_OUTCOME: pass for the current head SHA."
   : selectedAgent === "codex"
     ? "Codex must provide current-head review evidence after a trusted AI review request marker."
-    : `${selectedAgent} must provide an acceptable native review for the current head SHA.`;
+    : `A trusted human must request ${selectedAgent} review, then ${selectedAgent} must provide an acceptable native review for the current head SHA.`;
 
 const failureComment = [
   "AI Review gate failed.",
@@ -215,11 +221,23 @@ const failureComment = [
   detail ? `- detail: ${detail}` : ""
 ].filter(Boolean).join("\n");
 
-try {
-  await createComment(failureComment);
-} catch (error) {
-  console.warn(`Could not post AI Review gate failure comment: ${error.message}`);
+if (process.env.GITHUB_STEP_SUMMARY) {
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${failureComment}\n`);
 }
 
-console.error(`AI Review gate failed for ${selectedAgent} on ${headSha}.${detail}`);
+if (outcome === "fail") {
+  try {
+    await createComment(failureComment);
+  } catch (error) {
+    console.warn(`Could not post AI Review gate failure comment: ${error.message}`);
+  }
+}
+
+const outcomeDetail = outcome === "missing_marker"
+  ? " Missing trusted current-head AI review request marker."
+  : outcome === "pending"
+    ? " Review evidence is still pending; rerun will be requested by the next trusted review event."
+    : "";
+
+console.error(`AI Review gate failed for ${selectedAgent} on ${headSha}.${outcomeDetail}${detail}`);
 process.exit(1);

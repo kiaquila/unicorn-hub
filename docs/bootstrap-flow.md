@@ -70,6 +70,7 @@ Install workflows:
 - PR Guard
 - AI Command Policy
 - AI Review
+- AI Review Rerun
 - OSV Scan
 
 When a target repository already has a mature CI workflow, do not overwrite it. Keep the existing workflow, install the additional guard/review/security workflows, and set `.unicorn-hub/config.json` `requiredChecks` to the target's real CI job names plus the Unicorn guard and review jobs.

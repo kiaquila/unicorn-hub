@@ -88,6 +88,10 @@ Supported review backends:
 - `claude`: top-level comment containing `AI_REVIEW_AGENT`, `AI_REVIEW_SHA`, and `AI_REVIEW_OUTCOME: pass|advisory|block`.
 - `gemini`: native GitHub PR review from the configured app.
 
+`AI Review` fails fast while current-head review evidence is missing. Trusted
+review triggers and trusted review-result events rerun the required check
+natively; do not wait for a long polling run to unblock a PR.
+
 Only trusted actors may trigger AI workflows:
 
 - `OWNER`

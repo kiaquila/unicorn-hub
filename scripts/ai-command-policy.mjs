@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { createAiReviewRequestMarkerBody, isTrustedAssociation } from "./ai-review-helpers.mjs";
+import { rerunAiReviewForPrHead } from "./ai-review-rerun.mjs";
 
 const token = process.env.GITHUB_TOKEN;
 const repository = process.env.GITHUB_REPOSITORY;
@@ -97,6 +98,13 @@ if (isReview) {
     sourceCommentCreatedAt: event.comment.created_at,
     requestedAt
   }));
+
+  const rerunResult = await rerunAiReviewForPrHead({
+    token,
+    repository,
+    headSha
+  });
+  console.log(rerunResult.message);
 }
 
 console.log(`Trusted AI ${isReview ? "review" : "implementation"} command for ${selected}.`);

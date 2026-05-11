@@ -4,6 +4,11 @@ The active required-check list is `.unicorn-hub/config.json` (`requiredChecks`);
 
 PRs are merge-ready only when all checks are green, blocking findings are resolved, docs/specs are updated, and no conflicts remain.
 
+`AI Review` is a required check and is event-driven. It fails quickly when a
+trusted current-head review request or review evidence is missing. A trusted
+human review trigger records the current head SHA, then review-result events
+rerun the check natively until acceptable current-head evidence appears.
+
 Before merge, the author should also confirm the SENAR done gate:
 
 - every acceptance criterion has evidence in the PR, plan, or linked checks
