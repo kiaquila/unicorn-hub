@@ -66,6 +66,96 @@ test("AI Review rerun event filter accepts trusted selected-agent evidence", () 
   );
 });
 
+test("AI Review rerun event filter rejects untrusted review evidence", () => {
+  assert.equal(
+    shouldRouteAiReviewRerunEvent(
+      {
+        review: {
+          user: { login: "drive-by-attacker" }
+        }
+      },
+      "codex"
+    ),
+    false,
+    "untrusted login must not be treated as review evidence"
+  );
+
+  assert.equal(
+    shouldRouteAiReviewRerunEvent(
+      {
+        review: {
+          user: { login: "claude[bot]" }
+        }
+      },
+      "claude"
+    ),
+    false,
+    "claude review evidence arrives via issue_comment, not pull_request_review"
+  );
+
+  assert.equal(
+    shouldRouteAiReviewRerunEvent(
+      {
+        review: {
+          user: { login: "chatgpt-codex-connector[bot]" }
+        }
+      },
+      "gemini"
+    ),
+    false,
+    "trusted login for a different agent must not satisfy the rerun trigger"
+  );
+
+  assert.equal(
+    shouldRouteAiReviewRerunEvent(
+      {
+        issue: { pull_request: {} },
+        comment: {
+          body: "AI_REVIEW_OUTCOME: pass",
+          user: { login: "random-user" }
+        }
+      },
+      "claude"
+    ),
+    false,
+    "outcome comment from an untrusted login must not trigger rerun"
+  );
+});
+
+test("AI Review rerun selector reports already_success and not_found states", () => {
+  const successRun = {
+    id: 11,
+    event: "pull_request",
+    head_sha: "abc",
+    status: "completed",
+    conclusion: "success",
+    created_at: "2026-05-01T09:00:00Z"
+  };
+  assert.deepEqual(selectAiReviewRun([successRun], "abc"), {
+    action: "already_success",
+    run: successRun
+  });
+
+  assert.deepEqual(selectAiReviewRun([], "abc"), {
+    action: "not_found",
+    run: null
+  });
+
+  const dispatchRun = {
+    id: 12,
+    event: "workflow_dispatch",
+    head_sha: "abc",
+    status: "completed",
+    conclusion: "failure",
+    created_at: "2026-05-01T09:30:00Z"
+  };
+  assert.deepEqual(
+    selectAiReviewRun([dispatchRun], "abc"),
+    { action: "not_found", run: null },
+    "workflow_dispatch runs must not satisfy the rerun selector"
+  );
+});
+
 test("AI Review rerun selector prefers active runs, then latest rerunnable failures", () => {
   const runs = [
     {

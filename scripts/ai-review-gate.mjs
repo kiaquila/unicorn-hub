@@ -212,12 +212,22 @@ const reviewHint = selectedAgent === "claude"
     ? "Codex must provide current-head review evidence after a trusted AI review request marker."
     : `A trusted human must request ${selectedAgent} review, then ${selectedAgent} must provide an acceptable native review for the current head SHA.`;
 
+const triggerCommands = {
+  codex: "@codex review",
+  claude: "@claude review once",
+  gemini: "/gemini review"
+};
+const actionHint = outcome === "missing_marker"
+  ? `Action: a trusted reviewer (OWNER/MEMBER/COLLABORATOR) should post '${triggerCommands[selectedAgent]}' on this PR to record the current-head review request marker.`
+  : "";
+
 const failureComment = [
   "AI Review gate failed.",
   "",
   `- agent: ${selectedAgent}`,
   `- head SHA: ${headSha}`,
   `- expected: ${reviewHint}`,
+  actionHint ? `- next: ${actionHint}` : "",
   detail ? `- detail: ${detail}` : ""
 ].filter(Boolean).join("\n");
 

@@ -99,12 +99,16 @@ if (isReview) {
     requestedAt
   }));
 
-  const rerunResult = await rerunAiReviewForPrHead({
-    token,
-    repository,
-    headSha
-  });
-  console.log(rerunResult.message);
+  try {
+    const rerunResult = await rerunAiReviewForPrHead({
+      token,
+      repository,
+      headSha
+    });
+    console.log(rerunResult.message);
+  } catch (error) {
+    console.warn(`AI Review rerun request failed after marker was recorded: ${error.message}`);
+  }
 }
 
 console.log(`Trusted AI ${isReview ? "review" : "implementation"} command for ${selected}.`);

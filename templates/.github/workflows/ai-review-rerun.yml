@@ -15,7 +15,10 @@ jobs:
   ai-review-rerun:
     name: ai-review-rerun
     if: |
-      github.event_name == 'pull_request_review' ||
+      (
+        github.event_name == 'pull_request_review' &&
+        github.event.review.user.type == 'Bot'
+      ) ||
       (
         github.event.issue.pull_request &&
         github.event.comment.user.type == 'Bot' &&

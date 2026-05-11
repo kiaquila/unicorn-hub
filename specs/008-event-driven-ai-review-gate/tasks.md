@@ -57,3 +57,19 @@ whichever comes first.
   details to the check summary. The script only posts an issue comment for a
   real blocking review result, avoiding comment noise during expected
   wait-for-review states.
+- The rerun selector deliberately ignores `workflow_dispatch` runs. A dispatch
+  run reports against the default branch and cannot satisfy branch protection
+  on the PR head, so rerunning it would not help the gate pass. Operators who
+  start `AI Review` via `workflow_dispatch` get a one-shot validation that does
+  not participate in the event-driven rerun chain; the next `pull_request`
+  event will create a fresh run that the rerun chain can keep current.
+- A trusted bot review can race ahead of the policy marker write by a few
+  milliseconds, in which case `ai-review-rerun.yml` triggers a rerun that
+  exits with `missing_marker` and `ai-command-policy.mjs` then writes the
+  marker and requests another rerun. The contract self-heals; the extra rerun
+  costs roughly one short fast-fail run and is counted in the secondary
+  control-plane metric.
+- `ai-command-policy.mjs` wraps the rerun call in a `try`/`catch` so that a
+  transient Actions API error does not blank the marker comment that the gate
+  depends on. The next trusted review event (or the next `synchronize`) will
+  cover the missed rerun.
