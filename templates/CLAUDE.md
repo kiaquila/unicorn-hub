@@ -4,9 +4,9 @@ Claude Code is the default implementation agent unless repository policy says ot
 
 ## Read Before Coding
 
-1. `.specify/memory/constitution.md`
-2. `AGENTS.md`
-3. `docs_project/README.md`
+1. @.specify/memory/constitution.md
+2. @AGENTS.md
+3. @docs_project/README.md
 4. active `specs/<feature-id>/spec.md`
 5. active `specs/<feature-id>/plan.md`
 6. active `specs/<feature-id>/tasks.md`
