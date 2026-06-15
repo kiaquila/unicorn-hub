@@ -115,6 +115,7 @@ for (const rel of walkFiles(join(sourceRoot, "templates"))) {
 
 const scriptAllowlist = new Set([
   "shared.mjs",
+  "check-context-budget.mjs",
   "check-feature-memory.mjs",
   "check-repo-baseline.mjs",
   "resolve-pr-context.mjs",
@@ -204,7 +205,7 @@ if (dryRun) {
   } else {
     console.log("1. No new files were written. Existing AGENTS.md, CLAUDE.md, docs_project/, and .unicorn-hub/config.json were preserved as-is (their contents were not compared to the blueprint); review them for stale placeholders or re-run with --force to refresh from the blueprint.");
   }
-  console.log("2. For a new or under-documented project, ask an agent to follow CREATE-DOCS.md before product code.");
+  console.log("2. For a new or under-documented project, ask an agent to follow CREATE-DOCS.md and use docs-minimum.md unless full discovery is needed.");
   console.log("3. Create the first specs/<feature-id>/{spec.md,plan.md,tasks.md}.");
   console.log("4. Run the project preflight, then open a PR.");
 }

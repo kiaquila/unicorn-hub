@@ -12,6 +12,7 @@
   "scripts": {
     "bootstrap": "node scripts/bootstrap-repo.mjs",
     "agent:set": "node scripts/set-implementation-agent.mjs",
+    "check:context": "node scripts/check-context-budget.mjs",
     "check:feature-memory": "node scripts/check-feature-memory.mjs",
     "check:repo": "node scripts/check-repo-baseline.mjs",
     "check:syntax": "node scripts/preflight.mjs --syntax-only",

@@ -2,6 +2,20 @@
 
 The blueprint assumes multiple agents may participate, but each PR has clear ownership.
 
+## When To Use Multiple Agents
+
+Use one agent by default. Add agents only when the work has a real boundary that reduces risk or elapsed time:
+
+| Pattern | Use when | Avoid when |
+| --- | --- | --- |
+| Single agent | The task is local, sequential, or shares one mutable design surface. | Independent research, review, or implementation streams would clearly shorten the work. |
+| Agents as tools | A bounded specialist can inspect docs, security, tests, migrations, or design without owning the PR. | The specialist would need broad repo authority or duplicate the main agent's context. |
+| Orchestrator and workers | The work is breadth-heavy, uncertain, or can be split across disjoint paths. | Workers would edit the same files or rely on each other's unmerged state. |
+| Evaluator loop | Acceptance criteria are clear enough for a reviewer or test agent to judge. | The task is exploratory and the target behavior is still undefined. |
+| Handoff | Ownership, tool access, or domain expertise genuinely changes. | A simple status update or deterministic next step is enough. |
+
+Concurrent coding agents must use separate worktrees or clearly disjoint files. Do not run parallel writers in the same worktree.
+
 ## Roles
 
 **Orchestrator**

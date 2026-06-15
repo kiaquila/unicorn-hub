@@ -36,7 +36,7 @@
   },
   "packageScripts": {
     "check:flutter": "make check && make test",
-    "preflight": "pnpm run check:repo && node scripts/check-feature-memory.mjs --worktree && pnpm run check:flutter"
+    "preflight": "pnpm run check:repo && pnpm run check:context -- --worktree && node scripts/check-feature-memory.mjs --worktree && pnpm run check:flutter"
   },
   "requiredChecks": [
     "guard",

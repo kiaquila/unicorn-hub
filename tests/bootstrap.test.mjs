@@ -7,6 +7,10 @@ import { tmpdir } from "node:os";
 
 const root = resolve(".");
 
+function countLines(text) {
+  return text.replace(/\r?\n$/, "").split(/\r?\n/).length;
+}
+
 function run(args, cwd = root) {
   return execFileSync("node", args, {
     cwd,
@@ -33,13 +37,16 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
   const nextStepsBlock = output.split("\nNext:\n")[1] ?? "";
   assert.notEqual(nextStepsBlock, "", "bootstrap output must contain a 'Next:' block");
   assert.match(nextStepsBlock, /^1\. Review placeholders.*AGENTS\.md.*CLAUDE\.md.*docs_project\/.*\.unicorn-hub\/config\.json/m);
-  assert.match(nextStepsBlock, /^2\. .*CREATE-DOCS\.md/m);
+  assert.match(nextStepsBlock, /^2\. .*CREATE-DOCS\.md.*docs-minimum\.md/m);
   assert.match(nextStepsBlock, /^3\. Create the first specs\/<feature-id>/m);
   assert.match(nextStepsBlock, /^4\. Run the project preflight/m);
 
   for (const path of [
     "AGENTS.md",
     "CLAUDE.md",
+    "CREATE-DOCS.md",
+    "docs-minimum.md",
+    "docs-full-interview.md",
     "docs_project/README.md",
     ".specify/memory/constitution.md",
     ".specify/templates/spec-template.md",
@@ -48,6 +55,7 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
     ".github/workflows/ai-review-rerun.yml",
     "scripts/ai-command-policy.mjs",
     "scripts/ai-review-rerun.mjs",
+    "scripts/check-context-budget.mjs",
     "scripts/check-feature-memory.mjs",
     ".unicorn-hub/config.json"
   ]) {
@@ -57,23 +65,43 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
   const agents = readFileSync(join(target, "AGENTS.md"), "utf8");
   assert.match(agents, /Synthetic App/);
   assert.doesNotMatch(agents, /<PROJECT_NAME>/);
-  assert.match(agents, /first setup documentation interview/i);
   assert.match(agents, /CREATE-DOCS\.md/);
+  assert.match(agents, /docs-minimum\.md/);
+  assert.match(agents, /Task-Scoped Reading/);
+  assert.ok(countLines(agents) <= 60, "installed AGENTS.md should stay compact");
+  assert.doesNotMatch(agents, /Supported review backends/);
+  assert.doesNotMatch(agents, /## Roles/);
 
   const readme = readFileSync(join(target, "README.md"), "utf8");
   assert.match(readme, /First Setup After Bootstrap/);
   assert.match(readme, /CREATE-DOCS\.md/);
+  assert.match(readme, /docs-minimum\.md/);
 
   const claude = readFileSync(join(target, "CLAUDE.md"), "utf8");
   assert.match(claude, /## First Setup/);
   assert.match(claude, /CREATE-DOCS\.md/);
+  assert.match(claude, /docs-minimum\.md/);
+  assert.ok(countLines(claude) <= 60, "installed CLAUDE.md should stay compact");
+  assert.doesNotMatch(claude, /Supported review backends/);
+
+  const createDocs = readFileSync(join(target, "CREATE-DOCS.md"), "utf8");
+  assert.match(createDocs, /## Default Path: Minimum Docs/);
+  assert.match(createDocs, /docs-minimum\.md/);
+  assert.match(createDocs, /docs-full-interview\.md/);
+  assert.match(createDocs, /Do not run the full interview by default/);
 
   const docsReadme = readFileSync(join(target, "docs_project/README.md"), "utf8");
   assert.match(docsReadme, /## First Setup/);
+  assert.match(docsReadme, /docs-minimum\.md/);
+  assert.match(docsReadme, /Task-Scoped Reading/);
   assert.match(docsReadme, /specs\/<feature-id>/);
 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
   assert.equal(config.profile, "generic");
+
+  const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
+  assert.equal(packageJson.scripts["check:context"], "node scripts/check-context-budget.mjs");
+  assert.match(packageJson.scripts.preflight, /check:context/);
 
   const specTemplate = readFileSync(join(target, ".specify/templates/spec-template.md"), "utf8");
   assert.match(specTemplate, /## Goal/);
@@ -197,7 +225,9 @@ test("bootstrap preserves Flutter CI and installs Flutter profile controls", () 
   assert.equal(config.commands.preflight, "pnpm run preflight");
 
   const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
+  assert.equal(packageJson.scripts["check:context"], "node scripts/check-context-budget.mjs");
   assert.match(packageJson.scripts.preflight, /pnpm run check:flutter/);
+  assert.match(packageJson.scripts.preflight, /check:context/);
   assert.equal(packageJson.scripts["check:flutter"], "make check && make test");
 
   const dependabot = readFileSync(join(target, ".github/dependabot.yml"), "utf8");
@@ -333,6 +363,11 @@ test("bootstrap merges profile packageScripts into a pre-existing package.json",
     packageJson.scripts["check:feature-memory"],
     "node scripts/check-feature-memory.mjs",
     "baseline check:feature-memory script must be filled in for the merged preflight"
+  );
+  assert.equal(
+    packageJson.scripts["check:context"],
+    "node scripts/check-context-budget.mjs",
+    "baseline check:context script must be filled in for the merged preflight"
   );
   assert.match(
     String(packageJson.packageManager || ""),

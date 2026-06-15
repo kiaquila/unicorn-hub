@@ -4,10 +4,10 @@ Unicorn Hub is a portable blueprint for multi-agent development. It packages the
 
 The blueprint has four layers:
 
-1. **Project memory**: durable product and architecture documentation.
+1. **Project memory**: lazy-loaded durable product and architecture documentation.
 2. **Feature memory**: spec-driven `spec.md`, `plan.md`, and `tasks.md` folders.
 3. **Agent orchestration**: explicit roles for implementation agents, review agents, and humans.
-4. **Gates**: local preflight, CI, PR guard, AI review, security scanning, and branch protection.
+4. **Gates**: local preflight, context-budget checks, CI, PR guard, AI review, security scanning, and branch protection.
 
 The feature-memory layer also carries a lightweight SENAR contract: every
 product-code task names its goal, scope, acceptance criteria, negative scenario,

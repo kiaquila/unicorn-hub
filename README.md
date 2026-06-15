@@ -9,7 +9,7 @@ This repository is meant to be copied by agents into a new project. It contains 
 Unicorn Hub can be used in two ways:
 
 - Analyze and adopt: ask an agent to inspect this blueprint and recommend which parts fit an existing repository.
-- Install: bootstrap the portable workflow files into a target repository, then create or refresh project docs before product-code work.
+- Install: bootstrap the portable workflow files into a target repository, then create the minimum project docs and first feature spec before product-code work.
 
 Use this prompt in the target repository when you want to install the blueprint:
 
@@ -19,9 +19,9 @@ the process blueprint. If you do not already have a local copy, clone it
 first (the bootstrap script needs a filesystem path). Install the portable
 multi-agent development blueprint into the current repository, choose the
 closest project profile, adapt placeholders, run local verification, and
-prepare a pull request. After bootstrap, follow CREATE-DOCS.md to build
-docs_project before creating the first feature spec. Do not copy
-project-specific examples or secrets.
+prepare a pull request. After bootstrap, follow CREATE-DOCS.md to choose the
+minimum or full documentation path before creating the first feature spec. Do
+not copy project-specific examples or secrets.
 ```
 
 If you do not already have a local clone, get one first:
@@ -58,13 +58,13 @@ Current profiles include:
 - Spec-driven feature memory under `specs/<feature-id>/`
 - SENAR-style supervised verification fields for goals, scope, acceptance evidence, negative scenarios, and process memory
 - Agent rules: `AGENTS.md` and `CLAUDE.md`
-- Local orchestration scripts for worktrees, PR publishing, feature-memory gates, AI review gates, and branch protection
+- Local orchestration scripts for worktrees, PR publishing, feature-memory gates, context budget checks, AI review gates, and branch protection
 - GitHub Actions workflows for CI, PR guard, trusted AI review routing, and OSV scanning
 - Supply-chain defaults: pnpm `minimumReleaseAge`, Dependabot cooldown, pinned package manager, lockfile-oriented installs
 
 ## Canonical Workflow
 
-1. Create or refresh project context with the documentation interview.
+1. Create or refresh project context with the documentation router; load detailed docs only when relevant.
 2. Create feature memory before product code: `spec.md`, `plan.md`, `tasks.md`.
 3. Implement in one worktree, one branch, one PR.
 4. Run local preflight before every push.
@@ -73,13 +73,13 @@ Current profiles include:
 
 ## After Bootstrap
 
-For a new or under-documented target repository, ask the agent to run the installed documentation interview before implementation:
+For a new or under-documented target repository, ask the agent to run the installed documentation router before implementation:
 
 ```text
 Read CREATE-DOCS.md and ai-docs-guide.md in this repository.
-Interview me in small batches and write durable project docs under docs_project/.
-When docs are sufficient, create the first specs/<feature-id>/spec.md, plan.md,
-and tasks.md. Do not implement product code yet.
+Use docs-minimum.md unless the user asks for full discovery or the project is unclear.
+When minimum docs are sufficient, create the first specs/<feature-id>/spec.md,
+plan.md, and tasks.md. Do not implement product code yet.
 ```
 
 If project docs already exist, use the same protocol to review and refresh them instead of duplicating them.

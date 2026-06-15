@@ -27,7 +27,7 @@ Install:
 - `docs_project/`
 - `.unicorn-hub/config.json`
 
-The target repository must have a reading route before product code changes begin. For a new or under-documented target, the installed `CREATE-DOCS.md` protocol is the first setup path: interview the user, write durable docs under `docs_project/`, and only then move into feature memory.
+The target repository must have a reading route before product code changes begin. For a new or under-documented target, the installed `CREATE-DOCS.md` protocol routes the agent to `docs-minimum.md` first. Use the full interview only when the user asks for deeper discovery or the project direction is unclear. Durable docs are a lazy-loaded index, not mandatory reading for every task.
 
 ## Phase 2: Spec-Kit Style Feature Memory
 
@@ -57,6 +57,7 @@ Install scripts for:
 - one worktree per task
 - feature-memory enforcement
 - repository baseline verification
+- context budget and agent-readiness reporting
 - PR publishing
 - AI review normalization
 - review-agent switching
@@ -103,9 +104,9 @@ After the workflows exist on the default branch, apply branch protection:
 
 ## Phase 6: First Feature PR
 
-The first feature validates the whole system after project docs are present or refreshed:
+The first feature validates the whole system after minimum project docs are present or refreshed:
 
-1. follow `CREATE-DOCS.md` if `docs_project/` is empty, stale, or still contains placeholders
+1. follow `CREATE-DOCS.md` and `docs-minimum.md` if `docs_project/` is empty, stale, or still contains placeholders
 2. create a feature worktree
 3. write `spec.md`, `plan.md`, `tasks.md`
 4. implement only scoped changes

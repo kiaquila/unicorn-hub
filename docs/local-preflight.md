@@ -14,6 +14,7 @@ It should run, at minimum:
 
 - repository baseline validation
 - feature-memory gate against `origin/main...HEAD`
+- context budget and feature-memory substance validation
 - formatting check
 - lint or static validation
 - typecheck if applicable
@@ -21,7 +22,7 @@ It should run, at minimum:
 - tests
 - sanitizer for blueprint/template repositories
 
-Profiles may override the installed control-plane `preflight` script to call target-native checks after Unicorn gates. For example, a Flutter target can keep its existing `make check` and `make test` workflow while still running repository baseline and feature-memory validation first.
+Profiles may override the installed control-plane `preflight` script to call target-native checks after Unicorn gates. For example, a Flutter target can keep its existing `make check` and `make test` workflow while still running repository baseline, context budget, and feature-memory validation first.
 
 ## Pre-Push Guard
 
