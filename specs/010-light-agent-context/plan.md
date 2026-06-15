@@ -35,7 +35,7 @@ The only new script is a small validator. It avoids parsing full Markdown ASTs a
 | AC-001 | Bootstrap test asserts compact installed launch files mention `docs-minimum.md` and avoid duplicated role/review contracts. |
 | AC-002 | Bootstrap and documentation assertions confirm `CREATE-DOCS.md` defaults to minimum docs and keeps full discovery optional. |
 | AC-003 | Baseline and package-script tests confirm `scripts/check-context-budget.mjs` is installed and preflight invokes local-preflight plus worktree checks; bootstrap tests assert PR Guard runs the context budget against `BASE_REF` and `HEAD_REF`; context-budget tests cover staged specs, local-preflight fallback without remote refs, configured default base branches, and missing committed-diff refs. |
-| AC-004 | Context-budget tests create synthetic oversized, placeholder-only, template-verification-only, staged-placeholder, and committed-placeholder targets and assert failure. |
+| AC-004 | Context-budget tests create synthetic oversized, placeholder-only, template-verification-only, backticked-command, staged-placeholder, and committed-placeholder targets and assert the expected pass/fail result. |
 | AC-005 | Documentation tests and grep review confirm `docs_project/README.md` is described as a task-scoped index. |
 | AC-006 | Multi-agent workflow docs include a decision matrix and a no-parallel-writers rule. |
 

@@ -152,6 +152,40 @@ Negative scenario evidence:
   );
 }
 
+function writeBacktickedCommandVerificationFeature(target, featureId = "001-command-verification") {
+  const featureDir = join(target, "specs", featureId);
+  mkdirSync(featureDir, { recursive: true });
+  writeFileSync(
+    join(featureDir, "spec.md"),
+    `# Spec: Command Verification
+
+## Goal
+
+Provide enough context for an agent to implement the synthetic target safely.
+
+## Acceptance Criteria
+
+- AC-001: The feature records a concrete outcome and user-visible behavior.
+- AC-002: The feature describes how maintainers can verify the expected result.
+`
+  );
+  writeFileSync(
+    join(featureDir, "plan.md"),
+    `# Plan: Command Verification
+
+## Verification
+
+| Acceptance criterion | Evidence |
+| --- | --- |
+| AC-001 | \`pnpm test -- login-retry\` |
+
+Negative scenario evidence:
+
+- \`pnpm test -- login-retry-negative\`
+`
+  );
+}
+
 test("context budget passes compact blueprint templates", () => {
   const output = run(["scripts/check-context-budget.mjs", "--feature", "010-light-agent-context", "--worktree"]);
   assert.match(output, /Context budget check passed/);
@@ -223,6 +257,22 @@ test("context budget rejects template-only verification evidence", () => {
   assert.doesNotMatch(output, /placeholder-only or too-thin ## Goal/);
   assert.doesNotMatch(output, /placeholder-only or too-thin ## Acceptance Criteria/);
   assert.match(output, /placeholder-only or too-thin ## Verification/);
+});
+
+test("context budget accepts real backticked verification commands", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-context-command-verification-"));
+  writeConfig(target);
+  writeCompactAgentFiles(target);
+  writeBacktickedCommandVerificationFeature(target);
+
+  const output = run([
+    "scripts/check-context-budget.mjs",
+    "--target",
+    target,
+    "--feature",
+    "001-command-verification"
+  ]);
+  assert.match(output, /Context budget check passed/);
 });
 
 test("context budget rejects staged placeholder specs in worktree mode", () => {

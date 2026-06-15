@@ -44,3 +44,4 @@
 - Codex review found that staged placeholder specs and missing committed-diff refs could bypass the local gate; the script now includes staged files and fails closed when diff refs are unavailable.
 - Codex review found that first-setup preflight could fail before `origin/<defaultBaseBranch>` exists; local preflight now uses `--local-preflight` plus worktree mode instead of an unqualified committed-diff check.
 - Codex review found that template verification boilerplate could count as substance; the context-budget normalizer now strips known table labels and bracketed instruction placeholders before judging verification evidence.
+- Codex review found that real backticked verification commands could be stripped with placeholders; the normalizer now preserves code-span contents after placeholder-specific stripping.

@@ -202,7 +202,7 @@ function normalizeSubstance(text) {
     .replace(TEMPLATE_BOILERPLATE_PATTERN, " ")
     .replace(BRACKETED_INSTRUCTION_PATTERN, " ")
     .replace(PLACEHOLDER_PATTERN, " ")
-    .replace(/`[^`]*`/g, " ")
+    .replace(/`([^`]*)`/g, " $1 ")
     .replace(/https?:\/\/\S+/g, " ")
     .replace(/[|#>*_[\]():.,;{}+-]/g, " ")
     .replace(/\s+/g, " ")
