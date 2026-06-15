@@ -32,7 +32,9 @@ checks still use `origin/<defaultBaseBranch>` and `HEAD` by default and fail
 closed when those refs are unavailable; fetch the configured default branch
 first, or pass explicit refs to
 `pnpm run check:context -- <base-ref> <head-ref>`. The worktree context check
-includes unstaged, staged, and untracked spec changes.
+includes unstaged, staged, and untracked spec changes. Context checks read the
+same snapshot they inspect: committed diffs read the head ref, staged specs read
+the index, and unstaged or untracked specs read the filesystem.
 
 ## Pre-Push Guard
 

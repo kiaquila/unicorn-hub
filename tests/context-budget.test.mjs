@@ -298,6 +298,30 @@ test("context budget rejects staged placeholder specs in worktree mode", () => {
   assert.match(output, /placeholder-only or too-thin ## Verification/);
 });
 
+test("context budget reads staged specs when worktree has unstaged fixes", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-context-staged-snapshot-"));
+  git(target, ["init"]);
+  git(target, ["config", "user.email", "test@example.com"]);
+  git(target, ["config", "user.name", "Test User"]);
+  writeConfig(target);
+  writeCompactAgentFiles(target);
+  commitAll(target, "base");
+
+  writePlaceholderFeature(target, "001-snapshot");
+  git(target, ["add", "specs/001-snapshot/spec.md", "specs/001-snapshot/plan.md"]);
+  writeSubstantiveFeature(target, "001-snapshot");
+
+  const output = runFailure([
+    "scripts/check-context-budget.mjs",
+    "--target",
+    target,
+    "--worktree"
+  ]);
+  assert.match(output, /placeholder-only or too-thin ## Goal/);
+  assert.match(output, /placeholder-only or too-thin ## Acceptance Criteria/);
+  assert.match(output, /placeholder-only or too-thin ## Verification/);
+});
+
 test("context budget rejects placeholder specs committed in branch diff", () => {
   const target = mkdtempSync(join(tmpdir(), "unicorn-context-committed-placeholder-"));
   git(target, ["init"]);
@@ -361,6 +385,31 @@ test("context budget local-preflight mode validates committed specs without remo
     "--local-preflight"
   ]);
   assert.match(output, /placeholder-only or too-thin ## Goal/);
+  assert.doesNotMatch(output, /Unable to inspect committed changes/);
+});
+
+test("context budget local-preflight reads committed specs when worktree has unstaged fixes", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-context-committed-snapshot-"));
+  git(target, ["init"]);
+  git(target, ["config", "user.email", "test@example.com"]);
+  git(target, ["config", "user.name", "Test User"]);
+  writeConfig(target);
+  writeCompactAgentFiles(target);
+  commitAll(target, "base");
+
+  writePlaceholderFeature(target, "001-snapshot");
+  commitAll(target, "add placeholder spec");
+  writeSubstantiveFeature(target, "001-snapshot");
+
+  const output = runFailure([
+    "scripts/check-context-budget.mjs",
+    "--target",
+    target,
+    "--local-preflight"
+  ]);
+  assert.match(output, /placeholder-only or too-thin ## Goal/);
+  assert.match(output, /placeholder-only or too-thin ## Acceptance Criteria/);
+  assert.match(output, /placeholder-only or too-thin ## Verification/);
   assert.doesNotMatch(output, /Unable to inspect committed changes/);
 });
 

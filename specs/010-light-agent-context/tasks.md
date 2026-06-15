@@ -35,6 +35,7 @@
 - Run PR Guard context-budget checks against committed diff refs, not only local worktree state.
 - Run local preflight context-budget checks in local-preflight and worktree modes so first setup works without a remote ref while PR Guard remains committed-diff based.
 - Treat unavailable committed-diff refs as a failed context-budget check, while still honoring `.unicorn-hub/config.json` `defaultBaseBranch`.
+- Read context-budget feature memory from the same snapshot being inspected: committed head blobs for committed diffs, the index for staged specs, and the filesystem for unstaged or untracked specs.
 
 ### Known Issues
 
@@ -45,3 +46,4 @@
 - Codex review found that first-setup preflight could fail before `origin/<defaultBaseBranch>` exists; local preflight now uses `--local-preflight` plus worktree mode instead of an unqualified committed-diff check.
 - Codex review found that template verification boilerplate could count as substance; the context-budget normalizer now strips known table labels and bracketed instruction placeholders before judging verification evidence.
 - Codex review found that real backticked verification commands could be stripped with placeholders; the normalizer now preserves code-span contents after placeholder-specific stripping.
+- Codex review found that staged or committed placeholder specs could be hidden by unstaged worktree fixes; the context-budget gate now reads committed/index snapshots instead of always reading the filesystem.

@@ -23,6 +23,7 @@ const baseRef = args._?.[0] || `origin/${defaultBaseBranch}`;
 const headRef = args._?.[1] || "HEAD";
 const issues = [];
 const EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+const WORKTREE_SOURCE = { type: "worktree" };
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -81,6 +82,14 @@ function git(commandArgs) {
   }).trim();
 }
 
+function gitShow(object) {
+  return execFileSync("git", ["show", object], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"]
+  });
+}
+
 function gitRepositoryExists() {
   return existsSync(join(repoRoot, ".git"));
 }
@@ -102,12 +111,23 @@ function gitChangedFiles(commandArgs, description) {
   }
 }
 
-function worktreeChangedFiles() {
-  return uniqueFiles([
-    gitChangedFiles(["diff", "--name-only"], "unstaged worktree changes"),
-    gitChangedFiles(["diff", "--cached", "--name-only"], "staged worktree changes"),
-    gitChangedFiles(["ls-files", "--others", "--exclude-standard"], "untracked worktree files")
-  ]);
+function changedFileContext(label, files, source) {
+  return {
+    label,
+    files: uniqueFiles([files]),
+    source
+  };
+}
+
+function worktreeChangedFileContexts() {
+  const unstagedFiles = gitChangedFiles(["diff", "--name-only"], "unstaged worktree changes");
+  const stagedFiles = gitChangedFiles(["diff", "--cached", "--name-only"], "staged worktree changes");
+  const untrackedFiles = gitChangedFiles(["ls-files", "--others", "--exclude-standard"], "untracked worktree files");
+
+  return [
+    changedFileContext("staged worktree changes", stagedFiles, { type: "index" }),
+    changedFileContext("unstaged and untracked worktree changes", uniqueFiles([unstagedFiles, untrackedFiles]), WORKTREE_SOURCE)
+  ].filter((context) => context.files.length);
 }
 
 function gitCommit(ref) {
@@ -129,17 +149,21 @@ function localPreflightBaseRef() {
   return EMPTY_TREE_SHA;
 }
 
-function changedFiles() {
+function changedFileContexts() {
   if (!gitRepositoryExists()) {
     return [];
   }
-  if (inspectWorktree) return worktreeChangedFiles();
-  if (inspectLocalPreflight && !gitCommit(headRef)) return worktreeChangedFiles();
+  if (inspectWorktree) return worktreeChangedFileContexts();
+  if (inspectLocalPreflight && !gitCommit(headRef)) return worktreeChangedFileContexts();
   const resolvedBaseRef = inspectLocalPreflight && !args._?.[0] ? localPreflightBaseRef() : baseRef;
-  return gitChangedFiles(
-    ["diff", "--name-only", resolvedBaseRef, headRef],
-    `committed changes between ${resolvedBaseRef} and ${headRef}`
-  );
+  const description = `committed changes between ${resolvedBaseRef} and ${headRef}`;
+  return [
+    changedFileContext(
+      description,
+      gitChangedFiles(["diff", "--name-only", resolvedBaseRef, headRef], description),
+      { type: "git", ref: headRef }
+    )
+  ].filter((context) => context.files.length);
 }
 
 function explicitFeatureIds() {
@@ -227,25 +251,51 @@ function requireSubstantiveSection(file, content, heading) {
   }
 }
 
-function validateFeatureMemory(featureIds) {
+function readTextFromSource(path, source) {
+  if (source.type === "worktree") {
+    if (!existsSync(join(repoRoot, path))) return null;
+    return readText(path);
+  }
+
+  try {
+    if (source.type === "index") return gitShow(`:${path}`);
+    if (source.type === "git") return gitShow(`${source.ref}:${path}`);
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function validateFeatureMemory(featureIds, source = WORKTREE_SOURCE) {
   for (const featureId of featureIds) {
     const specPath = `${specsDir}/${featureId}/spec.md`;
     const planPath = `${specsDir}/${featureId}/plan.md`;
+    const spec = readTextFromSource(specPath, source);
 
-    if (!existsSync(join(repoRoot, specPath))) {
+    if (spec === null) {
       issues.push(`${specPath} is required for context substance checks.`);
       continue;
     }
-    if (!existsSync(join(repoRoot, planPath))) {
+    const plan = readTextFromSource(planPath, source);
+    if (plan === null) {
       issues.push(`${planPath} is required for context substance checks.`);
       continue;
     }
 
-    const spec = readText(specPath);
-    const plan = readText(planPath);
     requireSubstantiveSection(specPath, spec, "Goal");
     requireSubstantiveSection(specPath, spec, "Acceptance Criteria");
     requireSubstantiveSection(planPath, plan, "Verification");
+  }
+}
+
+function validateSelectedFeatureMemory(fileContexts, featureIds) {
+  if (explicitFeatureIds().length || args["all-specs"]) {
+    validateFeatureMemory(featureIds, WORKTREE_SOURCE);
+    return;
+  }
+
+  for (const context of fileContexts) {
+    validateFeatureMemory(featureIdsFromFiles(context.files), context.source);
   }
 }
 
@@ -279,10 +329,11 @@ function buildReport(alwaysOnStats, files, featureIds) {
   return lines.join("\n");
 }
 
-const files = shouldInspectChangedFiles() ? changedFiles() : [];
+const fileContexts = shouldInspectChangedFiles() ? changedFileContexts() : [];
+const files = uniqueFiles(fileContexts.map((context) => context.files));
 const featureIds = selectedFeatureIds(files);
 const alwaysOnStats = checkAlwaysOnFiles();
-validateFeatureMemory(featureIds);
+validateSelectedFeatureMemory(fileContexts, featureIds);
 
 if (reportOnly) {
   console.log(buildReport(alwaysOnStats, files, featureIds));
