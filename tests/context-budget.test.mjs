@@ -119,7 +119,7 @@ function writePlaceholderFeature(target, featureId = "001-placeholder") {
 }
 
 test("context budget passes compact blueprint templates", () => {
-  const output = run(["scripts/check-context-budget.mjs", "--feature", "010-light-agent-context"]);
+  const output = run(["scripts/check-context-budget.mjs", "--feature", "010-light-agent-context", "--worktree"]);
   assert.match(output, /Context budget check passed/);
 });
 
@@ -238,6 +238,28 @@ test("context budget fails when default diff refs cannot be resolved", () => {
     target
   ]);
   assert.match(output, /Unable to inspect committed changes between origin\/main and HEAD/);
+});
+
+test("context budget local-preflight mode validates committed specs without remote refs", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-context-local-preflight-"));
+  git(target, ["init"]);
+  git(target, ["config", "user.email", "test@example.com"]);
+  git(target, ["config", "user.name", "Test User"]);
+  writeConfig(target);
+  writeCompactAgentFiles(target);
+  commitAll(target, "base");
+
+  writePlaceholderFeature(target);
+  commitAll(target, "add placeholder spec");
+
+  const output = runFailure([
+    "scripts/check-context-budget.mjs",
+    "--target",
+    target,
+    "--local-preflight"
+  ]);
+  assert.match(output, /placeholder-only or too-thin ## Goal/);
+  assert.doesNotMatch(output, /Unable to inspect committed changes/);
 });
 
 test("context budget uses configured default base branch for committed diffs", () => {

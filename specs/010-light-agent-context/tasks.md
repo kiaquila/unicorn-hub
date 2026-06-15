@@ -33,7 +33,7 @@
 - Validate context quality by checking a few required sections instead of rewarding long documentation.
 - Keep multi-agent orchestration guidance in docs, not root launch files, so it is loaded only when relevant.
 - Run PR Guard context-budget checks against committed diff refs, not only local worktree state.
-- Run root preflight context-budget checks in both committed-diff and worktree modes so local verification matches target scripts and PR Guard.
+- Run local preflight context-budget checks in local-preflight and worktree modes so first setup works without a remote ref while PR Guard remains committed-diff based.
 - Treat unavailable committed-diff refs as a failed context-budget check, while still honoring `.unicorn-hub/config.json` `defaultBaseBranch`.
 
 ### Known Issues
@@ -42,3 +42,4 @@
 - `pnpm run preflight` passed locally after the staged-spec and missing-ref follow-up fixes.
 - Codex review found that committed placeholder specs could bypass local worktree mode; PR Guard now runs the context budget against `BASE_REF` and `HEAD_REF`.
 - Codex review found that staged placeholder specs and missing committed-diff refs could bypass the local gate; the script now includes staged files and fails closed when diff refs are unavailable.
+- Codex review found that first-setup preflight could fail before `origin/<defaultBaseBranch>` exists; local preflight now uses `--local-preflight` plus worktree mode instead of an unqualified committed-diff check.

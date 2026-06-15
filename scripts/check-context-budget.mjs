@@ -14,11 +14,13 @@ const specsDir = config.specsDir || "specs";
 const docsDir = config.docsDir || "docs_project";
 const maxAgentLines = Number(args["max-agent-lines"] || config.contextBudget?.maxAgentLines || DEFAULT_MAX_AGENT_LINES);
 const inspectWorktree = Boolean(args.worktree);
+const inspectLocalPreflight = Boolean(args["local-preflight"]);
 const reportOnly = Boolean(args.report);
 const defaultBaseBranch = config.defaultBaseBranch || "main";
 const baseRef = args._?.[0] || `origin/${defaultBaseBranch}`;
 const headRef = args._?.[1] || "HEAD";
 const issues = [];
+const EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -106,14 +108,35 @@ function worktreeChangedFiles() {
   ]);
 }
 
+function gitCommit(ref) {
+  try {
+    return git(["rev-parse", "--verify", `${ref}^{commit}`]);
+  } catch {
+    return null;
+  }
+}
+
+function localPreflightBaseRef() {
+  if (gitCommit(baseRef)) return baseRef;
+
+  const headCommit = gitCommit(headRef);
+  const localDefaultCommit = gitCommit(defaultBaseBranch);
+  if (localDefaultCommit && localDefaultCommit !== headCommit) return defaultBaseBranch;
+
+  if (gitCommit("HEAD~1")) return "HEAD~1";
+  return EMPTY_TREE_SHA;
+}
+
 function changedFiles() {
   if (!gitRepositoryExists()) {
     return [];
   }
   if (inspectWorktree) return worktreeChangedFiles();
+  if (inspectLocalPreflight && !gitCommit(headRef)) return worktreeChangedFiles();
+  const resolvedBaseRef = inspectLocalPreflight && !args._?.[0] ? localPreflightBaseRef() : baseRef;
   return gitChangedFiles(
-    ["diff", "--name-only", baseRef, headRef],
-    `committed changes between ${baseRef} and ${headRef}`
+    ["diff", "--name-only", resolvedBaseRef, headRef],
+    `committed changes between ${resolvedBaseRef} and ${headRef}`
   );
 }
 
@@ -152,6 +175,11 @@ function selectedFeatureIds(files) {
   if (explicit.length) return explicit;
   if (args["all-specs"]) return allSpecIds();
   return featureIdsFromFiles(files);
+}
+
+function shouldInspectChangedFiles() {
+  if (inspectWorktree || inspectLocalPreflight || reportOnly) return true;
+  return !args["all-specs"] && explicitFeatureIds().length === 0;
 }
 
 function sectionBody(markdown, heading) {
@@ -247,7 +275,7 @@ function buildReport(alwaysOnStats, files, featureIds) {
   return lines.join("\n");
 }
 
-const files = changedFiles();
+const files = shouldInspectChangedFiles() ? changedFiles() : [];
 const featureIds = selectedFeatureIds(files);
 const alwaysOnStats = checkAlwaysOnFiles();
 validateFeatureMemory(featureIds);

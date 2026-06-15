@@ -102,7 +102,7 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
 
   const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
   assert.equal(packageJson.scripts["check:context"], "node scripts/check-context-budget.mjs");
-  assert.match(packageJson.scripts.preflight, /pnpm run check:context && pnpm run check:context -- --worktree/);
+  assert.match(packageJson.scripts.preflight, /pnpm run check:context -- --local-preflight && pnpm run check:context -- --worktree/);
 
   const prGuard = readFileSync(join(target, ".github/workflows/pr-guard.yml"), "utf8");
   assert.match(prGuard, /Validate context budget/);
@@ -232,7 +232,7 @@ test("bootstrap preserves Flutter CI and installs Flutter profile controls", () 
   const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
   assert.equal(packageJson.scripts["check:context"], "node scripts/check-context-budget.mjs");
   assert.match(packageJson.scripts.preflight, /pnpm run check:flutter/);
-  assert.match(packageJson.scripts.preflight, /pnpm run check:context && pnpm run check:context -- --worktree/);
+  assert.match(packageJson.scripts.preflight, /pnpm run check:context -- --local-preflight && pnpm run check:context -- --worktree/);
   assert.equal(packageJson.scripts["check:flutter"], "make check && make test");
 
   const dependabot = readFileSync(join(target, ".github/dependabot.yml"), "utf8");
@@ -359,7 +359,7 @@ test("bootstrap merges profile packageScripts into a pre-existing package.json",
   assert.equal(packageJson.scripts.custom, "echo custom", "user-defined scripts must be preserved");
   assert.equal(packageJson.scripts["check:flutter"], "make check && make test");
   assert.match(packageJson.scripts.preflight, /pnpm run check:flutter/, "profile preflight must override the user one");
-  assert.match(packageJson.scripts.preflight, /pnpm run check:context && pnpm run check:context -- --worktree/);
+  assert.match(packageJson.scripts.preflight, /pnpm run check:context -- --local-preflight && pnpm run check:context -- --worktree/);
   assert.equal(
     packageJson.scripts["check:repo"],
     "node scripts/check-repo-baseline.mjs",
