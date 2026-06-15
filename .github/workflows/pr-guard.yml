@@ -61,6 +61,15 @@ jobs:
             node scripts/check-feature-memory.mjs "$BASE_REF" "$HEAD_REF"
           fi
 
+      - name: Validate context budget
+        run: |
+          if [ -f .gate-trusted/scripts/check-context-budget.mjs ]; then
+            node .gate-trusted/scripts/check-context-budget.mjs --target "$GITHUB_WORKSPACE" "$BASE_REF" "$HEAD_REF"
+          else
+            echo "::warning::Trusted context budget script missing on default branch; using PR script for first-install bootstrap only."
+            node scripts/check-context-budget.mjs --target "$GITHUB_WORKSPACE" "$BASE_REF" "$HEAD_REF"
+          fi
+
       - name: Validate baseline files
         run: |
           if [ -f .gate-trusted/scripts/check-repo-baseline.mjs ]; then

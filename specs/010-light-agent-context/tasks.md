@@ -11,7 +11,7 @@
 - [x] T004 Replace the mandatory full documentation interview with a minimum/full router.
 - [x] T005 Update blueprint docs to describe lazy-loaded durable context.
 - [x] T006 Add multi-agent decision guidance.
-- [x] T007 Add `scripts/check-context-budget.mjs` and wire it into bootstrap, baseline, preflight, and profiles.
+- [x] T007 Add `scripts/check-context-budget.mjs` and wire it into bootstrap, baseline, preflight, PR Guard, and profiles.
 
 ## Verification
 
@@ -30,8 +30,11 @@
 - Keep spec-first and docs-first, but make first setup minimum-by-default rather than full-interview-by-default.
 - Validate context quality by checking a few required sections instead of rewarding long documentation.
 - Keep multi-agent orchestration guidance in docs, not root launch files, so it is loaded only when relevant.
+- Run PR Guard context-budget checks against committed diff refs, not only local worktree state.
+- Run root preflight context-budget checks in both committed-diff and worktree modes so local verification matches target scripts and PR Guard.
 
 ### Known Issues
 
 - The context-budget gate checks section substance heuristically; it is a safety net, not a replacement for review.
 - `pnpm run preflight` passed locally after the context-budget gate was wired into preflight.
+- Codex review found that committed placeholder specs could bypass local worktree mode; PR Guard now runs the context budget against `BASE_REF` and `HEAD_REF`.

@@ -24,6 +24,19 @@ function runFailure(args) {
   }
 }
 
+function git(target, args) {
+  return execFileSync("git", args, {
+    cwd: target,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+}
+
+function commitAll(target, message) {
+  git(target, ["add", "."]);
+  git(target, ["commit", "-m", message]);
+}
+
 function writeConfig(target, extra = {}) {
   mkdirSync(join(target, ".unicorn-hub"), { recursive: true });
   writeFileSync(
@@ -152,6 +165,53 @@ test("context budget rejects placeholder-only feature memory", () => {
     target,
     "--feature",
     "001-placeholder"
+  ]);
+  assert.match(output, /placeholder-only or too-thin ## Goal/);
+  assert.match(output, /placeholder-only or too-thin ## Acceptance Criteria/);
+  assert.match(output, /placeholder-only or too-thin ## Verification/);
+});
+
+test("context budget rejects placeholder specs committed in branch diff", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-context-committed-placeholder-"));
+  git(target, ["init"]);
+  git(target, ["config", "user.email", "test@example.com"]);
+  git(target, ["config", "user.name", "Test User"]);
+  writeConfig(target);
+  writeCompactAgentFiles(target);
+  commitAll(target, "base");
+
+  const featureDir = join(target, "specs", "001-placeholder");
+  mkdirSync(featureDir, { recursive: true });
+  writeFileSync(
+    join(featureDir, "spec.md"),
+    `# Spec: Placeholder
+
+## Goal
+
+[Add the goal.]
+
+## Acceptance Criteria
+
+[Add acceptance criteria.]
+`
+  );
+  writeFileSync(
+    join(featureDir, "plan.md"),
+    `# Plan: Placeholder
+
+## Verification
+
+[Add verification evidence.]
+`
+  );
+  commitAll(target, "add placeholder spec");
+
+  const output = runFailure([
+    "scripts/check-context-budget.mjs",
+    "--target",
+    target,
+    "HEAD~1",
+    "HEAD"
   ]);
   assert.match(output, /placeholder-only or too-thin ## Goal/);
   assert.match(output, /placeholder-only or too-thin ## Acceptance Criteria/);

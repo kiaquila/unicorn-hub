@@ -13,8 +13,8 @@ Slim the installed agent launch files, split first setup into minimum and full d
 
 ## Scope Boundaries
 
-- in scope: markdown templates, operator docs, bootstrap copy allowlist, package scripts, local checks, tests
-- out of scope: workflow review semantics, branch protection defaults, provider-specific agent APIs
+- in scope: markdown templates, operator docs, bootstrap copy allowlist, package scripts, local checks, PR Guard diff checks, tests
+- out of scope: AI review workflow semantics, branch protection defaults, provider-specific agent APIs
 
 ## Constitution Check
 
@@ -34,7 +34,7 @@ The only new script is a small validator. It avoids parsing full Markdown ASTs a
 | --- | --- |
 | AC-001 | Bootstrap test asserts compact installed launch files mention `docs-minimum.md` and avoid duplicated role/review contracts. |
 | AC-002 | Bootstrap and documentation assertions confirm `CREATE-DOCS.md` defaults to minimum docs and keeps full discovery optional. |
-| AC-003 | Baseline and package-script tests confirm `scripts/check-context-budget.mjs` is installed and preflight invokes it. |
+| AC-003 | Baseline and package-script tests confirm `scripts/check-context-budget.mjs` is installed and preflight invokes it; bootstrap tests assert PR Guard runs the context budget against `BASE_REF` and `HEAD_REF`. |
 | AC-004 | Context-budget tests create synthetic oversized and placeholder-only targets and assert failure. |
 | AC-005 | Documentation tests and grep review confirm `docs_project/README.md` is described as a task-scoped index. |
 | AC-006 | Multi-agent workflow docs include a decision matrix and a no-parallel-writers rule. |

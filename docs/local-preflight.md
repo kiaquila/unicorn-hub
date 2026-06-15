@@ -14,7 +14,7 @@ It should run, at minimum:
 
 - repository baseline validation
 - feature-memory gate against `origin/main...HEAD`
-- context budget and feature-memory substance validation
+- context budget and feature-memory substance validation against both the committed branch diff and local worktree
 - formatting check
 - lint or static validation
 - typecheck if applicable

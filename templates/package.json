@@ -11,7 +11,7 @@
     "check:context": "node scripts/check-context-budget.mjs",
     "check:feature-memory": "node scripts/check-feature-memory.mjs",
     "check:repo": "node scripts/check-repo-baseline.mjs",
-    "preflight": "node scripts/check-feature-memory.mjs --worktree && pnpm run check:repo && pnpm run check:context -- --worktree",
+    "preflight": "node scripts/check-feature-memory.mjs --worktree && pnpm run check:repo && pnpm run check:context && pnpm run check:context -- --worktree",
     "agent:set": "node scripts/set-implementation-agent.mjs",
     "worktree:new": "node scripts/new-worktree.mjs",
     "pr:publish": "node scripts/publish-branch.mjs",

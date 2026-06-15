@@ -5,7 +5,7 @@ GitHub is the control plane for pull requests, checks, and AI review routing.
 ## Required Workflows
 
 - `ci.yml`: runs repository baseline checks as `baseline-checks`, unless a stack-specific profile preserves an existing target CI workflow
-- `pr-guard.yml`: enforces documentation and feature-memory coverage as `guard`
+- `pr-guard.yml`: enforces feature-memory, context-budget, and baseline coverage as `guard`
 - `ai-command-policy.yml`: validates trusted AI command comments
 - `ai-review.yml`: normalizes native review output into a required `AI Review` check
 - `ai-review-rerun.yml`: reruns `AI Review` when trusted review evidence appears
@@ -21,6 +21,7 @@ For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json
 - Review evidence must be bound to the current PR head SHA. Native reviews compare `commit_id` to head and must be submitted after the latest trusted review-request marker for that head. Trusted no-findings Codex summaries that do not name the head SHA must be posted after the marker and must have no commit or force-push event between the source trigger comment and the summary.
 - The `AI Review` gate debounces briefly and re-checks GitHub's current PR head before accepting evidence; stale runs exit without satisfying the latest head.
 - Gate scripts must run from the trusted default branch, not PR-supplied code.
+- Context-budget gates must run against the committed PR diff, not only the local worktree, so placeholder-only specs cannot pass after they are committed.
 - Skipped required gates must not be used as a successful state.
 
 ## Branch Protection Baseline
