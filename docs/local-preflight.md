@@ -24,6 +24,12 @@ It should run, at minimum:
 
 Profiles may override the installed control-plane `preflight` script to call target-native checks after Unicorn gates. For example, a Flutter target can keep its existing `make check` and `make test` workflow while still running repository baseline, context budget, and feature-memory validation first.
 
+The committed-diff context check uses `origin/<defaultBaseBranch>` and `HEAD`
+by default. Fetch the configured default branch before local preflight, or pass
+explicit refs to `pnpm run check:context -- <base-ref> <head-ref>` when working
+from a repository state where that remote ref is not available. The worktree
+context check includes unstaged, staged, and untracked spec changes.
+
 ## Pre-Push Guard
 
 Optionally install a local hook or agent pre-tool hook that blocks `git push` when product paths changed without a complete feature-memory folder.

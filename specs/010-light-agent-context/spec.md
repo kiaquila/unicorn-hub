@@ -12,6 +12,7 @@ In scope:
 - a two-tier documentation router with minimum and full discovery paths
 - docs that describe `docs_project/` as lazy-loaded durable memory
 - a context-budget script that checks always-on file size and feature-memory substance
+- context-budget diff discovery that includes staged local specs and fails closed when committed-diff refs cannot be resolved
 - bootstrap, baseline, profile, PR Guard, and test updates that install and run the new gate
 - multi-agent guidance for deciding when extra agents are justified
 
@@ -39,7 +40,7 @@ As a maintainer, I want preflight to fail oversized launch files and placeholder
 
 - AC-001: Installed target `AGENTS.md` and `CLAUDE.md` stay compact and route deeper workflow, review, and documentation details to task-scoped files.
 - AC-002: `CREATE-DOCS.md` defaults to `docs-minimum.md` and reserves `docs-full-interview.md` for explicit full discovery or unclear project direction.
-- AC-003: Preflight and PR Guard install and run `scripts/check-context-budget.mjs`, which enforces a line budget for always-on files and validates committed PR diffs.
+- AC-003: Preflight and PR Guard install and run `scripts/check-context-budget.mjs`, which enforces a line budget for always-on files, validates committed PR diffs, includes staged worktree specs, honors the configured default base branch, and fails closed when committed-diff refs cannot be resolved.
 - AC-004: `scripts/check-context-budget.mjs` rejects feature specs whose `Goal`, `Acceptance Criteria`, or `Verification` sections are missing or placeholder-only.
 - AC-005: Documentation frames `docs_project/` as a lazy-loaded index rather than required reading before every task.
 - AC-006: Multi-agent docs include a decision matrix that keeps single-agent work as the default and forbids parallel writers in the same worktree.
@@ -56,7 +57,7 @@ As a maintainer, I want preflight to fail oversized launch files and placeholder
 - FR-002: Update bootstrap-installed launch files to stay under the configured context budget.
 - FR-003: Add a reusable context-budget script copied into target repositories.
 - FR-004: Add tests for bootstrap output, installed compact docs, oversized launch-file rejection, and placeholder-only feature-memory rejection.
-- FR-005: Update local preflight and PR Guard so context-budget validation runs before publish and against committed PR diffs.
+- FR-005: Update local preflight and PR Guard so context-budget validation runs before publish, against committed PR diffs, and against staged, unstaged, and untracked local spec changes.
 
 ## Success Criteria
 

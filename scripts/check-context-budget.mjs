@@ -15,7 +15,8 @@ const docsDir = config.docsDir || "docs_project";
 const maxAgentLines = Number(args["max-agent-lines"] || config.contextBudget?.maxAgentLines || DEFAULT_MAX_AGENT_LINES);
 const inspectWorktree = Boolean(args.worktree);
 const reportOnly = Boolean(args.report);
-const baseRef = args._?.[0] || "origin/main";
+const defaultBaseBranch = config.defaultBaseBranch || "main";
+const baseRef = args._?.[0] || `origin/${defaultBaseBranch}`;
 const headRef = args._?.[1] || "HEAD";
 const issues = [];
 
@@ -76,15 +77,44 @@ function git(commandArgs) {
   }).trim();
 }
 
-function changedFiles() {
+function gitRepositoryExists() {
+  return existsSync(join(repoRoot, ".git"));
+}
+
+function splitFiles(output) {
+  return output.split("\n").filter(Boolean);
+}
+
+function uniqueFiles(groups) {
+  return [...new Set(groups.flat())].sort();
+}
+
+function gitChangedFiles(commandArgs, description) {
   try {
-    if (inspectWorktree) {
-      return git(["ls-files", "--modified", "--others", "--exclude-standard"]).split("\n").filter(Boolean);
-    }
-    return git(["diff", "--name-only", baseRef, headRef]).split("\n").filter(Boolean);
+    return splitFiles(git(commandArgs));
   } catch {
+    issues.push(`Unable to inspect ${description}: git ${commandArgs.join(" ")} failed.`);
     return [];
   }
+}
+
+function worktreeChangedFiles() {
+  return uniqueFiles([
+    gitChangedFiles(["diff", "--name-only"], "unstaged worktree changes"),
+    gitChangedFiles(["diff", "--cached", "--name-only"], "staged worktree changes"),
+    gitChangedFiles(["ls-files", "--others", "--exclude-standard"], "untracked worktree files")
+  ]);
+}
+
+function changedFiles() {
+  if (!gitRepositoryExists()) {
+    return [];
+  }
+  if (inspectWorktree) return worktreeChangedFiles();
+  return gitChangedFiles(
+    ["diff", "--name-only", baseRef, headRef],
+    `committed changes between ${baseRef} and ${headRef}`
+  );
 }
 
 function explicitFeatureIds() {

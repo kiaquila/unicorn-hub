@@ -91,6 +91,33 @@ Provide enough context for an agent to implement the synthetic target safely.
   );
 }
 
+function writePlaceholderFeature(target, featureId = "001-placeholder") {
+  const featureDir = join(target, "specs", featureId);
+  mkdirSync(featureDir, { recursive: true });
+  writeFileSync(
+    join(featureDir, "spec.md"),
+    `# Spec: Placeholder
+
+## Goal
+
+[Add the goal.]
+
+## Acceptance Criteria
+
+[Add acceptance criteria.]
+`
+  );
+  writeFileSync(
+    join(featureDir, "plan.md"),
+    `# Plan: Placeholder
+
+## Verification
+
+[Add verification evidence.]
+`
+  );
+}
+
 test("context budget passes compact blueprint templates", () => {
   const output = run(["scripts/check-context-budget.mjs", "--feature", "010-light-agent-context"]);
   assert.match(output, /Context budget check passed/);
@@ -132,32 +159,7 @@ test("context budget rejects placeholder-only feature memory", () => {
   const target = mkdtempSync(join(tmpdir(), "unicorn-context-placeholder-"));
   writeConfig(target);
   writeCompactAgentFiles(target);
-  const featureDir = join(target, "specs", "001-placeholder");
-  mkdirSync(featureDir, { recursive: true });
-  writeFileSync(
-    join(featureDir, "spec.md"),
-    `# Spec: Placeholder
-
-## Goal
-
-\`[One-sentence outcome this change must produce.]\`
-
-## Acceptance Criteria
-
-1. Given \`[context]\`, when \`[action]\`, then \`[result]\`.
-`
-  );
-  writeFileSync(
-    join(featureDir, "plan.md"),
-    `# Plan: Placeholder
-
-## Verification
-
-| Acceptance criterion | Evidence |
-| --- | --- |
-| AC-001 | \`[Command, test, screenshot, diff, or manual check]\` |
-`
-  );
+  writePlaceholderFeature(target);
 
   const output = runFailure([
     "scripts/check-context-budget.mjs",
@@ -165,6 +167,29 @@ test("context budget rejects placeholder-only feature memory", () => {
     target,
     "--feature",
     "001-placeholder"
+  ]);
+  assert.match(output, /placeholder-only or too-thin ## Goal/);
+  assert.match(output, /placeholder-only or too-thin ## Acceptance Criteria/);
+  assert.match(output, /placeholder-only or too-thin ## Verification/);
+});
+
+test("context budget rejects staged placeholder specs in worktree mode", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-context-staged-placeholder-"));
+  git(target, ["init"]);
+  git(target, ["config", "user.email", "test@example.com"]);
+  git(target, ["config", "user.name", "Test User"]);
+  writeConfig(target);
+  writeCompactAgentFiles(target);
+  commitAll(target, "base");
+
+  writePlaceholderFeature(target);
+  git(target, ["add", "specs/001-placeholder/spec.md", "specs/001-placeholder/plan.md"]);
+
+  const output = runFailure([
+    "scripts/check-context-budget.mjs",
+    "--target",
+    target,
+    "--worktree"
   ]);
   assert.match(output, /placeholder-only or too-thin ## Goal/);
   assert.match(output, /placeholder-only or too-thin ## Acceptance Criteria/);
@@ -180,30 +205,7 @@ test("context budget rejects placeholder specs committed in branch diff", () => 
   writeCompactAgentFiles(target);
   commitAll(target, "base");
 
-  const featureDir = join(target, "specs", "001-placeholder");
-  mkdirSync(featureDir, { recursive: true });
-  writeFileSync(
-    join(featureDir, "spec.md"),
-    `# Spec: Placeholder
-
-## Goal
-
-[Add the goal.]
-
-## Acceptance Criteria
-
-[Add acceptance criteria.]
-`
-  );
-  writeFileSync(
-    join(featureDir, "plan.md"),
-    `# Plan: Placeholder
-
-## Verification
-
-[Add verification evidence.]
-`
-  );
+  writePlaceholderFeature(target);
   commitAll(target, "add placeholder spec");
 
   const output = runFailure([
@@ -216,4 +218,46 @@ test("context budget rejects placeholder specs committed in branch diff", () => 
   assert.match(output, /placeholder-only or too-thin ## Goal/);
   assert.match(output, /placeholder-only or too-thin ## Acceptance Criteria/);
   assert.match(output, /placeholder-only or too-thin ## Verification/);
+});
+
+test("context budget fails when default diff refs cannot be resolved", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-context-missing-ref-"));
+  git(target, ["init"]);
+  git(target, ["config", "user.email", "test@example.com"]);
+  git(target, ["config", "user.name", "Test User"]);
+  writeConfig(target);
+  writeCompactAgentFiles(target);
+  commitAll(target, "base");
+
+  writePlaceholderFeature(target);
+  commitAll(target, "add placeholder spec");
+
+  const output = runFailure([
+    "scripts/check-context-budget.mjs",
+    "--target",
+    target
+  ]);
+  assert.match(output, /Unable to inspect committed changes between origin\/main and HEAD/);
+});
+
+test("context budget uses configured default base branch for committed diffs", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-context-default-base-"));
+  git(target, ["init"]);
+  git(target, ["config", "user.email", "test@example.com"]);
+  git(target, ["config", "user.name", "Test User"]);
+  writeConfig(target, { defaultBaseBranch: "trunk" });
+  writeCompactAgentFiles(target);
+  commitAll(target, "base");
+  git(target, ["update-ref", "refs/remotes/origin/trunk", "HEAD"]);
+
+  writePlaceholderFeature(target);
+  commitAll(target, "add placeholder spec");
+
+  const output = runFailure([
+    "scripts/check-context-budget.mjs",
+    "--target",
+    target
+  ]);
+  assert.match(output, /placeholder-only or too-thin ## Goal/);
+  assert.doesNotMatch(output, /Unable to inspect committed changes/);
 });
