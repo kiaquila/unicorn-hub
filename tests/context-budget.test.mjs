@@ -118,6 +118,40 @@ function writePlaceholderFeature(target, featureId = "001-placeholder") {
   );
 }
 
+function writeTemplateVerificationFeature(target, featureId = "001-template-verification") {
+  const featureDir = join(target, "specs", featureId);
+  mkdirSync(featureDir, { recursive: true });
+  writeFileSync(
+    join(featureDir, "spec.md"),
+    `# Spec: Real Feature
+
+## Goal
+
+Provide enough context for an agent to implement the synthetic target safely.
+
+## Acceptance Criteria
+
+- AC-001: The feature records a concrete outcome and user-visible behavior.
+- AC-002: The feature describes how maintainers can verify the expected result.
+`
+  );
+  writeFileSync(
+    join(featureDir, "plan.md"),
+    `# Plan: Real Feature
+
+## Verification
+
+| Acceptance criterion | Evidence |
+| --- | --- |
+| AC-001 | \`[Command, test, screenshot, diff, or manual check]\` |
+
+Negative scenario evidence:
+
+- \`[Command, test, screenshot, diff, or manual check]\`
+`
+  );
+}
+
 test("context budget passes compact blueprint templates", () => {
   const output = run(["scripts/check-context-budget.mjs", "--feature", "010-light-agent-context", "--worktree"]);
   assert.match(output, /Context budget check passed/);
@@ -170,6 +204,24 @@ test("context budget rejects placeholder-only feature memory", () => {
   ]);
   assert.match(output, /placeholder-only or too-thin ## Goal/);
   assert.match(output, /placeholder-only or too-thin ## Acceptance Criteria/);
+  assert.match(output, /placeholder-only or too-thin ## Verification/);
+});
+
+test("context budget rejects template-only verification evidence", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-context-template-verification-"));
+  writeConfig(target);
+  writeCompactAgentFiles(target);
+  writeTemplateVerificationFeature(target);
+
+  const output = runFailure([
+    "scripts/check-context-budget.mjs",
+    "--target",
+    target,
+    "--feature",
+    "001-template-verification"
+  ]);
+  assert.doesNotMatch(output, /placeholder-only or too-thin ## Goal/);
+  assert.doesNotMatch(output, /placeholder-only or too-thin ## Acceptance Criteria/);
   assert.match(output, /placeholder-only or too-thin ## Verification/);
 });
 

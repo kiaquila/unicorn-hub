@@ -6,6 +6,8 @@ import { findRepoRoot, parseArgs, readConfig } from "./shared.mjs";
 
 const DEFAULT_MAX_AGENT_LINES = 60;
 const PLACEHOLDER_PATTERN = /<[^>\n]+>|\[[A-Z][A-Z0-9 _-]*\]|\[Add[^\]\n]*\]|\{\{[^}\n]+\}\}|TODO|TBD|NEEDS CLARIFICATION|placeholder/gi;
+const BRACKETED_INSTRUCTION_PATTERN = /\[[^\]\n]*(?:command|test|screenshot|diff|manual check|implementation approach|risk and mitigation)[^\]\n]*\]/gi;
+const TEMPLATE_BOILERPLATE_PATTERN = /\|\s*acceptance criterion\s*\|\s*evidence\s*\||\|\s*-+\s*\|\s*-+\s*\||negative scenario evidence:/gi;
 
 const args = parseArgs();
 const repoRoot = resolve(args.target || findRepoRoot());
@@ -197,6 +199,8 @@ function sectionBody(markdown, heading) {
 
 function normalizeSubstance(text) {
   return text
+    .replace(TEMPLATE_BOILERPLATE_PATTERN, " ")
+    .replace(BRACKETED_INSTRUCTION_PATTERN, " ")
     .replace(PLACEHOLDER_PATTERN, " ")
     .replace(/`[^`]*`/g, " ")
     .replace(/https?:\/\/\S+/g, " ")

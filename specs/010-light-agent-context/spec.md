@@ -41,7 +41,7 @@ As a maintainer, I want preflight to fail oversized launch files and placeholder
 - AC-001: Installed target `AGENTS.md` and `CLAUDE.md` stay compact and route deeper workflow, review, and documentation details to task-scoped files.
 - AC-002: `CREATE-DOCS.md` defaults to `docs-minimum.md` and reserves `docs-full-interview.md` for explicit full discovery or unclear project direction.
 - AC-003: Preflight and PR Guard install and run `scripts/check-context-budget.mjs`, which enforces a line budget for always-on files, lets local preflight validate committed changes without a remote ref, validates committed PR diffs in PR Guard, includes staged worktree specs, honors the configured default base branch, and fails closed when committed-diff refs cannot be resolved.
-- AC-004: `scripts/check-context-budget.mjs` rejects feature specs whose `Goal`, `Acceptance Criteria`, or `Verification` sections are missing or placeholder-only.
+- AC-004: `scripts/check-context-budget.mjs` rejects feature specs whose `Goal`, `Acceptance Criteria`, or `Verification` sections are missing, placeholder-only, or still contain only installed template verification boilerplate.
 - AC-005: Documentation frames `docs_project/` as a lazy-loaded index rather than required reading before every task.
 - AC-006: Multi-agent docs include a decision matrix that keeps single-agent work as the default and forbids parallel writers in the same worktree.
 
