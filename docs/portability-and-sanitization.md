@@ -10,6 +10,12 @@ This repository must remain a distilled practice blueprint, not an archive of an
 - Keep examples synthetic.
 - Keep scripts configurable through `.unicorn-hub/config.json`.
 
+## Language Statistics In Consumer Repositories
+
+Bootstrap installs a managed `.gitattributes` block that marks the governance envelope it writes or recognizes as unchanged blueprint copies — managed script files, `.unicorn-hub/**`, and `.specify/**` — as `linguist-vendored`. GitHub Linguist honours `.gitattributes` in every clone, so this scaffolding (notably the Node `*.mjs` automation) is excluded from the target repository's language bar and does not skew the language mix of, for example, a Python service.
+
+The block is appended idempotently and never overwrites a consumer's existing `.gitattributes`; product code and pre-existing consumer script collisions are never marked as vendored. Verify with `git check-attr linguist-vendored -- scripts/ai-review-gate.mjs` (expect `set` when the file was written by bootstrap or still matches the blueprint copy) and against a product file such as `scripts/build.mjs` or a preserved pre-existing `scripts/shared.mjs` with different content (expect `unspecified`), or run `github-linguist` on the repository.
+
 ## Sanitizer Scope
 
 `scripts/sanitize-blueprint.mjs` checks for:

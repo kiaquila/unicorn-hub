@@ -531,6 +531,170 @@ test("baseline check ignores excludeTemplates entries outside the profile-safe a
   assert.match(stderr, /AGENTS\.md/, "baseline error should name the missing required path");
 });
 
+test("bootstrap installs a .gitattributes that vendors the governance envelope", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-gitattributes-"));
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Linguist"
+  ]);
+
+  const gitattributes = readFileSync(join(target, ".gitattributes"), "utf8");
+  assert.match(gitattributes, /# >>> unicorn-hub governance \(managed block/);
+  assert.doesNotMatch(gitattributes, /^scripts\/\*\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^scripts\/ai-review-gate\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^scripts\/shared\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^scripts\/apply-branch-protection\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^\.unicorn-hub\/\*\*\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^\.specify\/\*\*\s+linguist-vendored$/m);
+
+  // Linguist honours .gitattributes via git check-attr; prove the envelope is
+  // vendored while product code keeps its language stats.
+  execFileSync("git", ["init", "-q"], { cwd: target });
+  writeFileSync(join(target, "scripts/build.mjs"), "console.log('consumer product script');\n");
+  const checkAttr = (path) =>
+    execFileSync("git", ["check-attr", "linguist-vendored", "--", path], {
+      cwd: target,
+      encoding: "utf8"
+    }).trim();
+
+  assert.match(checkAttr("scripts/ai-review-gate.mjs"), /linguist-vendored: set$/);
+  assert.match(checkAttr(".unicorn-hub/config.json"), /linguist-vendored: set$/);
+  assert.match(checkAttr(".specify/memory/constitution.md"), /linguist-vendored: set$/);
+  // Product code must NOT be vendored.
+  assert.match(checkAttr("scripts/build.mjs"), /linguist-vendored: unspecified$/);
+  assert.match(checkAttr("src/main.py"), /linguist-vendored: unspecified$/);
+  assert.match(checkAttr("app/index.ts"), /linguist-vendored: unspecified$/);
+});
+
+test("bootstrap does not vendor pre-existing consumer script collisions", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-gitattributes-collision-"));
+  mkdirSync(join(target, "scripts"), { recursive: true });
+  writeFileSync(join(target, "scripts/shared.mjs"), "console.log('consumer-owned script');\n");
+
+  const output = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Collision Linguist"
+  ]);
+  assert.match(output, /^skip\s+scripts\/shared\.mjs$/m);
+
+  const gitattributes = readFileSync(join(target, ".gitattributes"), "utf8");
+  assert.doesNotMatch(gitattributes, /^scripts\/shared\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^scripts\/ai-review-gate\.mjs\s+linguist-vendored$/m);
+
+  execFileSync("git", ["init", "-q"], { cwd: target });
+  const checkAttr = (path) =>
+    execFileSync("git", ["check-attr", "linguist-vendored", "--", path], {
+      cwd: target,
+      encoding: "utf8"
+    }).trim();
+
+  assert.match(checkAttr("scripts/shared.mjs"), /linguist-vendored: unspecified$/);
+  assert.match(checkAttr("scripts/ai-review-gate.mjs"), /linguist-vendored: set$/);
+});
+
+test("bootstrap vendors skipped scripts that already match the managed blueprint", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-gitattributes-existing-managed-"));
+  mkdirSync(join(target, "scripts"), { recursive: true });
+  writeFileSync(
+    join(target, "scripts/ai-review-gate.mjs"),
+    readFileSync(join(root, "scripts/ai-review-gate.mjs"), "utf8")
+  );
+
+  const output = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Existing Managed Linguist"
+  ]);
+  assert.match(output, /^skip\s+scripts\/ai-review-gate\.mjs$/m);
+
+  const gitattributes = readFileSync(join(target, ".gitattributes"), "utf8");
+  assert.match(gitattributes, /^scripts\/ai-review-gate\.mjs\s+linguist-vendored$/m);
+
+  execFileSync("git", ["init", "-q"], { cwd: target });
+  const checkAttr = execFileSync("git", [
+    "check-attr",
+    "linguist-vendored",
+    "--",
+    "scripts/ai-review-gate.mjs"
+  ], {
+    cwd: target,
+    encoding: "utf8"
+  }).trim();
+  assert.match(checkAttr, /linguist-vendored: set$/);
+});
+
+test("bootstrap merges into a pre-existing consumer .gitattributes without clobbering it", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-gitattributes-merge-"));
+  const consumerRules = "*.py text eol=lf\nvendor/** linguist-vendored\n";
+  writeFileSync(join(target, ".gitattributes"), consumerRules);
+
+  const firstRun = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Merge Linguist"
+  ]);
+  assert.match(firstRun, /^merge\s+\.gitattributes$/m);
+
+  const merged = readFileSync(join(target, ".gitattributes"), "utf8");
+  // Consumer rules survive verbatim.
+  assert.match(merged, /\*\.py text eol=lf/);
+  assert.match(merged, /vendor\/\*\* linguist-vendored/);
+  // Governance block is appended after them.
+  assert.match(merged, /# >>> unicorn-hub governance \(managed block/);
+  assert.ok(
+    merged.indexOf("vendor/** linguist-vendored") < merged.indexOf("scripts/ai-command-policy.mjs"),
+    "consumer rules must remain ahead of the appended managed block"
+  );
+
+  // Re-run is idempotent: the managed marker is detected, nothing re-appended.
+  const secondRun = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Merge Linguist"
+  ]);
+  assert.match(secondRun, /^skip\s+\.gitattributes$/m);
+  const reMerged = readFileSync(join(target, ".gitattributes"), "utf8");
+  assert.equal(reMerged, merged, "idempotent re-run must not change .gitattributes");
+  assert.equal(
+    reMerged.match(/scripts\/ai-command-policy\.mjs/g).length,
+    1,
+    "managed block must not be duplicated on re-run"
+  );
+});
+
 test("bootstrap into pre-existing package.json preserves user-defined baseline scripts", () => {
   const target = mkdtempSync(join(tmpdir(), "unicorn-flutter-preserve-baseline-"));
   writeFileSync(join(target, "pubspec.yaml"), "name: synthetic_flutter_app\n");
