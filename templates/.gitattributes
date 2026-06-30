@@ -1,0 +1,11 @@
+# >>> unicorn-hub governance (managed block — bootstrap maintains this) >>>
+# Keep the Unicorn Hub bootstrap envelope out of GitHub Linguist language
+# statistics in consumer repositories. The paths below are copied in verbatim
+# by scripts/bootstrap-repo.mjs and are process scaffolding, not product code,
+# so they should not skew a repo's language bar (e.g. governance *.mjs scripts
+# inflating JavaScript in a Python project). Rules outside this managed block
+# are preserved when bootstrap is re-run.
+scripts/*.mjs        linguist-vendored
+.unicorn-hub/**      linguist-vendored
+.specify/**          linguist-vendored
+# <<< unicorn-hub governance (managed block — bootstrap maintains this) <<<

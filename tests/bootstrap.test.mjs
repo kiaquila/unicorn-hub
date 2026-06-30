@@ -531,6 +531,95 @@ test("baseline check ignores excludeTemplates entries outside the profile-safe a
   assert.match(stderr, /AGENTS\.md/, "baseline error should name the missing required path");
 });
 
+test("bootstrap installs a .gitattributes that vendors the governance envelope", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-gitattributes-"));
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Linguist"
+  ]);
+
+  const gitattributes = readFileSync(join(target, ".gitattributes"), "utf8");
+  assert.match(gitattributes, /# >>> unicorn-hub governance \(managed block/);
+  assert.match(gitattributes, /^scripts\/\*\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^\.unicorn-hub\/\*\*\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^\.specify\/\*\*\s+linguist-vendored$/m);
+
+  // Linguist honours .gitattributes via git check-attr; prove the envelope is
+  // vendored while product code keeps its language stats.
+  execFileSync("git", ["init", "-q"], { cwd: target });
+  const checkAttr = (path) =>
+    execFileSync("git", ["check-attr", "linguist-vendored", "--", path], {
+      cwd: target,
+      encoding: "utf8"
+    }).trim();
+
+  assert.match(checkAttr("scripts/ai-review-gate.mjs"), /linguist-vendored: set$/);
+  assert.match(checkAttr(".unicorn-hub/config.json"), /linguist-vendored: set$/);
+  assert.match(checkAttr(".specify/memory/constitution.md"), /linguist-vendored: set$/);
+  // Product code must NOT be vendored.
+  assert.match(checkAttr("src/main.py"), /linguist-vendored: unspecified$/);
+  assert.match(checkAttr("app/index.ts"), /linguist-vendored: unspecified$/);
+});
+
+test("bootstrap merges into a pre-existing consumer .gitattributes without clobbering it", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-gitattributes-merge-"));
+  const consumerRules = "*.py text eol=lf\nvendor/** linguist-vendored\n";
+  writeFileSync(join(target, ".gitattributes"), consumerRules);
+
+  const firstRun = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Merge Linguist"
+  ]);
+  assert.match(firstRun, /^merge\s+\.gitattributes$/m);
+
+  const merged = readFileSync(join(target, ".gitattributes"), "utf8");
+  // Consumer rules survive verbatim.
+  assert.match(merged, /\*\.py text eol=lf/);
+  assert.match(merged, /vendor\/\*\* linguist-vendored/);
+  // Governance block is appended after them.
+  assert.match(merged, /# >>> unicorn-hub governance \(managed block/);
+  assert.ok(
+    merged.indexOf("vendor/** linguist-vendored") < merged.indexOf("scripts/*.mjs"),
+    "consumer rules must remain ahead of the appended managed block"
+  );
+
+  // Re-run is idempotent: the managed marker is detected, nothing re-appended.
+  const secondRun = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Merge Linguist"
+  ]);
+  assert.match(secondRun, /^skip\s+\.gitattributes$/m);
+  const reMerged = readFileSync(join(target, ".gitattributes"), "utf8");
+  assert.equal(reMerged, merged, "idempotent re-run must not change .gitattributes");
+  assert.equal(
+    reMerged.match(/scripts\/\*\.mjs/g).length,
+    1,
+    "managed block must not be duplicated on re-run"
+  );
+});
+
 test("bootstrap into pre-existing package.json preserves user-defined baseline scripts", () => {
   const target = mkdtempSync(join(tmpdir(), "unicorn-flutter-preserve-baseline-"));
   writeFileSync(join(target, "pubspec.yaml"), "name: synthetic_flutter_app\n");

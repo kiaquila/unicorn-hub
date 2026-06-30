@@ -103,9 +103,35 @@ function copyFileFromSource(sourceFile, targetFile, { template = true } = {}) {
   }
 }
 
+const GITATTRIBUTES_MARKER = "# >>> unicorn-hub governance (managed block";
+
+function mergeGitattributes(sourceFile, targetFile) {
+  const block = readFileSync(sourceFile, "utf8").replace(/\s*$/, "\n");
+  const target = join(targetRoot, targetFile);
+  if (!existsSync(target)) {
+    planned.push({ action: "create", target: targetFile });
+    if (!dryRun) {
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, block);
+    }
+    return;
+  }
+  const existing = readFileSync(target, "utf8");
+  if (existing.includes(GITATTRIBUTES_MARKER)) {
+    planned.push({ action: "skip", target: targetFile });
+    return;
+  }
+  planned.push({ action: "merge", target: targetFile });
+  if (!dryRun) {
+    const separator = existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
+    writeFileSync(target, `${existing}${separator}\n${block}`);
+  }
+}
+
 const excludeTemplates = new Set(profile.excludeTemplates || []);
 for (const rel of walkFiles(join(sourceRoot, "templates"))) {
   if (rel === ".unicorn-hub/config.json") continue;
+  if (rel === ".gitattributes") continue;
   if (excludeTemplates.has(rel)) {
     planned.push({ action: "exclude", target: rel });
     continue;
@@ -133,6 +159,11 @@ const scriptAllowlist = new Set([
 for (const rel of walkFiles(join(sourceRoot, "scripts"))) {
   if (!scriptAllowlist.has(rel)) continue;
   copyFileFromSource(join(sourceRoot, "scripts", rel), join("scripts", rel), { template: false });
+}
+
+const gitattributesSource = join(sourceRoot, "templates", ".gitattributes");
+if (existsSync(gitattributesSource)) {
+  mergeGitattributes(gitattributesSource, ".gitattributes");
 }
 
 const config = {
