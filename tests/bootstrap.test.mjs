@@ -607,6 +607,43 @@ test("bootstrap does not vendor pre-existing consumer script collisions", () => 
   assert.match(checkAttr("scripts/ai-review-gate.mjs"), /linguist-vendored: set$/);
 });
 
+test("bootstrap vendors skipped scripts that already match the managed blueprint", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-gitattributes-existing-managed-"));
+  mkdirSync(join(target, "scripts"), { recursive: true });
+  writeFileSync(
+    join(target, "scripts/ai-review-gate.mjs"),
+    readFileSync(join(root, "scripts/ai-review-gate.mjs"), "utf8")
+  );
+
+  const output = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Existing Managed Linguist"
+  ]);
+  assert.match(output, /^skip\s+scripts\/ai-review-gate\.mjs$/m);
+
+  const gitattributes = readFileSync(join(target, ".gitattributes"), "utf8");
+  assert.match(gitattributes, /^scripts\/ai-review-gate\.mjs\s+linguist-vendored$/m);
+
+  execFileSync("git", ["init", "-q"], { cwd: target });
+  const checkAttr = execFileSync("git", [
+    "check-attr",
+    "linguist-vendored",
+    "--",
+    "scripts/ai-review-gate.mjs"
+  ], {
+    cwd: target,
+    encoding: "utf8"
+  }).trim();
+  assert.match(checkAttr, /linguist-vendored: set$/);
+});
+
 test("bootstrap merges into a pre-existing consumer .gitattributes without clobbering it", () => {
   const target = mkdtempSync(join(tmpdir(), "unicorn-gitattributes-merge-"));
   const consumerRules = "*.py text eol=lf\nvendor/** linguist-vendored\n";

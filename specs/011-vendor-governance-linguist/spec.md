@@ -2,7 +2,7 @@
 
 ## Goal
 
-Stop the Unicorn Hub governance envelope from skewing the GitHub Linguist language statistics of consumer repositories by shipping a managed `.gitattributes` block that marks the installed scaffolding (the managed script files bootstrap actually writes, `.unicorn-hub/**`, `.specify/**`) as `linguist-vendored`, installed idempotently and without clobbering a consumer's own `.gitattributes`.
+Stop the Unicorn Hub governance envelope from skewing the GitHub Linguist language statistics of consumer repositories by shipping a managed `.gitattributes` block that marks the installed scaffolding (the managed script files bootstrap writes or recognizes as unchanged blueprint copies, `.unicorn-hub/**`, `.specify/**`) as `linguist-vendored`, installed idempotently and without clobbering a consumer's own `.gitattributes`.
 
 ## Scope
 
@@ -12,6 +12,7 @@ In scope:
 - bootstrap logic that creates or appends the managed block idempotently and preserves existing consumer `.gitattributes` rules
 - tests proving the block is installed, that `git check-attr` reports the envelope as vendored and product code as unspecified, and that a pre-existing `.gitattributes` is merged not overwritten
 - tests proving pre-existing consumer script collisions remain unvendored when bootstrap preserves them
+- tests proving unchanged pre-existing managed scripts are still vendored for already-bootstrapped repositories
 - documentation updates noting the envelope is vendored and excluded from the consumer language bar
 
 Out of scope:
@@ -53,7 +54,7 @@ As a maintainer, I want to confirm with `git check-attr` that the scaffolding is
 ## Requirements
 
 - FR-001: Add `templates/.gitattributes` as the managed-block source of truth with a stable begin/end marker.
-- FR-002: Make `scripts/bootstrap-repo.mjs` merge `.gitattributes` idempotently (create when missing, append when the marker is absent, skip when present) instead of copying it through the skip-if-exists template path; script rules are filtered to the managed scripts bootstrap actually creates or overwrites.
+- FR-002: Make `scripts/bootstrap-repo.mjs` merge `.gitattributes` idempotently (create when missing, append when the marker is absent, skip when present) instead of copying it through the skip-if-exists template path; script rules are filtered to the managed scripts bootstrap creates, overwrites, or finds unchanged from the blueprint source.
 - FR-003: Add tests for installation, `git check-attr` outcomes, consumer-merge preservation, and idempotent re-run.
 - FR-004: Update README, bootstrap flow, and portability docs to record the vendored governance envelope.
 

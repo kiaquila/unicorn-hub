@@ -28,7 +28,7 @@ Install:
 - `.unicorn-hub/config.json`
 - `.gitattributes` (governance envelope marked `linguist-vendored`)
 
-The `.gitattributes` block keeps the installed scaffolding (the managed script files bootstrap actually writes, `.unicorn-hub/**`, `.specify/**`) out of the target repository's GitHub Linguist language statistics, so the blueprint's Node automation does not inflate the language bar of, for example, a Python service. Bootstrap appends the managed block idempotently and preserves any pre-existing consumer `.gitattributes`; it never marks product code or pre-existing consumer script collisions as vendored.
+The `.gitattributes` block keeps the installed scaffolding (the managed script files bootstrap writes or recognizes as unchanged blueprint copies, `.unicorn-hub/**`, `.specify/**`) out of the target repository's GitHub Linguist language statistics, so the blueprint's Node automation does not inflate the language bar of, for example, a Python service. Bootstrap appends the managed block idempotently and preserves any pre-existing consumer `.gitattributes`; it never marks product code or pre-existing consumer script collisions as vendored.
 
 The target repository must have a reading route before product code changes begin. For a new or under-documented target, the installed `CREATE-DOCS.md` protocol routes the agent to `docs-minimum.md` first. Use the full interview only when the user asks for deeper discovery or the project direction is unclear. Durable docs are a lazy-loaded index, not mandatory reading for every task.
 

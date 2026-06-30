@@ -7,7 +7,7 @@
 
 ## Implementation
 
-- [x] T003 Add `templates/.gitattributes` managed block vendoring the managed script filenames bootstrap actually writes, `.unicorn-hub/**`, `.specify/**`.
+- [x] T003 Add `templates/.gitattributes` managed block vendoring the managed script filenames bootstrap writes or recognizes as unchanged blueprint copies, `.unicorn-hub/**`, `.specify/**`.
 - [x] T004 Skip `.gitattributes` in the generic template walk and add an idempotent merge step in `scripts/bootstrap-repo.mjs`.
 - [x] T005 Update README, `docs/bootstrap-flow.md`, and `docs/portability-and-sanitization.md`.
 
@@ -25,8 +25,9 @@
 
 ### Decisions
 
-- Mark only the managed script filenames bootstrap actually writes, `.unicorn-hub/**`, and `.specify/**` as vendored. These are the only installed paths that reach GitHub's language bar (JavaScript) or are pure governance scaffolding; markdown/JSON/YAML are `prose`/`data` and already excluded by Linguist, and `docs_project/` stays consumer-owned and counted.
+- Mark only the managed script filenames bootstrap writes or recognizes as unchanged blueprint copies, `.unicorn-hub/**`, and `.specify/**` as vendored. These are the only installed paths that reach GitHub's language bar (JavaScript) or are pure governance scaffolding; markdown/JSON/YAML are `prose`/`data` and already excluded by Linguist, and `docs_project/` stays consumer-owned and counted.
 - If a consumer already owns a colliding `scripts/*.mjs` filename, bootstrap skips that file and filters its corresponding attribute line so the consumer script remains counted.
+- If an existing script matches the blueprint source exactly, bootstrap treats it as an already-managed copy and includes its attribute line.
 - Use `linguist-vendored` (third-party copied-in code), not `linguist-generated`: nothing here is a build artifact.
 - Guard idempotency with a stable begin marker; append the block when absent, skip when present, create when no `.gitattributes` exists.
 - Keep `templates/.gitattributes` as the source of truth and exclude it from the generic walk, mirroring how `.unicorn-hub/config.json` is handled.

@@ -133,6 +133,11 @@ function replaceManagedGitattributesBlock(existing, block) {
   ].filter(Boolean).join("\n\n") + "\n";
 }
 
+function targetMatchesSource(sourceFile, targetFile) {
+  const target = join(targetRoot, targetFile);
+  return existsSync(target) && readFileSync(target, "utf8") === readFileSync(sourceFile, "utf8");
+}
+
 function mergeGitattributes(sourceFile, targetFile, { managedScriptTargets = new Set() } = {}) {
   const block = renderGitattributesBlock(sourceFile, managedScriptTargets);
   const target = join(targetRoot, targetFile);
@@ -194,8 +199,10 @@ const scriptAllowlist = new Set([
 const managedScriptTargets = new Set();
 for (const rel of walkFiles(join(sourceRoot, "scripts"))) {
   if (!scriptAllowlist.has(rel)) continue;
-  const action = copyFileFromSource(join(sourceRoot, "scripts", rel), join("scripts", rel), { template: false });
-  if (action === "create" || action === "overwrite") {
+  const sourceFile = join(sourceRoot, "scripts", rel);
+  const targetFile = join("scripts", rel);
+  const action = copyFileFromSource(sourceFile, targetFile, { template: false });
+  if (action === "create" || action === "overwrite" || targetMatchesSource(sourceFile, targetFile)) {
     managedScriptTargets.add(`scripts/${rel}`);
   }
 }
