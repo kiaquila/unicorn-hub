@@ -33,7 +33,7 @@ The only new mechanism is a marker-guarded append. The managed block lives in `t
 | Acceptance criterion | Evidence |
 | --- | --- |
 | AC-001 | Bootstrap test asserts the installed `.gitattributes` contains the managed marker, explicit managed script entries, and the `.unicorn-hub/**` / `.specify/**` rules. |
-| AC-002 | Bootstrap test runs `git init` in the target and asserts `git check-attr linguist-vendored` is `set` for managed scripts, `.unicorn-hub/**`, `.specify/**` and `unspecified` for consumer/product code such as `scripts/build.mjs`, `src/main.py`, and `app/index.ts`; a manual `python-service` run is captured in Process Memory. |
+| AC-002 | Bootstrap test runs `git init` in the target and asserts `git check-attr linguist-vendored` is `set` for managed scripts bootstrap writes, `.unicorn-hub/**`, `.specify/**` and `unspecified` for consumer/product code such as `scripts/build.mjs`, a preserved pre-existing `scripts/shared.mjs`, `src/main.py`, and `app/index.ts`; a manual `python-service` run is captured in Process Memory. |
 | AC-003 | Merge test seeds a consumer `.gitattributes`, asserts the original rules survive verbatim and ahead of the appended block, and that bootstrap reports a `merge` action. |
 | AC-004 | Merge test re-runs bootstrap, asserts a `skip` action, byte-identical output, and a single occurrence of the managed rules. |
 | AC-005 | README, `docs/bootstrap-flow.md`, and `docs/portability-and-sanitization.md` state the envelope is vendored and excluded from the consumer language bar. |
@@ -41,14 +41,14 @@ The only new mechanism is a marker-guarded append. The managed block lives in `t
 Negative scenario evidence:
 
 - The `git check-attr` assertions prove product code (`src`, `app`) stays `unspecified` (NS-001).
-- The consumer-merge test proves existing entries are preserved (NS-002).
+- The consumer-merge test proves existing entries are preserved (NS-002), and the collision test proves a preserved consumer `scripts/shared.mjs` is not vendored (NS-005).
 - The diff touches only `templates/.gitattributes`, bootstrap merge wiring, tests, and docs; no script body changes (NS-003).
 - `pnpm run preflight` runs the sanitizer to confirm no private or source-project residue (NS-004).
 
 ## Risks
 
-- Risk: A broad glob could vendor consumer files.
-  Mitigation: the managed block lists the exact script filenames copied by bootstrap; `.unicorn-hub/**` and `.specify/**` are governance-only directories.
+- Risk: A broad glob or static filename list could vendor consumer files.
+  Mitigation: the managed block lists only script filenames bootstrap actually creates or overwrites during the install; `.unicorn-hub/**` and `.specify/**` are governance-only directories.
 - Risk: A naive copy would skip or overwrite an existing consumer `.gitattributes`.
   Mitigation: a dedicated marker-guarded merge appends instead of copying through the skip-if-exists template path.
 - Risk: Re-running bootstrap could duplicate the block.

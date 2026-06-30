@@ -88,25 +88,53 @@ function renderDependabot(updates) {
 
 function copyFileFromSource(sourceFile, targetFile, { template = true } = {}) {
   const target = join(targetRoot, targetFile);
-  if (existsSync(target) && !force) {
+  const targetExists = existsSync(target);
+  if (targetExists && !force) {
     planned.push({ action: "skip", target: targetFile });
-    return;
+    return "skip";
   }
   const raw = readFileSync(sourceFile, "utf8");
   const content = targetFile === ".github/dependabot.yml" && Array.isArray(profile.dependabotUpdates)
     ? renderDependabot(profile.dependabotUpdates)
     : template ? replacePlaceholders(raw, replacements) : raw;
-  planned.push({ action: existsSync(target) ? "overwrite" : "create", target: targetFile });
+  const action = targetExists ? "overwrite" : "create";
+  planned.push({ action, target: targetFile });
   if (!dryRun) {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, content);
   }
+  return action;
 }
 
 const GITATTRIBUTES_MARKER = "# >>> unicorn-hub governance (managed block";
+const GITATTRIBUTES_END_MARKER = "# <<< unicorn-hub governance (managed block";
 
-function mergeGitattributes(sourceFile, targetFile) {
-  const block = readFileSync(sourceFile, "utf8").replace(/\s*$/, "\n");
+function renderGitattributesBlock(sourceFile, managedScriptTargets = new Set()) {
+  return readFileSync(sourceFile, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => {
+      const scriptRule = line.match(/^(scripts\/[^\s]+)\s+linguist-vendored\b/);
+      return !scriptRule || managedScriptTargets.has(scriptRule[1]);
+    })
+    .join("\n")
+    .replace(/\s*$/, "\n");
+}
+
+function replaceManagedGitattributesBlock(existing, block) {
+  const begin = existing.indexOf(GITATTRIBUTES_MARKER);
+  const end = existing.indexOf(GITATTRIBUTES_END_MARKER, begin);
+  if (begin === -1 || end === -1) return null;
+  const nextLine = existing.indexOf("\n", end);
+  const endOffset = nextLine === -1 ? existing.length : nextLine + 1;
+  return [
+    existing.slice(0, begin).replace(/\s*$/, ""),
+    block.trimEnd(),
+    existing.slice(endOffset).replace(/^\s*/, "")
+  ].filter(Boolean).join("\n\n") + "\n";
+}
+
+function mergeGitattributes(sourceFile, targetFile, { managedScriptTargets = new Set() } = {}) {
+  const block = renderGitattributesBlock(sourceFile, managedScriptTargets);
   const target = join(targetRoot, targetFile);
   if (!existsSync(target)) {
     planned.push({ action: "create", target: targetFile });
@@ -118,7 +146,14 @@ function mergeGitattributes(sourceFile, targetFile) {
   }
   const existing = readFileSync(target, "utf8");
   if (existing.includes(GITATTRIBUTES_MARKER)) {
-    planned.push({ action: "skip", target: targetFile });
+    if (!force) {
+      planned.push({ action: "skip", target: targetFile });
+      return;
+    }
+    planned.push({ action: "update", target: targetFile });
+    if (!dryRun) {
+      writeFileSync(target, replaceManagedGitattributesBlock(existing, block) || existing);
+    }
     return;
   }
   planned.push({ action: "merge", target: targetFile });
@@ -156,14 +191,18 @@ const scriptAllowlist = new Set([
   "apply-branch-protection.mjs"
 ]);
 
+const managedScriptTargets = new Set();
 for (const rel of walkFiles(join(sourceRoot, "scripts"))) {
   if (!scriptAllowlist.has(rel)) continue;
-  copyFileFromSource(join(sourceRoot, "scripts", rel), join("scripts", rel), { template: false });
+  const action = copyFileFromSource(join(sourceRoot, "scripts", rel), join("scripts", rel), { template: false });
+  if (action === "create" || action === "overwrite") {
+    managedScriptTargets.add(`scripts/${rel}`);
+  }
 }
 
 const gitattributesSource = join(sourceRoot, "templates", ".gitattributes");
 if (existsSync(gitattributesSource)) {
-  mergeGitattributes(gitattributesSource, ".gitattributes");
+  mergeGitattributes(gitattributesSource, ".gitattributes", { managedScriptTargets });
 }
 
 const config = {
@@ -224,7 +263,7 @@ for (const item of planned) {
 
 console.log("");
 const targetLabel = relative(process.cwd(), targetRoot) || ".";
-const wroteSomething = planned.some(item => item.action === "create" || item.action === "overwrite" || item.action === "scripts");
+const wroteSomething = planned.some(item => ["create", "overwrite", "merge", "update", "scripts"].includes(item.action));
 
 if (dryRun) {
   console.log(`Dry run for Unicorn Hub blueprint profile '${profileId}' against ${targetLabel}. Nothing was written. Re-run without --dry-run to apply.`);

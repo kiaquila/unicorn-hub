@@ -61,7 +61,7 @@ Current profiles include:
 - Local orchestration scripts for worktrees, PR publishing, feature-memory gates, context budget checks, AI review gates, and branch protection
 - GitHub Actions workflows for CI, PR guard, trusted AI review routing, and OSV scanning
 - Supply-chain defaults: pnpm `minimumReleaseAge`, Dependabot cooldown, pinned package manager, lockfile-oriented installs
-- A `.gitattributes` block that marks the installed governance envelope (the managed script files copied by bootstrap, `.unicorn-hub/**`, and `.specify/**`) as `linguist-vendored`, so the blueprint's Node scaffolding does not skew the target repo's GitHub language bar. Bootstrap appends this block idempotently and never overwrites an existing consumer `.gitattributes`; product code keeps its language stats.
+- A `.gitattributes` block that marks the installed governance envelope (the managed script files bootstrap actually writes, `.unicorn-hub/**`, and `.specify/**`) as `linguist-vendored`, so the blueprint's Node scaffolding does not skew the target repo's GitHub language bar. Bootstrap appends this block idempotently and never overwrites an existing consumer `.gitattributes`; pre-existing consumer script collisions and product code keep their language stats.
 
 ## Canonical Workflow
 
