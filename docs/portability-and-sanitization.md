@@ -12,9 +12,9 @@ This repository must remain a distilled practice blueprint, not an archive of an
 
 ## Language Statistics In Consumer Repositories
 
-Bootstrap installs a managed `.gitattributes` block that marks the governance envelope it copies in — `scripts/*.mjs`, `.unicorn-hub/**`, and `.specify/**` — as `linguist-vendored`. GitHub Linguist honours `.gitattributes` in every clone, so this scaffolding (notably the Node `*.mjs` automation) is excluded from the target repository's language bar and does not skew the language mix of, for example, a Python service.
+Bootstrap installs a managed `.gitattributes` block that marks the governance envelope it copies in — the managed script files copied by bootstrap, `.unicorn-hub/**`, and `.specify/**` — as `linguist-vendored`. GitHub Linguist honours `.gitattributes` in every clone, so this scaffolding (notably the Node `*.mjs` automation) is excluded from the target repository's language bar and does not skew the language mix of, for example, a Python service.
 
-The block is appended idempotently and never overwrites a consumer's existing `.gitattributes`; product code is never marked as vendored. Verify with `git check-attr linguist-vendored -- scripts/<file>.mjs` (expect `set`) and against a product file (expect `unspecified`), or run `github-linguist` on the repository.
+The block is appended idempotently and never overwrites a consumer's existing `.gitattributes`; product code is never marked as vendored. Verify with `git check-attr linguist-vendored -- scripts/ai-review-gate.mjs` (expect `set`) and against a product file such as `scripts/build.mjs` (expect `unspecified`), or run `github-linguist` on the repository.
 
 ## Sanitizer Scope
 

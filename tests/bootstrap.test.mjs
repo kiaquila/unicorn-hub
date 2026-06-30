@@ -548,13 +548,17 @@ test("bootstrap installs a .gitattributes that vendors the governance envelope",
 
   const gitattributes = readFileSync(join(target, ".gitattributes"), "utf8");
   assert.match(gitattributes, /# >>> unicorn-hub governance \(managed block/);
-  assert.match(gitattributes, /^scripts\/\*\.mjs\s+linguist-vendored$/m);
+  assert.doesNotMatch(gitattributes, /^scripts\/\*\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^scripts\/ai-review-gate\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^scripts\/shared\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^scripts\/apply-branch-protection\.mjs\s+linguist-vendored$/m);
   assert.match(gitattributes, /^\.unicorn-hub\/\*\*\s+linguist-vendored$/m);
   assert.match(gitattributes, /^\.specify\/\*\*\s+linguist-vendored$/m);
 
   // Linguist honours .gitattributes via git check-attr; prove the envelope is
   // vendored while product code keeps its language stats.
   execFileSync("git", ["init", "-q"], { cwd: target });
+  writeFileSync(join(target, "scripts/build.mjs"), "console.log('consumer product script');\n");
   const checkAttr = (path) =>
     execFileSync("git", ["check-attr", "linguist-vendored", "--", path], {
       cwd: target,
@@ -565,6 +569,7 @@ test("bootstrap installs a .gitattributes that vendors the governance envelope",
   assert.match(checkAttr(".unicorn-hub/config.json"), /linguist-vendored: set$/);
   assert.match(checkAttr(".specify/memory/constitution.md"), /linguist-vendored: set$/);
   // Product code must NOT be vendored.
+  assert.match(checkAttr("scripts/build.mjs"), /linguist-vendored: unspecified$/);
   assert.match(checkAttr("src/main.py"), /linguist-vendored: unspecified$/);
   assert.match(checkAttr("app/index.ts"), /linguist-vendored: unspecified$/);
 });
@@ -594,7 +599,7 @@ test("bootstrap merges into a pre-existing consumer .gitattributes without clobb
   // Governance block is appended after them.
   assert.match(merged, /# >>> unicorn-hub governance \(managed block/);
   assert.ok(
-    merged.indexOf("vendor/** linguist-vendored") < merged.indexOf("scripts/*.mjs"),
+    merged.indexOf("vendor/** linguist-vendored") < merged.indexOf("scripts/ai-command-policy.mjs"),
     "consumer rules must remain ahead of the appended managed block"
   );
 
@@ -614,7 +619,7 @@ test("bootstrap merges into a pre-existing consumer .gitattributes without clobb
   const reMerged = readFileSync(join(target, ".gitattributes"), "utf8");
   assert.equal(reMerged, merged, "idempotent re-run must not change .gitattributes");
   assert.equal(
-    reMerged.match(/scripts\/\*\.mjs/g).length,
+    reMerged.match(/scripts\/ai-command-policy\.mjs/g).length,
     1,
     "managed block must not be duplicated on re-run"
   );

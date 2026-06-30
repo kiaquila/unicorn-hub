@@ -2,7 +2,7 @@
 
 ## Goal
 
-Stop the Unicorn Hub governance envelope from skewing the GitHub Linguist language statistics of consumer repositories by shipping a managed `.gitattributes` block that marks the installed scaffolding (`scripts/*.mjs`, `.unicorn-hub/**`, `.specify/**`) as `linguist-vendored`, installed idempotently and without clobbering a consumer's own `.gitattributes`.
+Stop the Unicorn Hub governance envelope from skewing the GitHub Linguist language statistics of consumer repositories by shipping a managed `.gitattributes` block that marks the installed scaffolding (the managed script files copied by bootstrap, `.unicorn-hub/**`, `.specify/**`) as `linguist-vendored`, installed idempotently and without clobbering a consumer's own `.gitattributes`.
 
 ## Scope
 
@@ -35,7 +35,7 @@ As a maintainer, I want to confirm with `git check-attr` that the scaffolding is
 
 ## Acceptance Criteria
 
-- AC-001: Bootstrap installs a `.gitattributes` containing a managed block that marks `scripts/*.mjs`, `.unicorn-hub/**`, and `.specify/**` as `linguist-vendored`.
+- AC-001: Bootstrap installs a `.gitattributes` containing a managed block that marks the managed script filenames copied by bootstrap, `.unicorn-hub/**`, and `.specify/**` as `linguist-vendored`.
 - AC-002: For a bootstrapped target, `git check-attr linguist-vendored` reports `set` for the governance paths and `unspecified` for product code such as `src/*.py` and `app/*.ts`.
 - AC-003: When the target already has a `.gitattributes`, bootstrap appends the managed block after the existing content and preserves the consumer's rules verbatim.
 - AC-004: Re-running bootstrap is idempotent: the managed marker is detected and the block is neither duplicated nor rewritten.
@@ -64,5 +64,5 @@ As a maintainer, I want to confirm with `git check-attr` that the scaffolding is
 ## Assumptions
 
 - GitHub Linguist honours `.gitattributes` in every clone, so distributing markings through bootstrap is sufficient.
-- The governance scripts all land flat in `scripts/` as `*.mjs`, so `scripts/*.mjs` is a precise, product-safe glob.
+- The governance scripts all land as known flat `scripts/*.mjs` filenames, so the managed block can list those copied filenames without covering consumer-authored scripts.
 - `.unicorn-hub/**` and `.specify/**` contain only governance scaffolding, never consumer product code.

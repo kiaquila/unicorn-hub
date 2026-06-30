@@ -32,8 +32,8 @@ The only new mechanism is a marker-guarded append. The managed block lives in `t
 
 | Acceptance criterion | Evidence |
 | --- | --- |
-| AC-001 | Bootstrap test asserts the installed `.gitattributes` contains the managed marker and the three `linguist-vendored` rules. |
-| AC-002 | Bootstrap test runs `git init` in the target and asserts `git check-attr linguist-vendored` is `set` for `scripts/*.mjs`, `.unicorn-hub/**`, `.specify/**` and `unspecified` for `src/main.py` and `app/index.ts`; a manual `python-service` run is captured in Process Memory. |
+| AC-001 | Bootstrap test asserts the installed `.gitattributes` contains the managed marker, explicit managed script entries, and the `.unicorn-hub/**` / `.specify/**` rules. |
+| AC-002 | Bootstrap test runs `git init` in the target and asserts `git check-attr linguist-vendored` is `set` for managed scripts, `.unicorn-hub/**`, `.specify/**` and `unspecified` for consumer/product code such as `scripts/build.mjs`, `src/main.py`, and `app/index.ts`; a manual `python-service` run is captured in Process Memory. |
 | AC-003 | Merge test seeds a consumer `.gitattributes`, asserts the original rules survive verbatim and ahead of the appended block, and that bootstrap reports a `merge` action. |
 | AC-004 | Merge test re-runs bootstrap, asserts a `skip` action, byte-identical output, and a single occurrence of the managed rules. |
 | AC-005 | README, `docs/bootstrap-flow.md`, and `docs/portability-and-sanitization.md` state the envelope is vendored and excluded from the consumer language bar. |
@@ -48,7 +48,7 @@ Negative scenario evidence:
 ## Risks
 
 - Risk: A broad glob could vendor consumer files.
-  Mitigation: `scripts/*.mjs` matches only the flat governance scripts; `.unicorn-hub/**` and `.specify/**` are governance-only directories.
+  Mitigation: the managed block lists the exact script filenames copied by bootstrap; `.unicorn-hub/**` and `.specify/**` are governance-only directories.
 - Risk: A naive copy would skip or overwrite an existing consumer `.gitattributes`.
   Mitigation: a dedicated marker-guarded merge appends instead of copying through the skip-if-exists template path.
 - Risk: Re-running bootstrap could duplicate the block.

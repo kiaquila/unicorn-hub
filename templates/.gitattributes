@@ -1,11 +1,22 @@
 # >>> unicorn-hub governance (managed block — bootstrap maintains this) >>>
 # Keep the Unicorn Hub bootstrap envelope out of GitHub Linguist language
 # statistics in consumer repositories. The paths below are copied in verbatim
-# by scripts/bootstrap-repo.mjs and are process scaffolding, not product code,
-# so they should not skew a repo's language bar (e.g. governance *.mjs scripts
-# inflating JavaScript in a Python project). Rules outside this managed block
-# are preserved when bootstrap is re-run.
-scripts/*.mjs        linguist-vendored
-.unicorn-hub/**      linguist-vendored
-.specify/**          linguist-vendored
+# by scripts/bootstrap-repo.mjs and are process scaffolding, not product code.
+# Rules outside this managed block are preserved when bootstrap is re-run.
+scripts/ai-command-policy.mjs          linguist-vendored
+scripts/ai-review-gate.mjs             linguist-vendored
+scripts/ai-review-helpers.mjs          linguist-vendored
+scripts/ai-review-rerun.mjs            linguist-vendored
+scripts/apply-branch-protection.mjs    linguist-vendored
+scripts/check-context-budget.mjs       linguist-vendored
+scripts/check-feature-memory.mjs       linguist-vendored
+scripts/check-repo-baseline.mjs        linguist-vendored
+scripts/new-worktree.mjs               linguist-vendored
+scripts/publish-branch.mjs             linguist-vendored
+scripts/resolve-pr-context.mjs         linguist-vendored
+scripts/set-implementation-agent.mjs   linguist-vendored
+scripts/shared.mjs                     linguist-vendored
+scripts/switch-review-agent.mjs        linguist-vendored
+.unicorn-hub/**                        linguist-vendored
+.specify/**                            linguist-vendored
 # <<< unicorn-hub governance (managed block — bootstrap maintains this) <<<
