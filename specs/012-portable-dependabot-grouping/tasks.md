@@ -16,6 +16,7 @@
 - [x] T006 Run the focused bootstrap test suite.
 - [x] T007 Run the complete preflight after feature memory is present.
 - [x] T008 Push the fix and request a new Codex review.
+- [x] T009 Add a direct root/template parity test so preflight catches future Dependabot drift.
 
 ## Process Memory
 

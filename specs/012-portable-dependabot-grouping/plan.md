@@ -22,7 +22,7 @@ Synchronize the checked-in configuration, template, and bootstrap renderer so ev
 | --- | --- |
 | AC-001 | Flutter-profile bootstrap test asserts the GitHub Actions section contains only `default-days`. |
 | AC-002 | Bootstrap test asserts `minor-and-patch` contains both allowed update types for GitHub Actions and pub. |
-| AC-003 | Root and template Dependabot files are updated together and verified by the repository workflow-sync gate. |
+| AC-003 | A direct parity test compares the root Dependabot configuration with its template counterpart. |
 | AC-004 | Existing explicit-zero renderer test remains green. |
 
 ## Risks
