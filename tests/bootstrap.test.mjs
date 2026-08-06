@@ -58,6 +58,7 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
     "scripts/ai-review-rerun.mjs",
     "scripts/check-context-budget.mjs",
     "scripts/check-feature-memory.mjs",
+    "scripts/publish-branch.mjs",
     ".unicorn-hub/config.json"
   ]) {
     assert.equal(existsSync(join(target, path)), true, `${path} should exist`);
@@ -103,6 +104,11 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
   const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
   assert.equal(packageJson.scripts["check:context"], "node scripts/check-context-budget.mjs");
   assert.match(packageJson.scripts.preflight, /pnpm run check:context -- --local-preflight && pnpm run check:context -- --worktree/);
+  assert.equal(
+    readFileSync(join(target, "scripts/publish-branch.mjs"), "utf8"),
+    readFileSync(join(root, "scripts/publish-branch.mjs"), "utf8"),
+    "bootstrap must preserve the canonical PR publication behavior"
+  );
 
   const prGuard = readFileSync(join(target, ".github/workflows/pr-guard.yml"), "utf8");
   assert.match(prGuard, /Validate context budget/);

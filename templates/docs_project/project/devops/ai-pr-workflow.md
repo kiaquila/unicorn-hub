@@ -2,6 +2,9 @@
 
 The active required-check list is `.unicorn-hub/config.json` (`requiredChecks`); installed defaults reflect the active profile. Stack-specific profiles that preserve existing target CI ship only `guard` and `AI Review` and expect the team to add the repository's real CI job names before applying branch protection.
 
+`node scripts/publish-branch.mjs` opens PRs ready for review by default. Pass
+`--draft` only when the author explicitly wants a draft PR.
+
 PRs are merge-ready only when all checks are green, blocking findings are resolved, docs/specs are updated, and no conflicts remain.
 
 `AI Review` is a required check and is event-driven. It fails quickly when a

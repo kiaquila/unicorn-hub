@@ -33,6 +33,7 @@ run("git", ["push", "-u", "origin", branch]);
 const repo = run("gh", ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], { capture: true });
 const base = args.base || config.defaultBaseBranch || "main";
 const title = args.title || `[agent] ${branch.replace(/^[^/]+\//, "").replaceAll("-", " ")}`;
+const draftArgs = args.draft ? ["--draft"] : [];
 const body = [
   "## Summary",
   "",
@@ -60,7 +61,7 @@ try {
     base,
     "--head",
     branch,
-    "--draft",
+    ...draftArgs,
     "--title",
     title,
     "--body-file",

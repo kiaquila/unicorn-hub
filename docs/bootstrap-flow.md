@@ -114,6 +114,6 @@ The first feature validates the whole system after minimum project docs are pres
 3. write `spec.md`, `plan.md`, `tasks.md`
 4. implement only scoped changes
 5. run preflight
-6. publish PR
+6. publish a ready-for-review PR; use `node scripts/publish-branch.mjs --draft` only when a draft is intentional
 7. trigger AI review from a trusted human account
 8. merge only after all gates are green

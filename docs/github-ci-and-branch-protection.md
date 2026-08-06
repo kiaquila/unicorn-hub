@@ -2,6 +2,12 @@
 
 GitHub is the control plane for pull requests, checks, and AI review routing.
 
+## PR Publication Default
+
+`node scripts/publish-branch.mjs` creates a ready-for-review pull request by
+default. Pass `--draft` only when the author explicitly wants to keep the pull
+request in draft state.
+
 ## Required Workflows
 
 - `ci.yml`: runs repository baseline checks as `baseline-checks`, unless a stack-specific profile preserves an existing target CI workflow
