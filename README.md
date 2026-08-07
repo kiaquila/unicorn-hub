@@ -69,8 +69,9 @@ Current profiles include:
 2. Create feature memory before product code: `spec.md`, `plan.md`, `tasks.md`.
 3. Implement in one worktree, one branch, one PR.
 4. Run local preflight before every push.
-5. Let CI, PR guard, and AI review fail closed.
-6. Merge only after required checks are green and blocking review findings are resolved.
+5. Publish PRs ready for review by default; use `node scripts/publish-branch.mjs --draft` only when a draft is intentional.
+6. Let CI, PR guard, and AI review fail closed.
+7. Merge only after required checks are green and blocking review findings are resolved.
 
 ## After Bootstrap
 

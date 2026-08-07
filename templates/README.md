@@ -35,6 +35,9 @@ pnpm run worktree:new -- --slug 001-example
 pnpm run pr:publish
 ```
 
+`pnpm run pr:publish` opens a ready-for-review pull request by default. Use
+`pnpm run pr:publish -- --draft` only when a draft is intentional.
+
 ## Required PR Checks
 
 The active list is `.unicorn-hub/config.json` (`requiredChecks`). The defaults installed by bootstrap reflect the chosen profile; stack-specific profiles that preserve existing target CI ship only Unicorn-controlled contexts (`guard`, `AI Review`) and expect the team to add the repository's real CI job names before applying branch protection.
