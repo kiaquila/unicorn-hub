@@ -24,6 +24,7 @@ Synchronize the checked-in configuration, template, and bootstrap renderer so ev
 | AC-002 | Bootstrap test asserts `minor-and-patch` contains both allowed update types for GitHub Actions and pub. |
 | AC-003 | A direct parity test compares the root Dependabot configuration with its template counterpart. |
 | AC-004 | Existing explicit-zero renderer test remains green. |
+| Documentation | Supply-chain guidance distinguishes the GitHub Actions cooldown exception and the per-ecosystem grouping policy. |
 
 ## Risks
 
