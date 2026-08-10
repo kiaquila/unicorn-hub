@@ -76,10 +76,21 @@ function renderDependabot(updates) {
       `      prefix: "${String(update.commitMessage?.prefix || update["commit-message"]?.prefix || "chore")}"`,
       "      include: \"scope\"",
       "    cooldown:",
-      `      default-days: ${Number(update.cooldown?.defaultDays ?? update.cooldown?.["default-days"] ?? 7)}`,
-      `      semver-major-days: ${Number(update.cooldown?.semverMajorDays ?? update.cooldown?.["semver-major-days"] ?? 14)}`,
-      `      semver-minor-days: ${Number(update.cooldown?.semverMinorDays ?? update.cooldown?.["semver-minor-days"] ?? 7)}`,
-      `      semver-patch-days: ${Number(update.cooldown?.semverPatchDays ?? update.cooldown?.["semver-patch-days"] ?? 3)}`
+      `      default-days: ${Number(update.cooldown?.defaultDays ?? update.cooldown?.["default-days"] ?? 7)}`
+    );
+    if (ecosystem !== "github-actions") {
+      lines.push(
+        `      semver-major-days: ${Number(update.cooldown?.semverMajorDays ?? update.cooldown?.["semver-major-days"] ?? 14)}`,
+        `      semver-minor-days: ${Number(update.cooldown?.semverMinorDays ?? update.cooldown?.["semver-minor-days"] ?? 7)}`,
+        `      semver-patch-days: ${Number(update.cooldown?.semverPatchDays ?? update.cooldown?.["semver-patch-days"] ?? 3)}`
+      );
+    }
+    lines.push(
+      "    groups:",
+      "      minor-and-patch:",
+      "        update-types:",
+      "          - \"minor\"",
+      "          - \"patch\""
     );
     return lines.join("\n");
   });

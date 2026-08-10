@@ -246,6 +246,13 @@ test("bootstrap preserves Flutter CI and installs Flutter profile controls", () 
   assert.match(dependabot, /package-ecosystem: "pub"/);
   assert.doesNotMatch(dependabot, /package-ecosystem: "npm"/);
 
+  const [githubActionsDependabot, pubDependabot] = dependabot.split('  - package-ecosystem: "pub"');
+  assert.match(githubActionsDependabot, /cooldown:\n      default-days: 7/);
+  assert.doesNotMatch(githubActionsDependabot, /semver-\w+-days/);
+  assert.match(githubActionsDependabot, /groups:\n      minor-and-patch:\n        update-types:\n          - "minor"\n          - "patch"/);
+  assert.match(pubDependabot, /semver-major-days: 14/);
+  assert.match(pubDependabot, /groups:\n      minor-and-patch:\n        update-types:\n          - "minor"\n          - "patch"/);
+
   for (const docPath of [
     "AGENTS.md",
     "README.md",
