@@ -13,6 +13,7 @@ This repository uses a portable multi-agent development workflow:
 - Claude-specific guidance in `CLAUDE.md`
 - local preflight before push
 - GitHub CI, PR Guard, and AI Review gates
+- frozen dependency locks and direct-dependency policy in the existing PR Guard
 
 ## First Setup After Bootstrap
 
@@ -31,12 +32,22 @@ If project docs already exist, use the same protocol to review and refresh them.
 
 ```bash
 pnpm run preflight
+pnpm run check:dependencies -- <base-ref> <head-ref>
 pnpm run worktree:new -- --slug 001-example
 pnpm run pr:publish
 ```
 
 `pnpm run pr:publish` opens a ready-for-review pull request by default. Use
 `pnpm run pr:publish -- --draft` only when a draft is intentional.
+
+Node installs require a current `pnpm-lock.yaml` and use
+`pnpm install --frozen-lockfile`. Review install-script permissions in the
+exact-version `allowBuilds` map in `pnpm-workspace.yaml`. Dependency-policy
+settings and reviewed typosquat exceptions live under `dependencyPolicy` in
+`.unicorn-hub/config.json`. Python-enabled profiles use `uv lock --check` plus
+`uv sync --locked`, or a fully pinned and hashed `requirements.lock` installed
+with isolated pip, the official index, `--require-hashes`, and
+`--only-binary :all:`.
 
 ## Required PR Checks
 

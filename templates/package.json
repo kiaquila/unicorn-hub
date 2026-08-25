@@ -2,13 +2,14 @@
   "name": "<PACKAGE_NAME>",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=20",
-    "pnpm": ">=10.16"
+    "pnpm": ">=10.34.5"
   },
   "scripts": {
     "check:context": "node scripts/check-context-budget.mjs",
+    "check:dependencies": "node scripts/check-dependency-policy.mjs",
     "check:feature-memory": "node scripts/check-feature-memory.mjs",
     "check:repo": "node scripts/check-repo-baseline.mjs",
     "preflight": "node scripts/check-feature-memory.mjs --worktree && pnpm run check:repo && pnpm run check:context -- --local-preflight && pnpm run check:context -- --worktree",

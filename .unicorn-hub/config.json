@@ -8,5 +8,17 @@
   "trustedReviewLoginsByAgent": {},
   "defaultImplementationAgent": "claude",
   "defaultReviewAgent": "codex",
+  "dependencyPolicy": {
+    "node": {
+      "minimumReleaseAgeMinutes": 10080,
+      "registryTimeoutMilliseconds": 10000,
+      "protectedPackageNames": [],
+      "typosquatExceptions": []
+    },
+    "python": {
+      "enabled": false,
+      "requirementsLockFile": "requirements.lock"
+    }
+  },
   "blueprint": true
 }

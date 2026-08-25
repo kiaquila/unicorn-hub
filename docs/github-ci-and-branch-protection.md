@@ -11,7 +11,7 @@ request in draft state.
 ## Required Workflows
 
 - `ci.yml`: runs repository baseline checks as `baseline-checks`, unless a stack-specific profile preserves an existing target CI workflow
-- `pr-guard.yml`: enforces feature-memory, context-budget, and baseline coverage as `guard`
+- `pr-guard.yml`: enforces feature-memory, context-budget, baseline, frozen-lock, registry identity/age, lightweight typosquat, install-script, and profile-scoped Python lock policy as `guard`
 - `ai-command-policy.yml`: validates trusted AI command comments
 - `ai-review.yml`: normalizes native review output into a required `AI Review` check
 - `ai-review-rerun.yml`: reruns `AI Review` when trusted review evidence appears
@@ -29,6 +29,9 @@ For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json
 - Gate scripts must run from the trusted default branch, not PR-supplied code.
 - Context-budget gates must run against the committed PR diff, not only the local worktree, so placeholder-only specs cannot pass after they are committed.
 - Skipped required gates must not be used as a successful state.
+- Node installation never falls back from `pnpm install --frozen-lockfile`; a missing or stale lockfile fails.
+- Changed direct dependencies fail when official-registry identity, exact version, publication time, source policy, or required install-script approval cannot be proven.
+- Registry outages produce a blocking “not verified” result rather than an advisory pass.
 
 ## Branch Protection Baseline
 

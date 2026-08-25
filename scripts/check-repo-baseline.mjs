@@ -14,6 +14,8 @@ function requirePath(path) {
 
 requirePath("README.md");
 requirePath("package.json");
+requirePath("pnpm-lock.yaml");
+requirePath("pnpm-workspace.yaml");
 requirePath(".unicorn-hub/config.json");
 requirePath(config.docsDir || "docs_project");
 
@@ -29,6 +31,7 @@ if (config.blueprint) {
     "templates/.github/workflows/osv-scan.yml",
     "scripts/bootstrap-repo.mjs",
     "scripts/check-context-budget.mjs",
+    "scripts/check-dependency-policy.mjs",
     "scripts/check-feature-memory.mjs",
     "scripts/ai-command-policy.mjs",
     "scripts/ai-review-gate.mjs",
@@ -51,6 +54,7 @@ if (config.blueprint) {
     ".specify/memory/constitution.md",
     config.specsDir || "specs",
     "scripts/check-context-budget.mjs",
+    "scripts/check-dependency-policy.mjs",
     "scripts/check-feature-memory.mjs",
     "scripts/check-repo-baseline.mjs",
     "scripts/ai-command-policy.mjs",
@@ -75,8 +79,15 @@ if (missing.length) {
 }
 
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-if (!packageJson.packageManager?.startsWith("pnpm@")) {
-  console.error("package.json must pin packageManager to pnpm@<version>.");
+const pnpmVersion = String(packageJson.packageManager || "").match(/^pnpm@(\d+)\.(\d+)\.(\d+)(?:\+.*)?$/);
+if (!pnpmVersion) {
+  console.error("package.json must pin packageManager to an exact pnpm@<version>.");
+  process.exit(1);
+}
+const [, pnpmMajor, pnpmMinor, pnpmPatch] = pnpmVersion.map(Number);
+if (pnpmMajor < 10 ||
+    (pnpmMajor === 10 && (pnpmMinor < 34 || (pnpmMinor === 34 && pnpmPatch < 5)))) {
+  console.error("packageManager must be pnpm@10.34.5 or newer for dependency-policy security fixes.");
   process.exit(1);
 }
 

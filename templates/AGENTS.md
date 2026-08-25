@@ -12,6 +12,7 @@
 - Product-code PRs must include one complete `specs/<feature-id>/` folder with `spec.md`, `plan.md`, and `tasks.md`.
 - Acceptance criteria need concrete verification evidence before merge.
 - Run `pnpm run preflight` or the project-equivalent command before pushing.
+- Keep dependency installs locked; review direct dependency and exact-version install-script policy changes in the PR diff.
 - Never push directly to the default branch or merge with missing, queued, red, or stale required checks.
 - Do not put secrets, private URLs, production identifiers, or personal paths in docs, specs, examples, or templates.
 

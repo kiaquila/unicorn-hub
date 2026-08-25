@@ -22,6 +22,16 @@ It should run, at minimum:
 - tests
 - sanitizer for blueprint/template repositories
 
+Dependency-policy checks are available as:
+
+```bash
+pnpm run check:dependencies -- <base-ref> <head-ref>
+```
+
+The GitHub PR Guard supplies immutable base/head SHAs. The checker validates the
+workspace policy and frozen lock even when no direct dependency changed; remote
+registry calls are limited to new or changed direct dependencies.
+
 Profiles may override the installed control-plane `preflight` script to call target-native checks after Unicorn gates. For example, a Flutter target can keep its existing `make check` and `make test` workflow while still running repository baseline, context budget, and feature-memory validation first.
 
 The local preflight context check validates committed changes against

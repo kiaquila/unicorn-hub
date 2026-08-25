@@ -5,5 +5,17 @@
   "requiredChecks": ["baseline-checks", "guard", "AI Review"],
   "defaultBaseBranch": "main",
   "defaultImplementationAgent": "claude",
-  "defaultReviewAgent": "codex"
+  "defaultReviewAgent": "codex",
+  "dependencyPolicy": {
+    "node": {
+      "minimumReleaseAgeMinutes": 10080,
+      "registryTimeoutMilliseconds": 10000,
+      "protectedPackageNames": [],
+      "typosquatExceptions": []
+    },
+    "python": {
+      "enabled": false,
+      "requirementsLockFile": "requirements.lock"
+    }
+  }
 }

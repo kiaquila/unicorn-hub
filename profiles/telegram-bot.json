@@ -7,9 +7,18 @@
   "architecture": {
     "rule": "Each command or conversation flow should be implemented as an isolated handler with injected ports for external services."
   },
+  "packageManager": "uv",
+  "pythonVersion": "3.12",
   "commands": {
-    "test": "npm test",
-    "preflight": "pnpm run preflight"
+    "install": "uv lock --check && uv sync --locked",
+    "test": "uv run pytest",
+    "preflight": "uv lock --check && uv run pytest"
+  },
+  "dependencyPolicy": {
+    "python": {
+      "enabled": true,
+      "requirementsLockFile": "requirements.lock"
+    }
   },
   "requiredChecks": ["baseline-checks", "guard", "AI Review"],
   "deploy": {

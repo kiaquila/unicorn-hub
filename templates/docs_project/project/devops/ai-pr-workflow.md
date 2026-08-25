@@ -7,6 +7,14 @@ The active required-check list is `.unicorn-hub/config.json` (`requiredChecks`);
 
 PRs are merge-ready only when all checks are green, blocking findings are resolved, docs/specs are updated, and no conflicts remain.
 
+The existing `guard` context also runs `scripts/check-dependency-policy.mjs`.
+Changed direct dependencies must resolve through a current pnpm lock and verify
+against the official registry; exotic sources, unreviewed similar/Unicode names,
+and undeclared install scripts fail closed. Python-enabled profiles must use a
+current `uv.lock` or a fully pinned hashed requirements lock. Narrow reviewed
+exceptions belong in `.unicorn-hub/config.json` so their version and reason are
+visible in the PR diff.
+
 `AI Review` is a required check and is event-driven. It fails quickly when a
 trusted current-head review request or review evidence is missing. A trusted
 human review trigger records the current head SHA, then review-result events

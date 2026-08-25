@@ -56,10 +56,13 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
     ".github/workflows/ai-review-rerun.yml",
     "scripts/ai-command-policy.mjs",
     "scripts/ai-review-rerun.mjs",
+    "scripts/check-dependency-policy.mjs",
     "scripts/check-context-budget.mjs",
     "scripts/check-feature-memory.mjs",
     "scripts/publish-branch.mjs",
-    ".unicorn-hub/config.json"
+    ".unicorn-hub/config.json",
+    "pnpm-workspace.yaml",
+    "pnpm-lock.yaml"
   ]) {
     assert.equal(existsSync(join(target, path)), true, `${path} should exist`);
   }
@@ -100,9 +103,13 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
   assert.equal(config.profile, "generic");
+  assert.equal(config.dependencyPolicy.node.minimumReleaseAgeMinutes, 10080);
+  assert.deepEqual(config.dependencyPolicy.node.typosquatExceptions, []);
+  assert.equal(config.dependencyPolicy.python.enabled, false);
 
   const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
   assert.equal(packageJson.scripts["check:context"], "node scripts/check-context-budget.mjs");
+  assert.equal(packageJson.scripts["check:dependencies"], "node scripts/check-dependency-policy.mjs");
   assert.match(packageJson.scripts.preflight, /pnpm run check:context -- --local-preflight && pnpm run check:context -- --worktree/);
   assert.equal(
     readFileSync(join(target, "scripts/publish-branch.mjs"), "utf8"),
@@ -113,6 +120,14 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
   const prGuard = readFileSync(join(target, ".github/workflows/pr-guard.yml"), "utf8");
   assert.match(prGuard, /Validate context budget/);
   assert.match(prGuard, /check-context-budget\.mjs --target "\$GITHUB_WORKSPACE" "\$BASE_REF" "\$HEAD_REF"/);
+  assert.match(prGuard, /check-dependency-policy\.mjs --sync-python/);
+
+  const workspacePolicy = readFileSync(join(target, "pnpm-workspace.yaml"), "utf8");
+  assert.match(workspacePolicy, /^minimumReleaseAge: 10080$/m);
+  assert.match(workspacePolicy, /^blockExoticSubdeps: true$/m);
+  assert.match(workspacePolicy, /^trustPolicy: no-downgrade$/m);
+  assert.match(workspacePolicy, /^strictDepBuilds: true$/m);
+  assert.match(workspacePolicy, /^allowBuilds: \{\}$/m);
 
   const specTemplate = readFileSync(join(target, ".specify/templates/spec-template.md"), "utf8");
   assert.match(specTemplate, /## Goal/);
@@ -142,6 +157,72 @@ test("bootstrap --dry-run announces a dry run instead of next steps", () => {
   assert.match(output, /Re-run without --dry-run to apply\./);
   assert.doesNotMatch(output, /\nNext:\n/);
   assert.equal(existsSync(join(target, "AGENTS.md")), false, "dry run must not write files");
+});
+
+test("bootstrap preserves dependency policy consumer files unless --force is used", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-dependency-collision-"));
+  mkdirSync(join(target, "scripts"), { recursive: true });
+  const consumerScript = "console.log('consumer dependency policy');\n";
+  const consumerWorkspace = "packages:\n  - consumer-package\n";
+  writeFileSync(join(target, "scripts/check-dependency-policy.mjs"), consumerScript);
+  writeFileSync(join(target, "pnpm-workspace.yaml"), consumerWorkspace);
+
+  const first = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Collision"
+  ]);
+  assert.match(first, /^skip\s+scripts\/check-dependency-policy\.mjs$/m);
+  assert.match(first, /^skip\s+pnpm-workspace\.yaml$/m);
+  assert.equal(readFileSync(join(target, "scripts/check-dependency-policy.mjs"), "utf8"), consumerScript);
+  assert.equal(readFileSync(join(target, "pnpm-workspace.yaml"), "utf8"), consumerWorkspace);
+
+  const forced = run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Collision",
+    "--force"
+  ]);
+  assert.match(forced, /^overwrite\s+scripts\/check-dependency-policy\.mjs$/m);
+  assert.match(forced, /^overwrite\s+pnpm-workspace\.yaml$/m);
+  assert.equal(
+    readFileSync(join(target, "scripts/check-dependency-policy.mjs"), "utf8"),
+    readFileSync(join(root, "scripts/check-dependency-policy.mjs"), "utf8")
+  );
+  assert.match(readFileSync(join(target, "pnpm-workspace.yaml"), "utf8"), /strictDepBuilds: true/);
+});
+
+test("Python profiles receive locked dependency contracts without affecting generic", () => {
+  for (const profile of ["python-service", "telegram-bot"]) {
+    const target = mkdtempSync(join(tmpdir(), `unicorn-${profile}-policy-`));
+    run([
+      "scripts/bootstrap-repo.mjs",
+      "--source",
+      root,
+      "--target",
+      target,
+      "--profile",
+      profile,
+      "--project-name",
+      `Synthetic ${profile}`
+    ]);
+    const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
+    assert.equal(config.dependencyPolicy.python.enabled, true, profile);
+    assert.equal(config.commands.install, "uv lock --check && uv sync --locked", profile);
+    assert.doesNotMatch(config.commands.install, /pip install -r requirements.*\.txt/, profile);
+  }
 });
 
 test("bootstrap idempotent re-run reports nothing new to review", () => {
@@ -437,6 +518,12 @@ test("bootstrap into pre-existing package.json preserves user-defined packageMan
     packageJson.packageManager,
     "pnpm@9.0.0",
     "user-defined packageManager must outrank template defaults"
+  );
+
+  assert.throws(
+    () => run(["scripts/check-repo-baseline.mjs", "--target", target]),
+    /Command failed/,
+    "preserved pnpm versions older than the security-policy minimum must fail baseline until explicitly upgraded"
   );
 });
 
