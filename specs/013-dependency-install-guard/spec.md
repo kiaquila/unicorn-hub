@@ -44,7 +44,7 @@ As a Python profile maintainer, I want either a locked `uv` workflow or a fully 
 - AC-003: The existing `guard` job checks only new or changed direct dependency declarations and rejects Git, URL, tarball/archive, local, and unknown-registry sources.
 - AC-004: Registry dependencies pass only when the exact package name and resolved exact version exist in the configured official registry and the publication timestamp satisfies the configured minimum age; registry unavailability is reported as not verified and fails the check.
 - AC-005: Obvious misspellings, adjacent transpositions, and Unicode substitutions are blocked until a version-scoped exception with a non-empty reason is present in `.unicorn-hub/config.json`.
-- AC-006: Install scripts are denied by pnpm unless the exact package and version are explicitly allowed.
+- AC-006: Install scripts are denied by pnpm unless the exact package and version are explicitly allowed, and repository-controlled pnpmfile hooks are rejected before installation.
 - AC-007: Python-enabled profiles use `uv.lock` with `uv lock --check` and `uv sync --locked`, or a fully pinned hashed requirements lock installed using isolated pip, the official index, `--require-hashes`, and `--only-binary :all:`; unpinned requirements installs are not accepted.
 - AC-008: Bootstrap installs the checker and settings, exposes policy through `.unicorn-hub/config.json`, preserves consumer files unless `--force` authorizes replacement, and keeps generated examples synthetic.
 - AC-009: The checker is integrated into PR Guard without adding a new required check.
@@ -55,7 +55,7 @@ As a Python profile maintainer, I want either a locked `uv` workflow or a fully 
 - NS-002: A dependency name with a one-edit typo, adjacent transposition, or Unicode confusable is rejected without a matching version-scoped exception and reason.
 - NS-003: Git, URL, archive, tarball, local path, or unknown-registry dependency specifications are rejected.
 - NS-004: Registry downtime produces a fail-closed “not verified” result rather than a pass.
-- NS-005: An install-script package absent from the exact-version allowlist is blocked while an explicitly allowed package/version passes.
+- NS-005: An install-script package absent from the exact-version allowlist is blocked while an explicitly allowed package/version passes; repository pnpmfile hooks and hook settings are rejected before pnpm runs.
 - NS-006: A missing or manifest-stale pnpm lockfile is rejected.
 - NS-007: A Python requirements lock entry without a required hash is rejected.
 - NS-008: Non-Python profiles are not forced to adopt Python lock tooling.

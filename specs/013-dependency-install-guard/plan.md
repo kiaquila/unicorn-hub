@@ -37,7 +37,7 @@ The checker centralizes related dependency policy because source validation, loc
 | AC-003 | Dependency-policy tests for direct diff scope and forbidden source forms. |
 | AC-004 | Mock-registry tests for valid, missing, young, and unavailable metadata. |
 | AC-005 | Synthetic typo, transposition, Unicode, and exception tests. |
-| AC-006 | Exact-version allowBuilds assertions and unknown/allowed install-script tests. |
+| AC-006 | Exact-version allowBuilds assertions, unknown/allowed install-script tests, and fail-closed pnpmfile hook tests. |
 | AC-007 | Python profile/config assertions and hashed-lock/uv contract tests. |
 | AC-008 | Bootstrap tests for installed files, settings, config, collision preservation, and forced refresh. |
 | AC-009 | Root/template PR Guard parity test showing the checker runs inside `guard`. |
@@ -57,3 +57,5 @@ Negative scenario evidence:
   Mitigation: mirror the existing trusted-script fallback used by other guard scripts and fail clearly if neither copy exists.
 - Risk: Python projects vary in tooling.
   Mitigation: support the preferred uv contract plus one hashed pip lock contract only for Python-enabled profiles.
+- Risk: pnpmfile hooks can rewrite dependency manifests during a frozen install.
+  Mitigation: reject default hook files and local/global pnpmfile settings before invoking pnpm.

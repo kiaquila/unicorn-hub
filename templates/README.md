@@ -44,10 +44,11 @@ Node installs require a current `pnpm-lock.yaml` and use
 `pnpm install --frozen-lockfile`. Review install-script permissions in the
 exact-version `allowBuilds` map in `pnpm-workspace.yaml`. Dependency-policy
 settings and reviewed typosquat exceptions live under `dependencyPolicy` in
-`.unicorn-hub/config.json`. Python-enabled profiles use `uv lock --check` plus
-`uv sync --locked`, or a fully pinned and hashed `requirements.lock` installed
-with isolated pip, the official index, `--require-hashes`, and
-`--only-binary :all:`.
+`.unicorn-hub/config.json`. Repository pnpmfile hooks and custom `pnpmfile` or
+`global-pnpmfile` settings are not supported. Python-enabled profiles use
+`uv lock --check` plus `uv sync --locked`, or a fully pinned and hashed
+`requirements.lock` installed with isolated pip, the official index,
+`--require-hashes`, and `--only-binary :all:`.
 
 ## Required PR Checks
 

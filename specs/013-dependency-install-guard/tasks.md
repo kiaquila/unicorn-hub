@@ -42,11 +42,12 @@
 - Treat registry availability as required evidence for changed direct dependencies and fail closed when it cannot be obtained.
 - Pin pnpm 10.34.5 because the official 10.x security advisories mark earlier releases vulnerable to repository-controlled registry/proxy request routing.
 - Reject unsupported pnpm policy escape hatches and noncanonical YAML indirection instead of expanding this checker into a general YAML policy engine.
+- Reject repository pnpmfile hooks and hook-location settings before any pnpm command; `--ignore-pnpmfile` remains defense in depth for the frozen-lock probe.
 
 ### Verification Evidence
 
-- `node --test tests/dependency-policy.test.mjs` — 32 focused dependency-policy tests passed.
-- `pnpm run preflight` — feature-memory, baseline, context, workflow sync, syntax, sanitizer, and all 93 tests passed.
+- `node --test tests/dependency-policy.test.mjs` — 33 focused dependency-policy tests passed.
+- `pnpm run preflight` — feature-memory, baseline, context, workflow sync, syntax, sanitizer, and all 94 tests passed after resolving the pnpmfile review finding.
 - Synthetic bootstrap coverage confirms checker/settings installation, collision preservation, forced refresh, and Python-profile scoping.
 
 ### Known Issues

@@ -95,6 +95,17 @@ function repositoryRegularFile(root, value) {
   }
 }
 
+function repositoryEntryExists(root, value) {
+  const path = repositoryPath(root, value);
+  if (!path) return false;
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function yamlScalar(value) {
   const trimmed = String(value).trim();
   if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
@@ -169,7 +180,9 @@ export function validateWorkspacePolicy(text, minimumReleaseAgeMinutes = 10080) 
     "noProxy",
     "noproxy",
     "pnprServer",
-    "namedRegistries"
+    "namedRegistries",
+    "pnpmfile",
+    "globalPnpmfile"
   ];
   for (const key of forbiddenKeys) {
     if (uncommented.some((line) => new RegExp(`^${key}:`).test(line))) {
@@ -461,7 +474,8 @@ export function parseNpmrc(text) {
     default: OFFICIAL_NPM_REGISTRY,
     scopes: new Map(),
     unsafeSettings: [],
-    unsafePolicySettings: []
+    unsafePolicySettings: [],
+    unsafeHookSettings: []
   };
   for (const rawLine of String(text).split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -471,6 +485,9 @@ export function parseNpmrc(text) {
       registries.unsafeSettings.push(key);
     }
     const normalizedKey = key.replace(/[-_.\[\]]/g, "");
+    if (["pnpmfile", "globalpnpmfile"].includes(normalizedKey)) {
+      registries.unsafeHookSettings.push(key);
+    }
     if ([
       "dangerouslyallowallbuilds",
       "allowbuilds",
@@ -860,6 +877,14 @@ export async function runDependencyPolicy({
   }
   for (const setting of npmrc.unsafePolicySettings) {
     errors.push(`project .npmrc dependency-policy override '${setting}' is not supported`);
+  }
+  for (const setting of npmrc.unsafeHookSettings) {
+    errors.push(`project .npmrc pnpm hook setting '${setting}' is not supported`);
+  }
+  for (const hookFile of [".pnpmfile.cjs", ".pnpmfile.mjs"]) {
+    if (repositoryEntryExists(root, hookFile)) {
+      errors.push(`${hookFile} is not supported; repository-controlled pnpm hooks must be absent`);
+    }
   }
   let baseManifestPaths = [];
   let headManifestPaths = [];

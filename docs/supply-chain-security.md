@@ -102,10 +102,12 @@ non-empty reason in the same reviewed configuration:
 
 Before invoking pnpm, the guard also rejects request-routing overrides,
 non-official lockfile artifact sources, pnpm policy escape hatches, and YAML
-indirection that its deliberately small parser cannot interpret safely. These
-are repository-wide installation-boundary checks; remote metadata requests
-remain limited to new or changed direct dependencies and newly granted
-`allowBuilds` entries.
+indirection that its deliberately small parser cannot interpret safely. It also
+rejects repository `.pnpmfile.cjs`/`.pnpmfile.mjs` hooks and custom `pnpmfile`
+or `global-pnpmfile` settings, because those hooks can rewrite manifests during
+the real frozen install. These are repository-wide installation-boundary
+checks; remote metadata requests remain limited to new or changed direct
+dependencies and newly granted `allowBuilds` entries.
 
 ## Locked Python Installs
 

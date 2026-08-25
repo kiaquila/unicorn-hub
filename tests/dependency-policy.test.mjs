@@ -455,6 +455,50 @@ test("project npmrc cannot override dependency build policy", async () => {
   assert.equal(commandCalls, 0);
 });
 
+test("repository pnpm hook files and settings are rejected before pnpm runs", async () => {
+  for (const hookFile of [".pnpmfile.cjs", ".pnpmfile.mjs"]) {
+    const root = syntheticRepo();
+    writeFileSync(join(root, hookFile), "module.exports = { hooks: {} };\n");
+    git(root, ["add", hookFile]);
+    git(root, ["commit", "-qm", "add pnpm hook"]);
+    let commandCalls = 0;
+    const errors = await runDependencyPolicy({
+      root,
+      baseRef: "HEAD~1",
+      headRef: "HEAD",
+      runCommand: () => {
+        commandCalls += 1;
+        return "";
+      },
+      fetchImpl: async () => response(200, {}),
+      now: NOW
+    });
+    assert.match(errors.join("\n"), new RegExp(`${hookFile.replaceAll(".", "\\.")}.*not supported`));
+    assert.equal(commandCalls, 0, hookFile);
+  }
+
+  for (const setting of ["pnpmfile=.pnpm/custom.cjs", "global-pnpmfile=.pnpm/global.cjs"]) {
+    const root = syntheticRepo({ npmrc: `${setting}\n` });
+    let commandCalls = 0;
+    const errors = await runDependencyPolicy({
+      root,
+      baseRef: "HEAD~1",
+      headRef: "HEAD",
+      runCommand: () => {
+        commandCalls += 1;
+        return "";
+      },
+      fetchImpl: async () => response(200, {}),
+      now: NOW
+    });
+    assert.match(errors.join("\n"), /pnpm hook setting/);
+    assert.equal(commandCalls, 0, setting);
+  }
+
+  const workspaceErrors = validateWorkspacePolicy(`${workspace()}pnpmfile: .pnpm/custom.cjs\n`).errors;
+  assert.match(workspaceErrors.join("\n"), /pnpmfile is not supported/);
+});
+
 test("invalid numeric policy configuration fails instead of weakening checks", async () => {
   const root = syntheticRepo({
     config: policyConfig({
