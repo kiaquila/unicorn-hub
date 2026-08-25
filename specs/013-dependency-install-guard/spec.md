@@ -45,7 +45,7 @@ As a Python profile maintainer, I want either a locked `uv` workflow or a fully 
 - AC-004: Registry dependencies pass only when the exact package name and resolved exact version exist in the configured official registry and the publication timestamp satisfies the configured minimum age; registry unavailability is reported as not verified and fails the check.
 - AC-005: Obvious misspellings, adjacent transpositions, and Unicode substitutions are blocked until a version-scoped exception with a non-empty reason is present in `.unicorn-hub/config.json`.
 - AC-006: Install scripts are denied by pnpm unless the exact package and version are explicitly allowed, and repository-controlled pnpmfile hooks are rejected before installation.
-- AC-007: Python-enabled profiles use `uv.lock` with a no-build lock check and a locked dependency sync that neither builds nor installs the PR project inside the guard, or a fully pinned hashed requirements lock installed using isolated pip, the official index, `--require-hashes`, and `--only-binary :all:`; unpinned requirements installs are not accepted.
+- AC-007: Python-enabled profiles use `uv.lock` whose registry and artifact URLs are restricted to official PyPI hosts, with a no-build lock check and a locked dependency sync that neither builds nor installs the PR project inside the guard, or a fully pinned hashed requirements lock installed using isolated pip, the official index, `--require-hashes`, and `--only-binary :all:`; unpinned requirements installs are not accepted.
 - AC-008: Bootstrap installs the checker and settings, exposes policy through `.unicorn-hub/config.json`, preserves consumer files unless `--force` authorizes replacement, and keeps generated examples synthetic.
 - AC-009: The checker is integrated into PR Guard without adding a new required check.
 
@@ -59,6 +59,7 @@ As a Python profile maintainer, I want either a locked `uv` workflow or a fully 
 - NS-006: A missing or manifest-stale pnpm lockfile is rejected.
 - NS-007: A Python requirements lock entry without a required hash is rejected.
 - NS-008: Non-Python profiles are not forced to adopt Python lock tooling.
+- NS-009: A `uv.lock` wheel or source artifact URL outside the official PyPI distribution host is rejected before uv runs.
 
 ## Requirements
 

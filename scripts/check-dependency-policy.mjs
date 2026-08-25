@@ -7,6 +7,7 @@ import { findRepoRoot, parseArgs, readConfig } from "./shared.mjs";
 
 const OFFICIAL_NPM_REGISTRY = "https://registry.npmjs.org/";
 const OFFICIAL_PYTHON_INDEX = "https://pypi.org/simple";
+const OFFICIAL_PYTHON_ARTIFACT_ORIGIN = "https://files.pythonhosted.org";
 const PYTHON_PROFILES = new Set(["python-service", "telegram-bot"]);
 const DEPENDENCY_FIELDS = [
   "dependencies",
@@ -614,6 +615,17 @@ function uvIndexErrors(root, allowedIndexes) {
   const uvLock = readFileSync(join(root, "uv.lock"), "utf8");
   for (const match of uvLock.matchAll(/registry\s*=\s*["']([^"']+)["']/g)) {
     if (!normalized.has(normalizeUrl(match[1]))) errors.push("unknown Python index in uv.lock");
+  }
+  for (const match of uvLock.matchAll(/\burl\s*=\s*["']([^"']+)["']/g)) {
+    try {
+      const url = new URL(match[1]);
+      if (url.origin !== OFFICIAL_PYTHON_ARTIFACT_ORIGIN ||
+          url.username || url.password || !url.pathname.startsWith("/packages/")) {
+        errors.push("uv.lock contains a non-official Python artifact URL");
+      }
+    } catch {
+      errors.push("uv.lock contains an invalid Python artifact URL");
+    }
   }
   for (const match of uvLock.matchAll(/^\s*source\s*=\s*\{([^}]*)\}\s*$/gm)) {
     const source = match[1].trim();

@@ -38,7 +38,7 @@ The checker centralizes related dependency policy because source validation, loc
 | AC-004 | Mock-registry tests for valid, missing, young, and unavailable metadata. |
 | AC-005 | Synthetic typo, transposition, Unicode, and exception tests. |
 | AC-006 | Exact-version allowBuilds assertions, unknown/allowed install-script tests, and fail-closed pnpmfile hook tests. |
-| AC-007 | Python profile/config assertions plus hashed-lock/uv tests proving the guard does not build or install PR project sources. |
+| AC-007 | Python profile/config assertions plus hashed-lock/uv tests proving the guard does not build or install PR project sources and rejects non-official artifact URLs. |
 | AC-008 | Bootstrap tests for installed files, settings, config, collision preservation, and forced refresh. |
 | AC-009 | Root/template PR Guard parity test showing the checker runs inside `guard`. |
 
@@ -61,3 +61,5 @@ Negative scenario evidence:
   Mitigation: reject default hook files and local/global pnpmfile settings before invoking pnpm.
 - Risk: syncing a PR-controlled Python project can execute its local PEP 517 backend.
   Mitigation: validate and sync uv locks with source builds disabled, and omit the current project from the guard environment.
+- Risk: a lockfile can retain an official registry while pointing an artifact URL at another host.
+  Mitigation: validate every uv artifact URL against the exact official PyPI distribution origin and path before invoking uv.

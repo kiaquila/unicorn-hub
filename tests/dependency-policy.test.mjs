@@ -746,6 +746,39 @@ test("Python uv contract rejects direct Git, URL, and local sources", () => {
   assert.match(validatePythonContract(lockRoot, config, noOpCommand).join("\n"), /uv\.lock contains a forbidden/);
 });
 
+test("Python uv contract accepts only official PyPI artifact URLs", () => {
+  const config = policyConfig({
+    profile: "python-service",
+    dependencyPolicy: { node: {}, python: { enabled: true, requirementsLockFile: "requirements.lock" } }
+  });
+  const root = mkdtempSync(join(tmpdir(), "unicorn-python-uv-artifact-"));
+  writeFileSync(join(root, "pyproject.toml"), "[project]\nname = \"synthetic-python\"\nversion = \"0.1.0\"\n");
+  const lockWithUrl = (url) => [
+    "version = 1",
+    "[[package]]",
+    "name = \"synthetic-package\"",
+    "version = \"1.2.3\"",
+    "source = { registry = \"https://pypi.org/simple\" }",
+    `wheels = [{ url = "${url}", hash = "sha256:${"a".repeat(64)}", size = 1 }]`,
+    ""
+  ].join("\n");
+
+  writeFileSync(join(root, "uv.lock"), lockWithUrl("https://packages.example.invalid/synthetic.whl"));
+  let commandCalls = 0;
+  const rejected = validatePythonContract(root, config, () => {
+    commandCalls += 1;
+  });
+  assert.match(rejected.join("\n"), /non-official Python artifact URL/);
+  assert.equal(commandCalls, 0);
+
+  writeFileSync(join(root, "uv.lock"), lockWithUrl(
+    "https://files.pythonhosted.org/packages/aa/bb/synthetic_package-1.2.3-py3-none-any.whl"
+  ));
+  const calls = [];
+  assert.deepEqual(validatePythonContract(root, config, (command, args) => calls.push([command, ...args])), []);
+  assert.deepEqual(calls, [["uv", "lock", "--check", "--no-build"]]);
+});
+
 test("hashed Python contract uses require-hashes and binary-only install", () => {
   const root = mkdtempSync(join(tmpdir(), "unicorn-python-hashes-"));
   writeFileSync(
