@@ -59,6 +59,7 @@ Install scripts for:
 
 - one worktree per task
 - feature-memory enforcement
+- direct-dependency, lockfile, registry, typosquat, and install-script policy enforcement
 - repository baseline verification
 - context budget and agent-readiness reporting
 - PR publishing
@@ -80,6 +81,17 @@ Install workflows:
 When a target repository already has a mature CI workflow, do not overwrite it. Keep the existing workflow, install the additional guard/review/security workflows, and set `.unicorn-hub/config.json` `requiredChecks` to the target's real CI job names plus the Unicorn guard and review jobs.
 
 Profiles can declare `excludeTemplates` to skip blueprint templates that conflict with the target stack. The `flutter-app` profile excludes the default Node `ci.yml`, so fresh Flutter targets are not handed a `baseline-checks` workflow that would never match their CI. `excludeTemplates` is enforced even under `--force`; the flag only refreshes templates the profile considers compatible.
+
+Bootstrap also installs `pnpm-workspace.yaml`, a minimal `pnpm-lock.yaml`, and
+`scripts/check-dependency-policy.mjs`. Existing consumer copies are preserved by
+default; `--force` is the explicit refresh contract. A generated minimal lock is
+safe only while the generated package manifest has no dependencies. If an
+existing target manifest declares dependencies, generate and review a matching
+lock before CI—the guard intentionally fails closed instead of repairing it.
+
+The generated `.unicorn-hub/config.json` carries dependency-policy settings and
+version-scoped exception records. Python lock enforcement is enabled for the
+`python-service` and `telegram-bot` profiles and disabled for unrelated profiles.
 
 Set repository variables:
 

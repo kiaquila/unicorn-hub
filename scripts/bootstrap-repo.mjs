@@ -192,6 +192,7 @@ for (const rel of walkFiles(join(sourceRoot, "templates"))) {
 
 const scriptAllowlist = new Set([
   "shared.mjs",
+  "check-dependency-policy.mjs",
   "check-context-budget.mjs",
   "check-feature-memory.mjs",
   "check-repo-baseline.mjs",
@@ -235,6 +236,18 @@ const config = {
   trustedReviewLoginsByAgent: {},
   profile: profile.id,
   commands: profile.commands || {},
+  dependencyPolicy: {
+    node: {
+      minimumReleaseAgeMinutes: 10080,
+      registryTimeoutMilliseconds: 10000,
+      protectedPackageNames: [],
+      typosquatExceptions: []
+    },
+    python: {
+      enabled: Boolean(profile.dependencyPolicy?.python?.enabled),
+      requirementsLockFile: profile.dependencyPolicy?.python?.requirementsLockFile || "requirements.lock"
+    }
+  },
   excludeTemplates: Array.isArray(profile.excludeTemplates) ? [...profile.excludeTemplates] : []
 };
 

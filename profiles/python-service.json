@@ -4,12 +4,18 @@
   "docsDir": "docs_project",
   "specsDir": "specs",
   "productPaths": ["src/", "app/", "service/", "scripts/", "pyproject.toml", "requirements.txt", "requirements-dev.txt"],
-  "packageManager": "project-specific",
+  "packageManager": "uv",
   "pythonVersion": "3.12",
   "commands": {
-    "install": "python -m pip install -r requirements-dev.txt",
-    "test": "python -m pytest",
-    "preflight": "python -m pytest"
+    "install": "uv lock --check && uv sync --locked",
+    "test": "uv run pytest",
+    "preflight": "uv lock --check && uv run pytest"
+  },
+  "dependencyPolicy": {
+    "python": {
+      "enabled": true,
+      "requirementsLockFile": "requirements.lock"
+    }
   },
   "requiredChecks": ["baseline-checks", "guard", "AI Review"],
   "deploy": {

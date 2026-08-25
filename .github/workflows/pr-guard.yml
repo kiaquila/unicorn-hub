@@ -32,6 +32,15 @@ jobs:
           path: .gate-trusted
           fetch-depth: 1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.34.5
+
+      - name: Setup uv for Python lock verification
+        if: ${{ hashFiles('uv.lock') != '' }}
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
       - name: Resolve diff refs
         shell: bash
         env:
@@ -77,4 +86,13 @@ jobs:
           else
             echo "::warning::Trusted baseline script missing on default branch; using PR script for first-install bootstrap only."
             node scripts/check-repo-baseline.mjs --target "$GITHUB_WORKSPACE"
+          fi
+
+      - name: Enforce dependency policy
+        run: |
+          if [ -f .gate-trusted/scripts/check-dependency-policy.mjs ]; then
+            node .gate-trusted/scripts/check-dependency-policy.mjs --sync-python --target "$GITHUB_WORKSPACE" "$BASE_REF" "$HEAD_REF"
+          else
+            echo "::warning::Trusted dependency policy script missing on default branch; using PR script for first-install bootstrap only."
+            node scripts/check-dependency-policy.mjs --sync-python --target "$GITHUB_WORKSPACE" "$BASE_REF" "$HEAD_REF"
           fi
