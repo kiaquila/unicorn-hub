@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -15,6 +24,7 @@ import {
   syncPythonContract,
   validateHashedRequirements,
   validateLockfileRegistries,
+  validatePackageManifestPolicy,
   validatePythonContract,
   validateWorkspacePolicy,
   verifyChangedDependency
@@ -401,6 +411,39 @@ test("workspace policy rejects alternate registries, escape hatches, and YAML sc
     validateWorkspacePolicy(`${workspace()}"registry": https:\/\/packages.example.invalid\/\n`).errors.join("\n"),
     /canonical unquoted/
   );
+  for (const setting of ["overrides", "packageExtensions", "patchedDependencies", "onlyBuiltDependencies"]) {
+    assert.match(
+      validateWorkspacePolicy(`${workspace()}${setting}: {}\n`).errors.join("\n"),
+      new RegExp(`${setting} is not supported`)
+    );
+  }
+});
+
+test("package manifest pnpm policy and graph rewrites are rejected before pnpm runs", async () => {
+  assert.deepEqual(validatePackageManifestPolicy({ name: "synthetic", pnpm: {} }), []);
+  for (const setting of ["overrides", "packageExtensions", "patchedDependencies", "onlyBuiltDependencies"]) {
+    const root = syntheticRepo();
+    const manifestPath = join(root, "package.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.pnpm = { [setting]: { "synthetic-package": "1.2.3" } };
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    git(root, ["add", "package.json"]);
+    git(root, ["commit", "-qm", "add graph rewrite"]);
+    let commandCalls = 0;
+    const errors = await runDependencyPolicy({
+      root,
+      baseRef: "HEAD~1",
+      headRef: "HEAD",
+      runCommand: () => {
+        commandCalls += 1;
+        return "";
+      },
+      fetchImpl: async () => response(200, {}),
+      now: NOW
+    });
+    assert.match(errors.join("\n"), new RegExp(`pnpm\\.${setting} is not supported`));
+    assert.equal(commandCalls, 0, setting);
+  }
 });
 
 test("new allowBuilds permission must match a verified install script", async () => {

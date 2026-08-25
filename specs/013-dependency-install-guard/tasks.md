@@ -45,11 +45,12 @@
 - Reject repository pnpmfile hooks and hook-location settings before any pnpm command; `--ignore-pnpmfile` remains defense in depth for the frozen-lock probe.
 - Prevent the trusted guard from building or installing PR-controlled Python project sources; uv checks and syncs run with `--no-build`, and sync omits the current project.
 - Reject uv wheel/source artifact URLs outside the exact official PyPI distribution host before running uv.
+- Reject pnpm graph-rewrite settings in both workspace policy and package manifests before running pnpm.
 
 ### Verification Evidence
 
-- `node --test tests/dependency-policy.test.mjs` — 34 focused dependency-policy tests passed.
-- `pnpm run preflight` — feature-memory, baseline, context, workflow sync, syntax, sanitizer, and all 95 tests passed after resolving the dependency-boundary review findings.
+- `node --test tests/dependency-policy.test.mjs` — 35 focused dependency-policy tests passed.
+- `pnpm run preflight` — feature-memory, baseline, context, workflow sync, syntax, sanitizer, and all 96 tests passed after resolving the dependency-boundary review findings.
 - Synthetic bootstrap coverage confirms checker/settings installation, collision preservation, forced refresh, and Python-profile scoping.
 
 ### Known Issues

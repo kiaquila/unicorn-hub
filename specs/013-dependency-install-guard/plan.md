@@ -44,7 +44,7 @@ The checker centralizes related dependency policy because source validation, loc
 
 Negative scenario evidence:
 
-- Run the focused dependency-policy test suite covering NS-001 through NS-008.
+- Run the focused dependency-policy test suite covering NS-001 through NS-010.
 - Run `pnpm run preflight` for sanitizer, baseline, workflow sync, syntax, and full tests.
 
 ## Risks
@@ -63,3 +63,5 @@ Negative scenario evidence:
   Mitigation: validate and sync uv locks with source builds disabled, and omit the current project from the guard environment.
 - Risk: a lockfile can retain an official registry while pointing an artifact URL at another host.
   Mitigation: validate every uv artifact URL against the exact official PyPI distribution origin and path before invoking uv.
+- Risk: pnpm graph-rewrite settings can inject transitive dependencies without changing a direct declaration.
+  Mitigation: reject overrides, package extensions, and patched dependencies in workspace and manifest policy before invoking pnpm.

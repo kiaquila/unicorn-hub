@@ -105,9 +105,14 @@ non-official lockfile artifact sources, pnpm policy escape hatches, and YAML
 indirection that its deliberately small parser cannot interpret safely. It also
 rejects repository `.pnpmfile.cjs`/`.pnpmfile.mjs` hooks and custom `pnpmfile`
 or `global-pnpmfile` settings, because those hooks can rewrite manifests during
-the real frozen install. These are repository-wide installation-boundary
-checks; remote metadata requests remain limited to new or changed direct
-dependencies and newly granted `allowBuilds` entries.
+the real frozen install. pnpm graph-rewrite settings (`overrides`,
+`packageExtensions`, and `patchedDependencies`) are likewise rejected in both
+`pnpm-workspace.yaml` and package-manifest `pnpm` objects; otherwise a lock-only
+change could inject dependencies outside direct-declaration verification.
+Package-manifest `pnpm` objects also cannot override the enforced build,
+release-age, provenance, or hook policy. These are repository-wide
+installation-boundary checks; remote metadata requests remain limited to new
+or changed direct dependencies and newly granted `allowBuilds` entries.
 
 ## Locked Python Installs
 

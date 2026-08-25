@@ -16,6 +16,25 @@ const DEPENDENCY_FIELDS = [
   "peerDependencies"
 ];
 const INSTALL_SCRIPT_NAMES = ["preinstall", "install", "postinstall"];
+const PNPM_GRAPH_REWRITE_KEYS = ["overrides", "packageExtensions", "patchedDependencies"];
+const PNPM_MANIFEST_OVERRIDE_KEYS = [
+  ...PNPM_GRAPH_REWRITE_KEYS,
+  "dangerouslyAllowAllBuilds",
+  "allowBuilds",
+  "onlyBuiltDependencies",
+  "onlyBuiltDependenciesFile",
+  "ignoredBuiltDependencies",
+  "neverBuiltDependencies",
+  "strictDepBuilds",
+  "blockExoticSubdeps",
+  "minimumReleaseAge",
+  "minimumReleaseAgeExclude",
+  "trustPolicy",
+  "trustPolicyExclude",
+  "trustPolicyIgnoreAfter",
+  "pnpmfile",
+  "globalPnpmfile"
+];
 
 // This deliberately small set protects common high-value spellings without
 // turning the blueprint into a package popularity or reputation database.
@@ -183,7 +202,8 @@ export function validateWorkspacePolicy(text, minimumReleaseAgeMinutes = 10080) 
     "pnprServer",
     "namedRegistries",
     "pnpmfile",
-    "globalPnpmfile"
+    "globalPnpmfile",
+    ...PNPM_GRAPH_REWRITE_KEYS
   ];
   for (const key of forbiddenKeys) {
     if (uncommented.some((line) => new RegExp(`^${key}:`).test(line))) {
@@ -502,7 +522,8 @@ export function parseNpmrc(text) {
       "minimumreleaseageexclude",
       "trustpolicy",
       "trustpolicyexclude",
-      "trustpolicyignoreafter"
+      "trustpolicyignoreafter",
+      ...PNPM_GRAPH_REWRITE_KEYS.map((setting) => setting.toLowerCase())
     ].includes(normalizedKey)) {
       registries.unsafePolicySettings.push(key);
     }
@@ -513,6 +534,14 @@ export function parseNpmrc(text) {
     else registries.default = value;
   }
   return registries;
+}
+
+export function validatePackageManifestPolicy(manifest) {
+  const pnpmSettings = manifest?.pnpm;
+  if (!pnpmSettings || typeof pnpmSettings !== "object" || Array.isArray(pnpmSettings)) return [];
+  return PNPM_MANIFEST_OVERRIDE_KEYS
+    .filter((key) => Object.hasOwn(pnpmSettings, key))
+    .map((key) => `package.json pnpm.${key} is not supported by the portable dependency policy`);
 }
 
 function registryForPackage(name, npmrc) {
@@ -910,8 +939,17 @@ export async function runDependencyPolicy({
       baseManifestPaths = manifestPathsAtRef(root, baseRef);
       headManifestPaths = manifestPathsAtRef(root, headRef);
       for (const manifestPath of headManifestPaths) {
-        if (!repositoryRegularFile(root, manifestPath)) {
+        const localManifestPath = repositoryRegularFile(root, manifestPath);
+        if (!localManifestPath) {
           errors.push(`package manifest '${manifestPath}' must be a regular, non-symlink repository file`);
+          continue;
+        }
+        try {
+          const manifest = JSON.parse(readFileSync(localManifestPath, "utf8"));
+          errors.push(...validatePackageManifestPolicy(manifest)
+            .map((error) => `${manifestPath}: ${error}`));
+        } catch {
+          errors.push(`package manifest '${manifestPath}' must contain valid JSON`);
         }
       }
     } catch {

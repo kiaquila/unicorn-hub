@@ -41,7 +41,7 @@ As a Python profile maintainer, I want either a locked `uv` workflow or a fully 
 
 - AC-001: Root and template pnpm settings retain `minimumReleaseAge: 10080` and enable `blockExoticSubdeps`, `trustPolicy: no-downgrade`, `strictDepBuilds`, and an explicit `allowBuilds` map without globally allowing lifecycle scripts.
 - AC-002: Node CI and repository validation fail when `pnpm-lock.yaml` is missing or stale and install only with `pnpm install --frozen-lockfile`.
-- AC-003: The existing `guard` job checks only new or changed direct dependency declarations and rejects Git, URL, tarball/archive, local, and unknown-registry sources.
+- AC-003: The existing `guard` job checks only new or changed direct dependency declarations and rejects Git, URL, tarball/archive, local, unknown-registry, and pnpm dependency-graph rewrite sources.
 - AC-004: Registry dependencies pass only when the exact package name and resolved exact version exist in the configured official registry and the publication timestamp satisfies the configured minimum age; registry unavailability is reported as not verified and fails the check.
 - AC-005: Obvious misspellings, adjacent transpositions, and Unicode substitutions are blocked until a version-scoped exception with a non-empty reason is present in `.unicorn-hub/config.json`.
 - AC-006: Install scripts are denied by pnpm unless the exact package and version are explicitly allowed, and repository-controlled pnpmfile hooks are rejected before installation.
@@ -60,6 +60,7 @@ As a Python profile maintainer, I want either a locked `uv` workflow or a fully 
 - NS-007: A Python requirements lock entry without a required hash is rejected.
 - NS-008: Non-Python profiles are not forced to adopt Python lock tooling.
 - NS-009: A `uv.lock` wheel or source artifact URL outside the official PyPI distribution host is rejected before uv runs.
+- NS-010: pnpm `overrides`, `packageExtensions`, and `patchedDependencies` are rejected before pnpm runs, including settings nested in a package manifest.
 
 ## Requirements
 
