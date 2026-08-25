@@ -671,7 +671,7 @@ export function validatePythonContract(root, config, runCommand = execFileSync) 
     errors.push(...uvIndexErrors(root, allowedIndexes));
     if (errors.length > 0) return errors;
     try {
-      runCommand("uv", ["lock", "--check"], {
+      runCommand("uv", ["lock", "--check", "--no-build"], {
         cwd: root,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"]
@@ -711,7 +711,10 @@ export function syncPythonContract(root, config, runCommand = execFileSync) {
       if (!repositoryRegularFile(root, "uv.lock") || !repositoryRegularFile(root, "pyproject.toml")) {
         return ["uv.lock and pyproject.toml must be regular, non-symlink repository files"];
       }
-      runCommand("uv", ["sync", "--locked"], { cwd: root, stdio: "inherit" });
+      runCommand("uv", ["sync", "--locked", "--no-install-project", "--no-build"], {
+        cwd: root,
+        stdio: "inherit"
+      });
     } else {
       const lockFile = String(pythonPolicy.requirementsLockFile || "requirements.lock");
       if (!repositoryRegularFile(root, lockFile)) {

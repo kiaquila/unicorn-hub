@@ -43,6 +43,7 @@
 - Pin pnpm 10.34.5 because the official 10.x security advisories mark earlier releases vulnerable to repository-controlled registry/proxy request routing.
 - Reject unsupported pnpm policy escape hatches and noncanonical YAML indirection instead of expanding this checker into a general YAML policy engine.
 - Reject repository pnpmfile hooks and hook-location settings before any pnpm command; `--ignore-pnpmfile` remains defense in depth for the frozen-lock probe.
+- Prevent the trusted guard from building or installing PR-controlled Python project sources; uv checks and syncs run with `--no-build`, and sync omits the current project.
 
 ### Verification Evidence
 

@@ -122,6 +122,13 @@ uv lock --check
 uv sync --locked
 ```
 
+The trusted PR Guard validates the lock with `uv lock --check --no-build`, then
+installs only locked dependencies with
+`uv sync --locked --no-install-project --no-build`. It does not build or install
+the PR-controlled project, so a local PEP 517 backend cannot execute inside the
+guard. The profile's ordinary development install remains `uv sync --locked`
+so the project itself is available outside that trusted verification boundary.
+
 If `uv.lock` is not used, the compatible contract is a fully pinned
 `requirements.lock` where every direct and transitive requirement has a
 `sha256` hash, installed with pip's official [hash-checking mode](https://pip.pypa.io/en/stable/topics/secure-installs/#hash-checking-mode) and binary-only policy:

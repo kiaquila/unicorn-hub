@@ -706,7 +706,7 @@ test("Python lock policy applies only to enabled or Python profiles", () => {
   assert.match(validatePythonContract(root, enabled, noOpCommand).join("\n"), /requires uv.lock or hashed requirements.lock/);
 });
 
-test("Python uv contract checks and syncs the locked project", () => {
+test("Python uv contract checks and syncs locked dependencies without building PR sources", () => {
   const root = mkdtempSync(join(tmpdir(), "unicorn-python-uv-"));
   writeFileSync(join(root, "pyproject.toml"), "[project]\nname = \"synthetic-python\"\nversion = \"0.1.0\"\n");
   writeFileSync(join(root, "uv.lock"), "version = 1\n");
@@ -719,8 +719,8 @@ test("Python uv contract checks and syncs the locked project", () => {
   assert.deepEqual(validatePythonContract(root, config, capture), []);
   assert.deepEqual(syncPythonContract(root, config, capture), []);
   assert.deepEqual(calls, [
-    ["uv", "lock", "--check"],
-    ["uv", "sync", "--locked"]
+    ["uv", "lock", "--check", "--no-build"],
+    ["uv", "sync", "--locked", "--no-install-project", "--no-build"]
   ]);
 });
 
