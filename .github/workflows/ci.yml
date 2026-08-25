@@ -33,7 +33,7 @@ jobs:
         run: pnpm run check:repo
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
 
       - name: Run tests if present
         run: pnpm run --if-present test

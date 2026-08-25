@@ -33,7 +33,7 @@ The checker centralizes related dependency policy because source validation, loc
 | Acceptance criterion | Evidence |
 | --- | --- |
 | AC-001 | Workspace parity assertions and pnpm configuration tests. |
-| AC-002 | Workflow assertions plus synthetic missing/stale lockfile CLI tests. |
+| AC-002 | Workflow assertions for frozen, script-free PR installation plus synthetic missing/stale lockfile CLI tests. |
 | AC-003 | Dependency-policy tests for direct diff scope and forbidden source forms. |
 | AC-004 | Mock-registry tests for valid, missing, young, and unavailable metadata. |
 | AC-005 | Synthetic typo, transposition, Unicode, and exception tests. |
@@ -65,3 +65,5 @@ Negative scenario evidence:
   Mitigation: validate every uv artifact URL against the exact official PyPI distribution origin and path before invoking uv.
 - Risk: pnpm graph-rewrite settings can inject transitive dependencies without changing a direct declaration.
   Mitigation: reject overrides, package extensions, and patched dependencies in workspace and manifest policy before invoking pnpm.
+- Risk: independent CI can execute an allowed dependency lifecycle script before the trusted PR Guard finishes.
+  Mitigation: keep pull-request CI installation script- and pnpmfile-free; retain exact allowBuilds entries as reviewed evidence for trusted later installs.

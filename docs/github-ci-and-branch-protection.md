@@ -29,7 +29,7 @@ For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json
 - Gate scripts must run from the trusted default branch, not PR-supplied code.
 - Context-budget gates must run against the committed PR diff, not only the local worktree, so placeholder-only specs cannot pass after they are committed.
 - Skipped required gates must not be used as a successful state.
-- Node installation never falls back from `pnpm install --frozen-lockfile`; a missing or stale lockfile fails.
+- Node installation never falls back from a frozen lockfile; PR CI also passes `--ignore-scripts --ignore-pnpmfile`, and a missing or stale lockfile fails.
 - Changed direct dependencies fail when official-registry identity, exact version, publication time, source policy, or required install-script approval cannot be proven.
 - Registry outages produce a blocking “not verified” result rather than an advisory pass.
 

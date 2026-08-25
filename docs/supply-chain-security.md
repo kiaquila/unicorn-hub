@@ -58,11 +58,15 @@ controls in its official [settings reference](https://pnpm.io/settings).
 `pnpm-lock.yaml` is mandatory. CI runs only:
 
 ```bash
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
 ```
 
 There is no `--no-frozen-lockfile` fallback. A missing lockfile or a manifest
-that no longer matches it fails both CI and the dependency-policy guard.
+that no longer matches it fails both CI and the dependency-policy guard. Pull
+request CI also disables lifecycle scripts and pnpmfile hooks, so dependency
+code cannot execute before the separate trusted policy workflow approves the
+current dependency graph. Exact-version `allowBuilds` entries remain explicit
+review evidence for trusted post-merge or deployment installs.
 
 ## Direct Dependency Policy
 

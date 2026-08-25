@@ -46,6 +46,7 @@
 - Prevent the trusted guard from building or installing PR-controlled Python project sources; uv checks and syncs run with `--no-build`, and sync omits the current project.
 - Reject uv wheel/source artifact URLs outside the exact official PyPI distribution host before running uv.
 - Reject pnpm graph-rewrite settings in both workspace policy and package manifests before running pnpm.
+- Keep independent pull-request CI installs script- and pnpmfile-free so dependency code cannot execute before the trusted guard completes.
 
 ### Verification Evidence
 

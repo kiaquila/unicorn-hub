@@ -25,12 +25,13 @@ test("root Dependabot configuration stays in sync with its template", () => {
 test("CI requires a frozen pnpm lockfile without an unsafe fallback", () => {
   const workflow = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
   assert.match(workflow, /pnpm install --frozen-lockfile/);
+  assert.match(workflow, /pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile/);
   assert.match(workflow, /version: 10\.34\.5/);
   assert.doesNotMatch(workflow, /--no-frozen-lockfile/);
   assert.doesNotMatch(workflow, /if \[ -f pnpm-lock\.yaml \]/);
   assert.ok(
     workflow.indexOf("pnpm run check:repo") < workflow.indexOf("pnpm install --frozen-lockfile"),
-    "the pinned pnpm baseline must pass before dependency lifecycle scripts can run"
+    "the pinned pnpm baseline must pass before dependency installation"
   );
 });
 

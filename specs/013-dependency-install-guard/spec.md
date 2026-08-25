@@ -40,7 +40,7 @@ As a Python profile maintainer, I want either a locked `uv` workflow or a fully 
 ## Acceptance Criteria
 
 - AC-001: Root and template pnpm settings retain `minimumReleaseAge: 10080` and enable `blockExoticSubdeps`, `trustPolicy: no-downgrade`, `strictDepBuilds`, and an explicit `allowBuilds` map without globally allowing lifecycle scripts.
-- AC-002: Node CI and repository validation fail when `pnpm-lock.yaml` is missing or stale and install only with `pnpm install --frozen-lockfile`.
+- AC-002: Node CI and repository validation fail when `pnpm-lock.yaml` is missing or stale; PR CI uses a frozen install with lifecycle scripts and pnpmfile hooks disabled until trusted dependency policy has passed.
 - AC-003: The existing `guard` job checks only new or changed direct dependency declarations and rejects Git, URL, tarball/archive, local, unknown-registry, and pnpm dependency-graph rewrite sources.
 - AC-004: Registry dependencies pass only when the exact package name and resolved exact version exist in the configured official registry and the publication timestamp satisfies the configured minimum age; registry unavailability is reported as not verified and fails the check.
 - AC-005: Obvious misspellings, adjacent transpositions, and Unicode substitutions are blocked until a version-scoped exception with a non-empty reason is present in `.unicorn-hub/config.json`.
