@@ -192,6 +192,7 @@ for (const rel of walkFiles(join(sourceRoot, "templates"))) {
 
 const scriptAllowlist = new Set([
   "shared.mjs",
+  "github-api.mjs",
   "check-dependency-policy.mjs",
   "check-context-budget.mjs",
   "check-feature-memory.mjs",
@@ -205,6 +206,7 @@ const scriptAllowlist = new Set([
   "publish-branch.mjs",
   "set-implementation-agent.mjs",
   "switch-review-agent.mjs",
+  "apply-security-settings.mjs",
   "apply-branch-protection.mjs"
 ]);
 
@@ -224,11 +226,18 @@ if (existsSync(gitattributesSource)) {
   mergeGitattributes(gitattributesSource, ".gitattributes", { managedScriptTargets });
 }
 
+const installedRequiredChecks = [...(profile.requiredChecks || ["baseline-checks", "guard", "osv-scan", "AI Review"])]
+  .filter((check) => check !== "osv-scan" || !excludeTemplates.has(".github/workflows/osv-scan.yml"));
+if (!excludeTemplates.has(".github/workflows/osv-scan.yml") && !installedRequiredChecks.includes("osv-scan")) {
+  installedRequiredChecks.push("osv-scan");
+}
+
 const config = {
   docsDir: profile.docsDir || "docs_project",
   specsDir: profile.specsDir || "specs",
   productPaths: profile.productPaths || ["src/", "app/"],
-  requiredChecks: profile.requiredChecks || ["baseline-checks", "guard", "AI Review"],
+  requiredChecks: installedRequiredChecks,
+  requiredCheckEvidence: profile.requiredCheckEvidence || {},
   defaultBaseBranch: "main",
   defaultImplementationAgent: "claude",
   defaultReviewAgent: "codex",
@@ -308,5 +317,7 @@ if (dryRun) {
   }
   console.log("2. For a new or under-documented project, ask an agent to follow CREATE-DOCS.md and use docs-minimum.md unless full discovery is needed.");
   console.log("3. Create the first specs/<feature-id>/{spec.md,plan.md,tasks.md}.");
-  console.log("4. Run the project preflight, then open a PR.");
+  console.log("4. Run the project preflight, then open a PR and merge the installed workflows into the default branch.");
+  console.log("5. From a trusted checkout, preview remote activation with: node scripts/apply-security-settings.mjs --dry-run");
+  console.log("6. Explicitly activate GitHub security and then branch protection with: node scripts/apply-security-settings.mjs --apply");
 }

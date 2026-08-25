@@ -30,12 +30,15 @@ if (config.blueprint) {
     "templates/.github/workflows/ai-command-policy.yml",
     "templates/.github/workflows/osv-scan.yml",
     "scripts/bootstrap-repo.mjs",
+    "scripts/github-api.mjs",
     "scripts/check-context-budget.mjs",
     "scripts/check-dependency-policy.mjs",
     "scripts/check-feature-memory.mjs",
     "scripts/ai-command-policy.mjs",
     "scripts/ai-review-gate.mjs",
     "scripts/ai-review-rerun.mjs",
+    "scripts/apply-security-settings.mjs",
+    "scripts/apply-branch-protection.mjs",
     "scripts/set-implementation-agent.mjs",
     "scripts/sync-workflows.mjs",
     "scripts/sanitize-blueprint.mjs",
@@ -45,7 +48,7 @@ if (config.blueprint) {
     requirePath(path);
   }
 } else {
-  const PROFILE_EXCLUDABLE = new Set([".github/workflows/ci.yml"]);
+  const PROFILE_EXCLUDABLE = new Set([".github/workflows/ci.yml", ".github/workflows/osv-scan.yml"]);
   const requestedExclusions = new Set(config.excludeTemplates || []);
   const excluded = new Set([...requestedExclusions].filter((path) => PROFILE_EXCLUDABLE.has(path)));
   for (const path of [
@@ -54,18 +57,22 @@ if (config.blueprint) {
     ".specify/memory/constitution.md",
     config.specsDir || "specs",
     "scripts/check-context-budget.mjs",
+    "scripts/github-api.mjs",
     "scripts/check-dependency-policy.mjs",
     "scripts/check-feature-memory.mjs",
     "scripts/check-repo-baseline.mjs",
     "scripts/ai-command-policy.mjs",
     "scripts/ai-review-gate.mjs",
     "scripts/ai-review-rerun.mjs",
+    "scripts/apply-security-settings.mjs",
+    "scripts/apply-branch-protection.mjs",
     "scripts/set-implementation-agent.mjs",
     ".github/workflows/ci.yml",
     ".github/workflows/pr-guard.yml",
     ".github/workflows/ai-review.yml",
     ".github/workflows/ai-review-rerun.yml",
-    ".github/workflows/ai-command-policy.yml"
+    ".github/workflows/ai-command-policy.yml",
+    ".github/workflows/osv-scan.yml"
   ]) {
     if (excluded.has(path)) continue;
     requirePath(path);

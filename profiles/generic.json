@@ -7,7 +7,17 @@
   "commands": {
     "preflight": "pnpm run preflight"
   },
-  "requiredChecks": ["baseline-checks", "guard", "AI Review"],
+  "requiredChecks": ["baseline-checks", "guard", "osv-scan", "AI Review"],
+  "dependabotUpdates": [
+    {
+      "packageEcosystem": "github-actions",
+      "directory": "/"
+    },
+    {
+      "packageEcosystem": "npm",
+      "directory": "/"
+    }
+  ],
   "deploy": {
     "type": "project-specific"
   }

@@ -58,7 +58,7 @@ Current profiles include:
 - Spec-driven feature memory under `specs/<feature-id>/`
 - SENAR-style supervised verification fields for goals, scope, acceptance evidence, negative scenarios, and process memory
 - Agent rules: `AGENTS.md` and `CLAUDE.md`
-- Local orchestration scripts for worktrees, PR publishing, feature-memory gates, context budget checks, AI review gates, and branch protection
+- Local orchestration scripts for worktrees, PR publishing, feature-memory gates, context budget checks, AI review gates, GitHub security activation, and branch protection
 - GitHub Actions workflows for CI, PR guard, trusted AI review routing, and OSV scanning
 - Supply-chain defaults: strict frozen pnpm locks, release-age and provenance policy, exact-version install-script allowlisting, a lightweight direct-dependency/typosquat guard, profile-scoped locked Python installs, Dependabot cooldown, and a pinned package manager
 - A `.gitattributes` block that marks the installed governance envelope (the managed script files bootstrap writes or recognizes as unchanged blueprint copies, `.unicorn-hub/**`, and `.specify/**`) as `linguist-vendored`, so the blueprint's Node scaffolding does not skew the target repo's GitHub language bar. Bootstrap appends this block idempotently and never overwrites an existing consumer `.gitattributes`; pre-existing consumer script collisions and product code keep their language stats.
@@ -72,6 +72,14 @@ Current profiles include:
 5. Publish PRs ready for review by default; use `node scripts/publish-branch.mjs --draft` only when a draft is intentional.
 6. Let CI, PR guard, and AI review fail closed.
 7. Merge only after required checks are green and blocking review findings are resolved.
+
+After the installed workflows have run on the consumer repository's default
+branch, preview remote activation with
+`node scripts/apply-security-settings.mjs --dry-run`, then explicitly run
+`node scripts/apply-security-settings.mjs --apply`. The apply command enables
+supported GitHub security settings, verifies mandatory postconditions, confirms
+that every configured status context exists, and only then applies branch
+protection.
 
 ## After Bootstrap
 

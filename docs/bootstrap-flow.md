@@ -105,12 +105,28 @@ AI_IMPLEMENTATION_AGENT=claude
 AI_REVIEW_AGENT=codex
 ```
 
-## Phase 5: Branch Protection
+## Phase 5: GitHub Security Activation And Branch Protection
 
-After the workflows exist on the default branch, apply branch protection:
+Bootstrap itself changes local files only. After the workflows exist and have
+run on the default branch, preview and explicitly activate remote settings:
+
+```bash
+node scripts/apply-security-settings.mjs --dry-run
+node scripts/apply-security-settings.mjs --apply
+```
+
+The activation command enables Dependabot vulnerability alerts and security
+updates, Secret Scanning, push protection, and supported validity/non-provider
+checks. Unsupported optional features are reported separately. Mandatory
+features must be verified as enabled before branch protection is attempted.
+
+Branch protection is then applied only after every context in
+`.unicorn-hub/config.json` has appeared in recent repository runs. This covers
+PR-only contexts such as `guard` and `AI Review`, which do not run on the
+default-branch head:
 
 - require pull requests
-- require the contexts listed in `.unicorn-hub/config.json` (`requiredChecks`) — the generic profile ships `baseline-checks`, `guard`, `AI Review`, while stack-specific profiles such as `flutter-app` ship only `guard` and `AI Review` and expect the team to extend the list with the target's real CI job names
+- require the contexts listed in `.unicorn-hub/config.json` (`requiredChecks`) — the generic profile ships `baseline-checks`, `guard`, `osv-scan`, `AI Review`, while stack-specific profiles such as `flutter-app` ship `guard`, `osv-scan`, `AI Review` and expect the team to extend the list with the target's real CI job names
 - require branches to be up to date when appropriate
 - enforce admins
 - dismiss stale reviews

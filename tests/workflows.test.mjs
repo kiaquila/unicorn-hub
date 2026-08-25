@@ -44,3 +44,14 @@ test("dependency policy remains inside the existing PR Guard context", () => {
   assert.match(workflow, /astral-sh\/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d/);
   assert.doesNotMatch(workflow, /^  dependency-policy:/m);
 });
+
+test("OSV workflow is blocking and retains all activation triggers", () => {
+  const workflow = readFileSync(join(root, ".github", "workflows", "osv-scan.yml"), "utf8");
+  assert.match(workflow, /on:\n  pull_request:/);
+  assert.match(workflow, /push:\n    branches: \[main\]/);
+  assert.match(workflow, /schedule:\n    - cron: "0 6 \* \* 1"/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /name: osv-scan/);
+  assert.match(workflow, /--fail-on-vuln=true/);
+  assert.match(workflow, /osv-reporter-action@6e4298ebc4db23e847df9b2e2de2939d6f066c67/);
+});

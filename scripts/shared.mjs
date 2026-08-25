@@ -47,7 +47,7 @@ export function readConfig(root = findRepoRoot()) {
       docsDir: "docs_project",
       specsDir: "specs",
       productPaths: ["src/", "app/", "index.html"],
-      requiredChecks: ["baseline-checks", "guard", "AI Review"],
+      requiredChecks: ["baseline-checks", "guard", "osv-scan", "AI Review"],
       defaultBaseBranch: "main",
       defaultReviewAgent: "codex"
     };

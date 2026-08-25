@@ -17,7 +17,17 @@
       "requirementsLockFile": "requirements.lock"
     }
   },
-  "requiredChecks": ["baseline-checks", "guard", "AI Review"],
+  "requiredChecks": ["baseline-checks", "guard", "osv-scan", "AI Review"],
+  "dependabotUpdates": [
+    {
+      "packageEcosystem": "github-actions",
+      "directory": "/"
+    },
+    {
+      "packageEcosystem": "pip",
+      "directory": "/"
+    }
+  ],
   "deploy": {
     "type": "project-specific",
     "production": "merge_to_main_or_release_workflow"
