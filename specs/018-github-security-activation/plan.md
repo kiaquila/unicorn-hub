@@ -49,10 +49,12 @@ Extend the existing Dependabot renderer and OSV workflow contract, add a small t
 | AC-008 | Bootstrap file and ordered `Next:` output assertions. |
 | AC-009–AC-010 | Branch-protection tests proving checks are queried before PUT and missing contexts block mutation. |
 | AC-011 | Documentation content assertions and manual review. |
+| AC-012 | Synthetic `gh` coverage for JSON-state and no-content Dependabot security-update responses, plus a live repository dry-run. |
 
 Negative scenario evidence:
 
 - Run focused security, bootstrap, and workflow tests for NS-001 through NS-007.
+- Run the live dry-run and focused response-shape regression for NS-008.
 - Run `pnpm run preflight` for the complete repository contract.
 
 ## Risks

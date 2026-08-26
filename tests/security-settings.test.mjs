@@ -38,7 +38,10 @@ if (path === repoPath + "/vulnerability-alerts") {
   state.vulnerabilityAlerts = true; save(); reply(204);
 }
 if (path === repoPath + "/automated-security-fixes") {
-  if (method === "GET") reply(state.automatedSecurityFixes ? 204 : 404, state.automatedSecurityFixes ? null : { message: "Disabled" });
+  if (method === "GET" && state.securityUpdatesStatusStyle === "no-content") {
+    reply(state.automatedSecurityFixes ? 204 : 404, state.automatedSecurityFixes ? null : { message: "Disabled" });
+  }
+  if (method === "GET") reply(200, { enabled: state.automatedSecurityFixes, paused: false });
   if (state.failEndpoint === "automated-security-fixes") reply(500, { message: "Synthetic API failure" });
   state.automatedSecurityFixes = true; save(); reply(204);
 }
@@ -205,7 +208,15 @@ test("security activation dry-run performs no mutations", () => {
   assert.equal(state.calls.some((call) => ["PATCH", "PUT", "DELETE"].includes(call.method)), false);
   assert.equal(state.protectionApplied, false);
   assert.match(result.stdout, /Dry run: no GitHub settings were changed/);
+  assert.match(result.stdout, /\[planned\] Dependabot security updates: would enable/);
   assert.match(result.stdout, /Would apply branch protection/);
+});
+
+test("security-update status accepts the no-content compatibility response", () => {
+  const value = fixture({ automatedSecurityFixes: true, securityUpdatesStatusStyle: "no-content" });
+  const result = runSecurity("--dry-run", value);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Dependabot security updates: already enabled/);
 });
 
 test("security activation is idempotent and applies branch protection after verification", () => {

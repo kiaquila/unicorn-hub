@@ -38,8 +38,8 @@ const definitions = [
     kind: "endpoint",
     readPath: `/repos/${repo}/automated-security-fixes`,
     writePath: `/repos/${repo}/automated-security-fixes`,
-    enabled: (response) => response.status === 204,
-    disabled: (response) => response.status === 404
+    enabled: (response) => response.status === 204 || (response.ok && response.json?.enabled === true),
+    disabled: (response) => response.status === 404 || (response.ok && response.json?.enabled === false)
   },
   {
     id: "secret-scanning",

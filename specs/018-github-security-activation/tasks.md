@@ -31,6 +31,8 @@
 - [x] T021 Resolve Codex P1 by rendering CI and OSV push filters for the configured or discovered default branch, with regression coverage and updated install docs.
 - [x] T022 Resolve Codex P2 by rendering the branch as a JSON-compatible YAML scalar, including valid Git branch names that contain a double quote.
 - [x] T023 Resolve Codex P1 by binding PR-only evidence to the workflow blob now on the default branch instead of requiring the run to postdate the merge commit.
+- [x] T024 Reproduce the post-merge Dependabot security-update status response against the live repository and preserve the no-mutation failure evidence.
+- [x] T025 Accept both JSON-state and no-content status responses and add focused regression coverage.
 
 ## Process Memory
 
@@ -38,6 +40,7 @@
 
 - Validating every required context only on the current `main` head rejected real PR-only checks (`guard`, `AI Review`). The activation now proves push-oriented and consumer-defined CI on the current default head, while proving Unicorn's PR-only jobs through workflow-specific pull-request runs created after that workflow version reached the default branch.
 - The first live dry-run exceeded Node's default synchronous subprocess buffer while reading GitHub responses. GitHub CLI response capture now uses a bounded 16 MiB buffer, workflow-scoped queries, and early exit as soon as each workflow's configured contexts are proven.
+- The first post-merge live dry-run exposed `200 {"enabled":false,"paused":false}` from the Dependabot security-update endpoint, while the merged compatibility path expected only `204`/`404`. Activation failed closed and made no changes; the status classifier now accepts both response contracts.
 
 ### Decisions
 
