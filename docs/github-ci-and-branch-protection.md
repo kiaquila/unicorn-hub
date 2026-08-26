@@ -17,6 +17,11 @@ request in draft state.
 - `ai-review-rerun.yml`: reruns `AI Review` when trusted review evidence appears
 - `osv-scan.yml`: scans dependencies for known vulnerabilities
 
+Bootstrap renders the `ci.yml` and `osv-scan.yml` push filters for the target
+repository's configured or discovered default branch. This ensures their
+`default-head` activation evidence is produced for repositories that use names
+such as `master` or `trunk`, not only `main`.
+
 For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json`. Profiles that preserve a target CI workflow should list the target's current job names there, plus `guard`, `osv-scan`, and `AI Review` when the OSV workflow is installed. A profile excluding the OSV workflow must also omit `osv-scan`.
 
 ## Fail-Closed Rules

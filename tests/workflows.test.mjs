@@ -48,7 +48,7 @@ test("dependency policy remains inside the existing PR Guard context", () => {
 test("OSV workflow is blocking and retains all activation triggers", () => {
   const workflow = readFileSync(join(root, ".github", "workflows", "osv-scan.yml"), "utf8");
   assert.match(workflow, /on:\n  pull_request:/);
-  assert.match(workflow, /push:\n    branches: \[main\]/);
+  assert.match(workflow, /push:\n    branches: \["main"\]/);
   assert.match(workflow, /schedule:\n    - cron: "0 6 \* \* 1"/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /name: osv-scan/);

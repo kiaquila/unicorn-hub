@@ -28,6 +28,7 @@
 - [x] T018 Use the requested code-review skill and resolve all blocking findings.
 - [x] T019 Update verification evidence and process memory.
 - [x] T020 Commit with the required trailer, push, and publish a ready-for-review PR with the required PR attribution.
+- [x] T021 Resolve Codex P1 by rendering CI and OSV push filters for the configured or discovered default branch, with regression coverage and updated install docs.
 
 ## Process Memory
 
@@ -46,11 +47,12 @@
 
 ### Verification Evidence
 
-- `pnpm run preflight` passed after implementation: sanitizer, repository baseline, workflow synchronization, syntax checks, synthetic bootstrap coverage, and 118 tests.
+- `pnpm run preflight` passed after the review fix: sanitizer, repository baseline, workflow synchronization, syntax checks, synthetic bootstrap coverage, and 119 tests.
 - Focused security activation coverage passed for dry-run behavior, idempotency, optional unsupported capabilities, mandatory and optional API failures, security and branch-protection postcondition failures, default-head provenance, stale evidence, feature-only OSV evidence, custom default-head and PR-only target CI, bounded evidence lookup, and monotonic protection updates.
 - A live `node scripts/apply-security-settings.mjs --dry-run` against `kiaquila/unicorn-hub` planned all six security capabilities, proved `baseline-checks`, `guard`, `osv-scan`, and `AI Review`, and confirmed that neither settings nor branch protection were changed.
 - The final two-lane review cleared the implementation after fixes for API response contracts, workflow provenance, evidence collisions, bounded pagination, consumer PR-only metadata, monotonic protection merging, mutation postconditions, and exact actor-set verification.
 - Commit `453143c` was pushed to `codex/github-security-activation`, and ready-for-review PR [#21](https://github.com/kiaquila/unicorn-hub/pull/21) was published with the required attribution.
+- Codex found that non-`main` repositories could never produce the default-head CI and OSV evidence required for activation. Bootstrap now keeps workflow filters and `defaultBaseBranch` aligned through an explicit, configured, or `origin/HEAD` branch choice.
 
 ### Known Issues
 

@@ -39,6 +39,10 @@ node /tmp/unicorn-hub/scripts/bootstrap-repo.mjs \
   --project-name "Your Project"
 ```
 
+Bootstrap reads an existing `.unicorn-hub/config.json` or `origin/HEAD` to
+render default-branch workflow filters. If neither exists, it uses `main`; pass
+`--default-branch <branch>` to override that choice explicitly.
+
 `--source` only accepts a local filesystem path; it does not resolve a Git URL. If the agent says it cannot find Unicorn Hub, share the GitHub URL above so the agent can clone it, then re-run the command with the resulting local path.
 
 Profiles live in [`profiles/`](./profiles). If no profile fits, use `generic` values in `.unicorn-hub/config.json` after bootstrapping.

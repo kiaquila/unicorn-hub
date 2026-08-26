@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import {
@@ -29,13 +30,51 @@ const profile = readJson(profilePath);
 const force = Boolean(args.force);
 const dryRun = Boolean(args["dry-run"]);
 
+function discoverDefaultBranch() {
+  const explicit = args["default-branch"];
+  if (explicit) return String(explicit);
+
+  const existingConfigPath = join(targetRoot, ".unicorn-hub/config.json");
+  if (existsSync(existingConfigPath)) {
+    const configured = String(readJson(existingConfigPath).defaultBaseBranch || "").trim();
+    if (configured) return configured;
+  }
+
+  try {
+    const remoteHead = execFileSync(
+      "git",
+      ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+      { cwd: targetRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
+    ).trim();
+    if (remoteHead.startsWith("origin/") && remoteHead.length > "origin/".length) {
+      return remoteHead.slice("origin/".length);
+    }
+  } catch {
+    // Fresh synthetic targets and repositories without origin/HEAD use the portable default.
+  }
+
+  return "main";
+}
+
+const defaultBranch = discoverDefaultBranch().trim();
+try {
+  execFileSync("git", ["check-ref-format", "--branch", defaultBranch], {
+    encoding: "utf8",
+    stdio: "ignore"
+  });
+} catch {
+  console.error(`Invalid default branch '${defaultBranch}'. Pass a valid branch with --default-branch.`);
+  process.exit(2);
+}
+
 const replacements = {
   PROJECT_NAME: projectName,
   PROJECT_SUMMARY: args.summary || "[Add a one-sentence project summary]",
   STACK_SUMMARY: args.stack || profile.description || "[Add stack summary]",
   DEPLOY_TARGET: profile.deploy?.type || "[Add deploy target]",
   OWNER_MODEL: args["owner-model"] || "project-specific",
-  PACKAGE_NAME: packageName
+  PACKAGE_NAME: packageName,
+  DEFAULT_BRANCH: defaultBranch
 };
 
 const planned = [];
@@ -238,7 +277,7 @@ const config = {
   productPaths: profile.productPaths || ["src/", "app/"],
   requiredChecks: installedRequiredChecks,
   requiredCheckEvidence: profile.requiredCheckEvidence || {},
-  defaultBaseBranch: "main",
+  defaultBaseBranch: defaultBranch,
   defaultImplementationAgent: "claude",
   defaultReviewAgent: "codex",
   trustedReviewLogins: [],

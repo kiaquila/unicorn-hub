@@ -109,6 +109,7 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
   assert.equal(config.profile, "generic");
+  assert.equal(config.defaultBaseBranch, "main");
   assert.equal(config.dependencyPolicy.node.minimumReleaseAgeMinutes, 10080);
   assert.deepEqual(config.dependencyPolicy.node.typosquatExceptions, []);
   assert.equal(config.dependencyPolicy.python.enabled, false);
@@ -142,6 +143,37 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
 
   const prTemplate = readFileSync(join(target, ".github/pull_request_template.md"), "utf8");
   assert.match(prTemplate, /SENAR Done Gate/);
+});
+
+test("bootstrap renders workflow push filters for the discovered default branch", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-bootstrap-trunk-"));
+  execFileSync("git", ["init", "--initial-branch=trunk"], { cwd: target, stdio: "ignore" });
+  execFileSync(
+    "git",
+    ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk"],
+    { cwd: target, stdio: "ignore" }
+  );
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Trunk"
+  ]);
+
+  const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
+  const ci = readFileSync(join(target, ".github/workflows/ci.yml"), "utf8");
+  const osv = readFileSync(join(target, ".github/workflows/osv-scan.yml"), "utf8");
+  assert.equal(config.defaultBaseBranch, "trunk");
+  assert.match(ci, /push:\n    branches:\n      - "trunk"/);
+  assert.match(osv, /push:\n    branches: \["trunk"\]/);
+  assert.doesNotMatch(ci, /<DEFAULT_BRANCH>/);
+  assert.doesNotMatch(osv, /<DEFAULT_BRANCH>/);
 });
 
 test("bootstrap --dry-run announces a dry run instead of next steps", () => {
