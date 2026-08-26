@@ -16,7 +16,7 @@ for (const file of workflows) {
   const source = join(sourceRoot, file);
   const target = join(targetRoot, file);
   const renderedSource = replacePlaceholders(readFileSync(source, "utf8"), {
-    DEFAULT_BRANCH: defaultBranch
+    DEFAULT_BRANCH_YAML: JSON.stringify(defaultBranch)
   });
 
   if (checkOnly) {

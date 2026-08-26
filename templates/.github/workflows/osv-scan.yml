@@ -3,7 +3,7 @@ name: OSV Scan
 on:
   pull_request:
   push:
-    branches: ["<DEFAULT_BRANCH>"]
+    branches: [<DEFAULT_BRANCH_YAML>]
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:

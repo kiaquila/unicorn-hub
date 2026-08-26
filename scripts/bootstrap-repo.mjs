@@ -74,7 +74,7 @@ const replacements = {
   DEPLOY_TARGET: profile.deploy?.type || "[Add deploy target]",
   OWNER_MODEL: args["owner-model"] || "project-specific",
   PACKAGE_NAME: packageName,
-  DEFAULT_BRANCH: defaultBranch
+  DEFAULT_BRANCH_YAML: JSON.stringify(defaultBranch)
 };
 
 const planned = [];

@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - "<DEFAULT_BRANCH>"
+      - <DEFAULT_BRANCH_YAML>
   workflow_dispatch:
 
 permissions:

@@ -172,8 +172,33 @@ test("bootstrap renders workflow push filters for the discovered default branch"
   assert.equal(config.defaultBaseBranch, "trunk");
   assert.match(ci, /push:\n    branches:\n      - "trunk"/);
   assert.match(osv, /push:\n    branches: \["trunk"\]/);
-  assert.doesNotMatch(ci, /<DEFAULT_BRANCH>/);
-  assert.doesNotMatch(osv, /<DEFAULT_BRANCH>/);
+  assert.doesNotMatch(ci, /<DEFAULT_BRANCH_YAML>/);
+  assert.doesNotMatch(osv, /<DEFAULT_BRANCH_YAML>/);
+});
+
+test("bootstrap YAML-escapes a valid default branch containing a double quote", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-bootstrap-quoted-"));
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Quoted Branch",
+    "--default-branch",
+    'release"candidate'
+  ]);
+
+  const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
+  const ci = readFileSync(join(target, ".github/workflows/ci.yml"), "utf8");
+  const osv = readFileSync(join(target, ".github/workflows/osv-scan.yml"), "utf8");
+  assert.equal(config.defaultBaseBranch, 'release"candidate');
+  assert.match(ci, /branches:\n      - "release\\"candidate"/);
+  assert.match(osv, /branches: \["release\\"candidate"\]/);
 });
 
 test("bootstrap --dry-run announces a dry run instead of next steps", () => {
