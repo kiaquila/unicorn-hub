@@ -18,6 +18,12 @@ If important context is unknown, the agent writes `[NEEDS CLARIFICATION]` into t
 
 Choose the closest profile before copying files. Profiles may provide stack-specific product paths, local commands, required checks, and dependency-update ecosystems. For example, a Flutter profile should preserve an existing Flutter CI workflow and use that workflow's job names as required checks instead of assuming the default Node `baseline-checks` job exists.
 
+Bootstrap renders installed push-trigger workflow filters for the target's
+default branch. It prefers `--default-branch`, then an existing
+`.unicorn-hub/config.json`, then `origin/HEAD`, and falls back to `main` for a
+fresh target. The rendered branch is also stored as `defaultBaseBranch` so the
+local scripts and GitHub activation use the same branch contract.
+
 ## Phase 1: Repository Memory
 
 Install:
@@ -105,12 +111,28 @@ AI_IMPLEMENTATION_AGENT=claude
 AI_REVIEW_AGENT=codex
 ```
 
-## Phase 5: Branch Protection
+## Phase 5: GitHub Security Activation And Branch Protection
 
-After the workflows exist on the default branch, apply branch protection:
+Bootstrap itself changes local files only. After the workflows exist and have
+run on the default branch, preview and explicitly activate remote settings:
+
+```bash
+node scripts/apply-security-settings.mjs --dry-run
+node scripts/apply-security-settings.mjs --apply
+```
+
+The activation command enables Dependabot vulnerability alerts and security
+updates, Secret Scanning, push protection, and supported validity/non-provider
+checks. Unsupported optional features are reported separately. Mandatory
+features must be verified as enabled before branch protection is attempted.
+
+Branch protection is then applied only after every context in
+`.unicorn-hub/config.json` has appeared in recent repository runs. This covers
+PR-only contexts such as `guard` and `AI Review`, which do not run on the
+default-branch head:
 
 - require pull requests
-- require the contexts listed in `.unicorn-hub/config.json` (`requiredChecks`) — the generic profile ships `baseline-checks`, `guard`, `AI Review`, while stack-specific profiles such as `flutter-app` ship only `guard` and `AI Review` and expect the team to extend the list with the target's real CI job names
+- require the contexts listed in `.unicorn-hub/config.json` (`requiredChecks`) — the generic profile ships `baseline-checks`, `guard`, `osv-scan`, `AI Review`, while stack-specific profiles such as `flutter-app` ship `guard`, `osv-scan`, `AI Review` and expect the team to extend the list with the target's real CI job names
 - require branches to be up to date when appropriate
 - enforce admins
 - dismiss stale reviews

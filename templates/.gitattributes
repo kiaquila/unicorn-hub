@@ -8,10 +8,12 @@ scripts/ai-review-gate.mjs             linguist-vendored
 scripts/ai-review-helpers.mjs          linguist-vendored
 scripts/ai-review-rerun.mjs            linguist-vendored
 scripts/apply-branch-protection.mjs    linguist-vendored
+scripts/apply-security-settings.mjs    linguist-vendored
 scripts/check-context-budget.mjs       linguist-vendored
 scripts/check-dependency-policy.mjs    linguist-vendored
 scripts/check-feature-memory.mjs       linguist-vendored
 scripts/check-repo-baseline.mjs        linguist-vendored
+scripts/github-api.mjs                 linguist-vendored
 scripts/new-worktree.mjs               linguist-vendored
 scripts/publish-branch.mjs             linguist-vendored
 scripts/resolve-pr-context.mjs         linguist-vendored

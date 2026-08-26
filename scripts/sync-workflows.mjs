@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { blueprintRoot, parseArgs, walkFiles } from "./shared.mjs";
+import { blueprintRoot, parseArgs, readConfig, replacePlaceholders, walkFiles } from "./shared.mjs";
 
 const args = parseArgs();
 const checkOnly = Boolean(args.check);
@@ -10,20 +10,24 @@ const targetRoot = join(blueprintRoot, ".github/workflows");
 const workflows = walkFiles(sourceRoot);
 const targetWorkflows = existsSync(targetRoot) ? walkFiles(targetRoot) : [];
 const drift = [];
+const defaultBranch = readConfig(blueprintRoot).defaultBaseBranch || "main";
 
 for (const file of workflows) {
   const source = join(sourceRoot, file);
   const target = join(targetRoot, file);
+  const renderedSource = replacePlaceholders(readFileSync(source, "utf8"), {
+    DEFAULT_BRANCH_YAML: JSON.stringify(defaultBranch)
+  });
 
   if (checkOnly) {
-    if (!existsSync(target) || readFileSync(source, "utf8") !== readFileSync(target, "utf8")) {
+    if (!existsSync(target) || renderedSource !== readFileSync(target, "utf8")) {
       drift.push(file);
     }
     continue;
   }
 
   mkdirSync(dirname(target), { recursive: true });
-  copyFileSync(source, target);
+  writeFileSync(target, renderedSource);
 }
 
 if (checkOnly) {

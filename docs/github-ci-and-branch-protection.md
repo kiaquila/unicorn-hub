@@ -17,7 +17,12 @@ request in draft state.
 - `ai-review-rerun.yml`: reruns `AI Review` when trusted review evidence appears
 - `osv-scan.yml`: scans dependencies for known vulnerabilities
 
-For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json`. Profiles that preserve a target CI workflow should list the target's current job names there, plus `guard` and `AI Review`.
+Bootstrap renders the `ci.yml` and `osv-scan.yml` push filters for the target
+repository's configured or discovered default branch. This ensures their
+`default-head` activation evidence is produced for repositories that use names
+such as `master` or `trunk`, not only `main`.
+
+For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json`. Profiles that preserve a target CI workflow should list the target's current job names there, plus `guard`, `osv-scan`, and `AI Review` when the OSV workflow is installed. A profile excluding the OSV workflow must also omit `osv-scan`.
 
 ## Fail-Closed Rules
 
@@ -41,6 +46,7 @@ Apply after workflows are merged into the default branch:
 required checks:
   - baseline-checks
   - guard
+  - osv-scan
   - AI Review
 enforce admins: true
 dismiss stale reviews: true
@@ -49,11 +55,54 @@ allow force pushes: false
 allow deletions: false
 ```
 
-If a profile preserves existing CI, replace `baseline-checks` with the repository's actual job names before applying branch protection. Stack-specific profiles (e.g., `flutter-app`) ship `requiredChecks` containing only Unicorn-controlled contexts (`guard`, `AI Review`); the installing team must add the target repository's real CI job names to `.unicorn-hub/config.json` after bootstrap. Hard-coded label guesses are intentionally avoided — `scripts/apply-branch-protection.mjs` consumes `requiredChecks` verbatim, so a mismatch becomes a permanently-pending required status that blocks every merge.
+If a profile preserves existing CI, replace `baseline-checks` with the repository's actual job names before applying branch protection. Stack-specific profiles (e.g., `flutter-app`) ship `requiredChecks` containing the installed Unicorn-controlled contexts (`guard`, `osv-scan`, `AI Review`); the installing team must add the target repository's real CI job names to `.unicorn-hub/config.json` after bootstrap. Hard-coded label guesses are intentionally avoided.
 
-Use `scripts/apply-branch-protection.mjs` from a trusted local checkout.
+Unmapped consumer checks are proven on the current default-branch head. If a
+consumer check runs only for pull requests, add provenance metadata so the
+activation command can validate the correct workflow and base branch:
 
-By default, `scripts/apply-branch-protection.mjs` sets required human approvals
+```json
+{
+  "requiredCheckEvidence": {
+    "flutter-ci": {
+      "workflow": ".github/workflows/flutter.yml",
+      "mode": "pull-request"
+    }
+  }
+}
+```
+
+Evidence scans are workflow-specific and capped at the 20 most recent runs.
+Jobs, default-head check runs, and legacy statuses paginate up to 10 pages and
+stop as soon as every requested context is proven.
+
+After the workflows have run on the default branch, use
+`node scripts/apply-security-settings.mjs --dry-run` and then explicitly use
+`node scripts/apply-security-settings.mjs --apply` from a trusted checkout.
+The activation script verifies mandatory GitHub security settings first and
+then invokes `scripts/apply-branch-protection.mjs`. The latter reads Checks API
+runs and legacy commit statuses on the default head, plus recent workflow-specific
+pull-request runs for Unicorn's PR-only jobs. Evidence must be within the
+configured freshness cutoff; PR-only evidence is accepted only when the
+workflow file at the run head has the same Git blob SHA as the version now on
+the default branch. This lets the installation PR prove its current workflow
+version after merge without accepting evidence from an older version. The update preserves existing
+required checks, approval thresholds, actor restrictions, and stricter controls,
+so activation only tightens protection. It refuses the update if any configured
+context is absent, and re-reads protection after mutation before reporting
+success. It also supports
+`--dry-run`; direct remote mutation requires `--apply`.
+
+The implementation follows GitHub's documented repository endpoints for
+[vulnerability alerts, Dependabot security updates, and repository security settings](https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28),
+plus the [branch protection REST API](https://docs.github.com/en/rest/branches/branch-protection?apiVersion=2022-11-28).
+Secret-scanning validity checks and non-provider patterns can depend on the
+repository type, plan, and current API support; the activation command reports
+those optional capabilities as unsupported when GitHub rejects them for
+availability reasons. Authentication, permission, and unexpected API failures
+remain real errors.
+
+When invoked with `--apply`, `scripts/apply-branch-protection.mjs` sets required human approvals
 to `0`. This keeps the solo-owner workflow usable while still requiring green
 checks, AI review evidence, and conversation resolution. Repositories with more
 than one maintainer should pass `--approvals 1` or a stricter value when they

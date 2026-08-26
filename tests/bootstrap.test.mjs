@@ -39,7 +39,9 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
   assert.match(nextStepsBlock, /^1\. Review placeholders.*AGENTS\.md.*CLAUDE\.md.*docs_project\/.*\.unicorn-hub\/config\.json/m);
   assert.match(nextStepsBlock, /^2\. .*CREATE-DOCS\.md.*docs-minimum\.md/m);
   assert.match(nextStepsBlock, /^3\. Create the first specs\/<feature-id>/m);
-  assert.match(nextStepsBlock, /^4\. Run the project preflight/m);
+  assert.match(nextStepsBlock, /^4\. Run the project preflight.*merge the installed workflows/m);
+  assert.match(nextStepsBlock, /^5\. .*apply-security-settings\.mjs --dry-run/m);
+  assert.match(nextStepsBlock, /^6\. .*apply-security-settings\.mjs --apply/m);
 
   for (const path of [
     "AGENTS.md",
@@ -60,6 +62,10 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
     "scripts/check-context-budget.mjs",
     "scripts/check-feature-memory.mjs",
     "scripts/publish-branch.mjs",
+    "scripts/github-api.mjs",
+    "scripts/apply-security-settings.mjs",
+    "scripts/apply-branch-protection.mjs",
+    ".github/workflows/osv-scan.yml",
     ".unicorn-hub/config.json",
     "pnpm-workspace.yaml",
     "pnpm-lock.yaml"
@@ -103,9 +109,11 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
   assert.equal(config.profile, "generic");
+  assert.equal(config.defaultBaseBranch, "main");
   assert.equal(config.dependencyPolicy.node.minimumReleaseAgeMinutes, 10080);
   assert.deepEqual(config.dependencyPolicy.node.typosquatExceptions, []);
   assert.equal(config.dependencyPolicy.python.enabled, false);
+  assert.deepEqual(config.requiredChecks, ["baseline-checks", "guard", "osv-scan", "AI Review"]);
 
   const packageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
   assert.equal(packageJson.scripts["check:context"], "node scripts/check-context-budget.mjs");
@@ -135,6 +143,62 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
 
   const prTemplate = readFileSync(join(target, ".github/pull_request_template.md"), "utf8");
   assert.match(prTemplate, /SENAR Done Gate/);
+});
+
+test("bootstrap renders workflow push filters for the discovered default branch", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-bootstrap-trunk-"));
+  execFileSync("git", ["init", "--initial-branch=trunk"], { cwd: target, stdio: "ignore" });
+  execFileSync(
+    "git",
+    ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk"],
+    { cwd: target, stdio: "ignore" }
+  );
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Trunk"
+  ]);
+
+  const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
+  const ci = readFileSync(join(target, ".github/workflows/ci.yml"), "utf8");
+  const osv = readFileSync(join(target, ".github/workflows/osv-scan.yml"), "utf8");
+  assert.equal(config.defaultBaseBranch, "trunk");
+  assert.match(ci, /push:\n    branches:\n      - "trunk"/);
+  assert.match(osv, /push:\n    branches: \["trunk"\]/);
+  assert.doesNotMatch(ci, /<DEFAULT_BRANCH_YAML>/);
+  assert.doesNotMatch(osv, /<DEFAULT_BRANCH_YAML>/);
+});
+
+test("bootstrap YAML-escapes a valid default branch containing a double quote", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-bootstrap-quoted-"));
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    root,
+    "--target",
+    target,
+    "--profile",
+    "generic",
+    "--project-name",
+    "Synthetic Quoted Branch",
+    "--default-branch",
+    'release"candidate'
+  ]);
+
+  const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
+  const ci = readFileSync(join(target, ".github/workflows/ci.yml"), "utf8");
+  const osv = readFileSync(join(target, ".github/workflows/osv-scan.yml"), "utf8");
+  assert.equal(config.defaultBaseBranch, 'release"candidate');
+  assert.match(ci, /branches:\n      - "release\\"candidate"/);
+  assert.match(osv, /branches: \["release\\"candidate"\]/);
 });
 
 test("bootstrap --dry-run announces a dry run instead of next steps", () => {
@@ -303,7 +367,7 @@ test("bootstrap preserves Flutter CI and installs Flutter profile controls", () 
   assert.deepEqual(config.productPaths.slice(0, 4), ["lib/", "test/", "integration_test/", "test_driver/"]);
   assert.deepEqual(
     config.requiredChecks,
-    ["guard", "AI Review"],
+    ["guard", "osv-scan", "AI Review"],
     "flutter-app must ship only Unicorn-controlled checks; teams add real CI job names post-bootstrap"
   );
   for (const guessedJob of ["Lint", "Unit tests", "Widget tests", "Build Web", "Build Android APK", "baseline-checks"]) {
@@ -381,6 +445,7 @@ test("bootstrap into a fresh Flutter target excludes the default Node CI workflo
 
   const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
   assert.equal(config.requiredChecks.includes("baseline-checks"), false);
+  assert.equal(config.requiredChecks.includes("osv-scan"), true);
   assert.deepEqual(config.excludeTemplates, [".github/workflows/ci.yml"]);
 
   const baselineOutput = run(["scripts/check-repo-baseline.mjs", "--target", target]);
@@ -592,6 +657,92 @@ test("dependabot renderer preserves explicit zero values", () => {
   assert.match(dependabot, /semver-patch-days: 0/);
 });
 
+test("Dependabot renderer keeps ecosystems separate with minor-and-patch groups", () => {
+  const cases = [
+    ["generic", ["github-actions", "npm"]],
+    ["next-app", ["github-actions", "npm"]],
+    ["flutter-app", ["github-actions", "pub"]],
+    ["python-service", ["github-actions", "pip"]]
+  ];
+
+  for (const [profile, expectedEcosystems] of cases) {
+    const target = mkdtempSync(join(tmpdir(), `unicorn-dependabot-${profile}-`));
+    run([
+      "scripts/bootstrap-repo.mjs",
+      "--source",
+      root,
+      "--target",
+      target,
+      "--profile",
+      profile,
+      "--project-name",
+      `Synthetic ${profile}`
+    ]);
+
+    const dependabot = readFileSync(join(target, ".github/dependabot.yml"), "utf8");
+    const blocks = dependabot.split(/(?=  - package-ecosystem: )/).slice(1);
+    const ecosystems = blocks.map((block) => block.match(/package-ecosystem: "([^"]+)"/)?.[1]);
+    assert.deepEqual(ecosystems, expectedEcosystems, profile);
+
+    for (const block of blocks) {
+      const ecosystem = block.match(/package-ecosystem: "([^"]+)"/)?.[1];
+      const group = block.match(/    groups:\n([\s\S]*)$/)?.[1] || "";
+      assert.match(group, /minor-and-patch:\n        update-types:\n          - "minor"\n          - "patch"/, ecosystem);
+      assert.doesNotMatch(group, /"major"/, `${ecosystem} major updates must stay separate`);
+      assert.match(block, /schedule:\n      interval: "weekly"/, ecosystem);
+      assert.match(block, /cooldown:\n      default-days: 7/, ecosystem);
+      if (ecosystem === "github-actions") {
+        assert.doesNotMatch(block, /semver-\w+-days/, "github-actions does not support semver cooldown fields");
+      } else {
+        assert.match(block, /semver-major-days: 14/);
+        assert.match(block, /semver-minor-days: 7/);
+        assert.match(block, /semver-patch-days: 3/);
+      }
+    }
+  }
+});
+
+test("profile excluding OSV workflow also excludes the osv-scan required check", () => {
+  const target = mkdtempSync(join(tmpdir(), "unicorn-no-osv-target-"));
+  const source = mkdtempSync(join(tmpdir(), "unicorn-no-osv-source-"));
+  mkdirSync(join(source, "profiles"), { recursive: true });
+  writeFileSync(
+    join(source, "profiles", "no-osv.json"),
+    `${JSON.stringify({
+      id: "no-osv",
+      description: "Synthetic profile without OSV.",
+      docsDir: "docs_project",
+      specsDir: "specs",
+      productPaths: ["src/"],
+      excludeTemplates: [".github/workflows/osv-scan.yml"],
+      requiredChecks: ["baseline-checks", "guard", "osv-scan", "AI Review"],
+      dependabotUpdates: [{ packageEcosystem: "github-actions", directory: "/" }],
+      deploy: { type: "synthetic" }
+    }, null, 2)}\n`
+  );
+  for (const directory of ["templates", "scripts"]) {
+    mkdirSync(join(source, directory), { recursive: true });
+    execFileSync("cp", ["-R", join(root, directory) + "/.", join(source, directory)], { stdio: "ignore" });
+  }
+
+  run([
+    "scripts/bootstrap-repo.mjs",
+    "--source",
+    source,
+    "--target",
+    target,
+    "--profile",
+    "no-osv",
+    "--project-name",
+    "Synthetic No OSV"
+  ]);
+
+  const config = JSON.parse(readFileSync(join(target, ".unicorn-hub/config.json"), "utf8"));
+  assert.equal(existsSync(join(target, ".github/workflows/osv-scan.yml")), false);
+  assert.equal(config.requiredChecks.includes("osv-scan"), false);
+  assert.match(run(["scripts/check-repo-baseline.mjs", "--target", target]), /Repository baseline check passed/);
+});
+
 test("baseline check ignores excludeTemplates entries outside the profile-safe allowlist", () => {
   const target = mkdtempSync(join(tmpdir(), "unicorn-baseline-allowlist-"));
   writeFileSync(join(target, "pubspec.yaml"), "name: synthetic_flutter_app\n");
@@ -652,6 +803,8 @@ test("bootstrap installs a .gitattributes that vendors the governance envelope",
   assert.match(gitattributes, /^scripts\/ai-review-gate\.mjs\s+linguist-vendored$/m);
   assert.match(gitattributes, /^scripts\/shared\.mjs\s+linguist-vendored$/m);
   assert.match(gitattributes, /^scripts\/apply-branch-protection\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^scripts\/apply-security-settings\.mjs\s+linguist-vendored$/m);
+  assert.match(gitattributes, /^scripts\/github-api\.mjs\s+linguist-vendored$/m);
   assert.match(gitattributes, /^\.unicorn-hub\/\*\*\s+linguist-vendored$/m);
   assert.match(gitattributes, /^\.specify\/\*\*\s+linguist-vendored$/m);
 
