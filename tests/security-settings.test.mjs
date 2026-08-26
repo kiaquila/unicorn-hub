@@ -38,9 +38,14 @@ if (path === repoPath + "/vulnerability-alerts") {
   state.vulnerabilityAlerts = true; save(); reply(204);
 }
 if (path === repoPath + "/automated-security-fixes") {
-  if (method === "GET") reply(state.automatedSecurityFixes ? 204 : 404, state.automatedSecurityFixes ? null : { message: "Disabled" });
+  if (method === "GET" && state.securityUpdatesStatusStyle === "no-content") {
+    reply(state.automatedSecurityFixes ? 204 : 404, state.automatedSecurityFixes ? null : { message: "Disabled" });
+  }
+  if (method === "GET") reply(200, { enabled: state.automatedSecurityFixes, paused: Boolean(state.securityUpdatesPaused) });
   if (state.failEndpoint === "automated-security-fixes") reply(500, { message: "Synthetic API failure" });
-  state.automatedSecurityFixes = true; save(); reply(204);
+  state.automatedSecurityFixes = true;
+  if (!state.securityUpdatesStayPaused) state.securityUpdatesPaused = false;
+  save(); reply(204);
 }
 if (method === "PATCH" && path === repoPath) {
   const key = Object.keys(body.security_and_analysis)[0];
@@ -205,7 +210,47 @@ test("security activation dry-run performs no mutations", () => {
   assert.equal(state.calls.some((call) => ["PATCH", "PUT", "DELETE"].includes(call.method)), false);
   assert.equal(state.protectionApplied, false);
   assert.match(result.stdout, /Dry run: no GitHub settings were changed/);
+  assert.match(result.stdout, /\[planned\] Dependabot security updates: would enable/);
   assert.match(result.stdout, /Would apply branch protection/);
+});
+
+test("security-update status accepts the no-content compatibility response", () => {
+  const value = fixture({ automatedSecurityFixes: true, securityUpdatesStatusStyle: "no-content" });
+  const result = runSecurity("--dry-run", value);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Dependabot security updates: already enabled/);
+});
+
+test("paused security updates are planned for remediation instead of reported as enabled", () => {
+  const value = fixture({ automatedSecurityFixes: true, securityUpdatesPaused: true });
+  const result = runSecurity("--dry-run", value);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(stateOf(value).calls.some((call) => ["PATCH", "PUT", "DELETE"].includes(call.method)), false);
+  assert.match(result.stdout, /\[planned\] Dependabot security updates: would enable \(GitHub has paused this feature\)/);
+  assert.doesNotMatch(result.stdout, /Dependabot security updates: already enabled/);
+});
+
+test("paused security updates are resumed and verified during apply", () => {
+  const value = fixture({ automatedSecurityFixes: true, securityUpdatesPaused: true });
+  const result = runSecurity("--apply", value);
+  assert.equal(result.status, 0, result.stderr);
+  const state = stateOf(value);
+  assert.equal(state.securityUpdatesPaused, false);
+  assert.equal(state.protectionApplied, true);
+  assert.match(result.stdout, /\[enabled\] Dependabot security updates: enabled and verified/);
+});
+
+test("security updates that stay paused fail closed before branch protection", () => {
+  const value = fixture({
+    automatedSecurityFixes: true,
+    securityUpdatesPaused: true,
+    securityUpdatesStayPaused: true
+  });
+  const result = runSecurity("--apply", value);
+  assert.equal(result.status, 1);
+  assert.equal(stateOf(value).protectionApplied, false);
+  assert.match(result.stderr, /Dependabot security updates: GitHub accepted the update but the enabled state could not be verified \(GitHub has paused this feature\)/);
+  assert.match(result.stderr, /branch protection was not changed/);
 });
 
 test("security activation is idempotent and applies branch protection after verification", () => {
