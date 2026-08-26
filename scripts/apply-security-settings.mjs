@@ -38,8 +38,13 @@ const definitions = [
     kind: "endpoint",
     readPath: `/repos/${repo}/automated-security-fixes`,
     writePath: `/repos/${repo}/automated-security-fixes`,
-    enabled: (response) => response.status === 204 || (response.ok && response.json?.enabled === true),
-    disabled: (response) => response.status === 404 || (response.ok && response.json?.enabled === false)
+    enabled: (response) =>
+      response.status === 204 || (response.ok && response.json?.enabled === true && response.json?.paused !== true),
+    disabled: (response) =>
+      response.status === 404 ||
+      (response.ok && response.json?.enabled === false) ||
+      (response.ok && response.json?.paused === true),
+    note: (response) => (response?.ok && response.json?.paused === true ? "GitHub has paused this feature" : "")
   },
   {
     id: "secret-scanning",
@@ -70,6 +75,11 @@ const definitions = [
     key: "secret_scanning_non_provider_patterns"
   }
 ];
+
+function annotate(definition, response, message) {
+  const note = definition.note?.(response) || "";
+  return note ? `${message} (${note})` : message;
+}
 
 function unavailable(response) {
   if (![403, 422].includes(response.status)) return false;
@@ -131,7 +141,7 @@ for (const definition of definitions) {
     continue;
   }
   if (dryRun) {
-    console.log(`[planned] ${definition.label}: would enable`);
+    console.log(annotate(definition, current.response, `[planned] ${definition.label}: would enable`));
     outcomes.set(definition.id, "planned");
     continue;
   }
@@ -147,7 +157,13 @@ for (const definition of definitions) {
   repositoryState = readRepository();
   const verified = readFeature(definition, repositoryState);
   if (verified.state !== "enabled") {
-    console.error(`[failed] ${definition.label}: GitHub accepted the update but the enabled state could not be verified`);
+    console.error(
+      annotate(
+        definition,
+        verified.response,
+        `[failed] ${definition.label}: GitHub accepted the update but the enabled state could not be verified`
+      )
+    );
     outcomes.set(definition.id, "failed");
     continue;
   }

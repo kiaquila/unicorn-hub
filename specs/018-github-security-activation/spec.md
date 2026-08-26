@@ -53,6 +53,7 @@ As a maintainer applying branch protection, I want required checks verified on t
 - AC-010: Branch protection refuses to mutate GitHub when any configured required check is absent.
 - AC-011: Portable DevOps documentation includes a concise incident-response checklist covering reinfection containment, secret rotation, GitHub/registry/SSH/integration tokens, verified-backup recovery, multiple backup generations, and one immutable copy.
 - AC-012: Dependabot security-update state accepts both GitHub response shapes observed in production: `200` with an `enabled` boolean and the compatible `204`/`404` no-content form.
+- AC-013: Dependabot security updates count as enabled only when GitHub reports them enabled and not paused; a paused repository is remediated and re-verified before branch protection is attempted.
 
 ## Negative Scenarios
 
@@ -64,6 +65,7 @@ As a maintainer applying branch protection, I want required checks verified on t
 - NS-006: Branch protection is not applied when one or more configured status contexts have never appeared on the default branch.
 - NS-007: `github-actions` output never contains unsupported semver cooldown fields, and major updates never enter the minor/patch group.
 - NS-008: A disabled `200 {"enabled":false}` security-update response is planned for enablement instead of being misclassified as an API failure.
+- NS-009: A paused `200 {"enabled":true,"paused":true}` security-update response never reports the feature as enabled; if it stays paused after remediation, activation fails closed and branch protection is not applied.
 
 ## Requirements
 

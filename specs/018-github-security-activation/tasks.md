@@ -33,6 +33,7 @@
 - [x] T023 Resolve Codex P1 by binding PR-only evidence to the workflow blob now on the default branch instead of requiring the run to postdate the merge commit.
 - [x] T024 Reproduce the post-merge Dependabot security-update status response against the live repository and preserve the no-mutation failure evidence.
 - [x] T025 Accept both JSON-state and no-content status responses and add focused regression coverage.
+- [x] T026 Resolve Codex P1 by refusing to treat a paused Dependabot security-update state as enabled, remediating it, and failing closed when it stays paused.
 
 ## Process Memory
 
@@ -41,6 +42,7 @@
 - Validating every required context only on the current `main` head rejected real PR-only checks (`guard`, `AI Review`). The activation now proves push-oriented and consumer-defined CI on the current default head, while proving Unicorn's PR-only jobs through workflow-specific pull-request runs created after that workflow version reached the default branch.
 - The first live dry-run exceeded Node's default synchronous subprocess buffer while reading GitHub responses. GitHub CLI response capture now uses a bounded 16 MiB buffer, workflow-scoped queries, and early exit as soon as each workflow's configured contexts are proven.
 - The first post-merge live dry-run exposed `200 {"enabled":false,"paused":false}` from the Dependabot security-update endpoint, while the merged compatibility path expected only `204`/`404`. Activation failed closed and made no changes; the status classifier now accepts both response contracts.
+- Accepting the JSON state shape initially read only the `enabled` flag, so a paused repository would have satisfied a mandatory protection without it being active. The classifier now requires `paused !== true`, remediates the paused state, and reports the paused reason on both the planned and the unverified outcome.
 
 ### Decisions
 

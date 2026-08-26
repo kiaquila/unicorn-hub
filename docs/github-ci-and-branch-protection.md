@@ -102,6 +102,12 @@ those optional capabilities as unsupported when GitHub rejects them for
 availability reasons. Authentication, permission, and unexpected API failures
 remain real errors.
 
+Dependabot security updates are only treated as enabled when GitHub reports them
+as enabled and not paused. A paused repository is planned for remediation under
+`--dry-run` and re-enabled under `--apply`; if GitHub still reports the feature
+as paused after the update, activation fails closed and branch protection is not
+applied.
+
 When invoked with `--apply`, `scripts/apply-branch-protection.mjs` sets required human approvals
 to `0`. This keeps the solo-owner workflow usable while still requiring green
 checks, AI review evidence, and conversation resolution. Repositories with more
