@@ -76,10 +76,10 @@ for (const [check, evidence] of evidenceByCheck) {
 }
 const workflowByCheck = new Map([...evidenceByCheck].map(([check, evidence]) => [check, evidence.workflow]));
 const missingWorkflows = [];
-const workflowAvailableSince = new Map();
+const workflowDefinitionSha = new Map();
 for (const check of checks) {
   const workflow = workflowByCheck.get(check);
-  if (!workflow || workflowAvailableSince.has(workflow)) continue;
+  if (!workflow || workflowDefinitionSha.has(workflow)) continue;
   const response = ghApi(gh, {
     path: `/repos/${repo}/contents/${workflow}?ref=${encodeURIComponent(branch)}`,
     cwd: root
@@ -89,19 +89,11 @@ for (const check of checks) {
   } else if (!response.ok) {
     throw new Error(`Checking ${workflow} on ${repo}:${branch} failed: ${responseMessage(response)}`);
   } else {
-    const history = requireOk(
-      ghApi(gh, {
-        path: `/repos/${repo}/commits?path=${encodeURIComponent(workflow)}&sha=${encodeURIComponent(branch)}&per_page=1`,
-        cwd: root
-      }),
-      `Reading the default-branch history for ${workflow}`
-    );
-    const latest = Array.isArray(history) ? history[0] : null;
-    const timestamp = Date.parse(String(latest?.commit?.committer?.date || latest?.commit?.author?.date || ""));
-    if (!Number.isFinite(timestamp)) {
-      throw new Error(`GitHub did not return a commit timestamp for ${workflow} on ${repo}:${branch}.`);
+    const definitionSha = String(response.json?.sha || "").trim();
+    if (!definitionSha) {
+      throw new Error(`GitHub did not return a content SHA for ${workflow} on ${repo}:${branch}.`);
     }
-    workflowAvailableSince.set(workflow, timestamp);
+    workflowDefinitionSha.set(workflow, definitionSha);
   }
 }
 if (missingWorkflows.length > 0) {
@@ -114,8 +106,9 @@ if (missingWorkflows.length > 0) {
 const defaultHeadExisting = new Set();
 const pullRequestWorkflowEvidence = new Map();
 const defaultHeadWorkflowEvidence = new Map();
+const runWorkflowDefinitionSha = new Map();
 const cutoff = Date.now() - freshnessDays * 24 * 60 * 60 * 1000;
-for (const workflow of new Set([...workflowByCheck.values()].filter((item) => workflowAvailableSince.has(item)))) {
+for (const workflow of new Set([...workflowByCheck.values()].filter((item) => workflowDefinitionSha.has(item)))) {
   const workflowFile = workflow.split("/").at(-1);
   const runsResponse = requireOk(
     ghApi(gh, {
@@ -124,11 +117,10 @@ for (const workflow of new Set([...workflowByCheck.values()].filter((item) => wo
     }),
     `Reading recent runs for ${workflow}`
   );
-  const availableSince = workflowAvailableSince.get(workflow);
   const candidateRuns = (Array.isArray(runsResponse.workflow_runs) ? runsResponse.workflow_runs : [])
     .filter((run) => {
       const timestamp = Date.parse(String(run.run_started_at || run.created_at || ""));
-      return Number.isFinite(timestamp) && timestamp >= cutoff && timestamp >= availableSince;
+      return Number.isFinite(timestamp) && timestamp >= cutoff;
     });
   pullRequestWorkflowEvidence.set(workflow, new Set());
   defaultHeadWorkflowEvidence.set(workflow, new Set());
@@ -169,7 +161,22 @@ for (const workflow of new Set([...workflowByCheck.values()].filter((item) => wo
           `Reading pull requests associated with workflow run ${run.id}`
         );
       }
-      if (associatedPulls.some((pull) => pull.base?.ref === branch)) {
+      if (associatedPulls.some((pull) => pull.base?.ref === branch) && run.head_sha) {
+        const cacheKey = `${workflow}@${run.head_sha}`;
+        if (!runWorkflowDefinitionSha.has(cacheKey)) {
+          const definitionResponse = ghApi(gh, {
+            path: `/repos/${repo}/contents/${workflow}?ref=${encodeURIComponent(run.head_sha)}`,
+            cwd: root
+          });
+          if (definitionResponse.status === 404) {
+            runWorkflowDefinitionSha.set(cacheKey, null);
+          } else if (!definitionResponse.ok) {
+            throw new Error(`Checking ${workflow} at workflow run ${run.id} failed: ${responseMessage(definitionResponse)}`);
+          } else {
+            runWorkflowDefinitionSha.set(cacheKey, String(definitionResponse.json?.sha || "").trim() || null);
+          }
+        }
+        if (runWorkflowDefinitionSha.get(cacheKey) !== workflowDefinitionSha.get(workflow)) continue;
         for (const name of jobNames) pullRequestWorkflowEvidence.get(workflow).add(name);
       }
     }
@@ -222,7 +229,7 @@ const missing = checks.filter((check) => {
 if (missing.length > 0) {
   console.error(`Branch protection was not changed. Required checks lack workflow-proven evidence from the last ${freshnessDays} days:`);
   for (const check of missing) console.error(`- ${check}`);
-  console.error("Wait for the installed workflows to run successfully on the default branch, then retry.");
+  console.error("Run the current workflow versions on their configured default-head or pull-request evidence source, then retry.");
   process.exit(1);
 }
 

@@ -30,6 +30,7 @@
 - [x] T020 Commit with the required trailer, push, and publish a ready-for-review PR with the required PR attribution.
 - [x] T021 Resolve Codex P1 by rendering CI and OSV push filters for the configured or discovered default branch, with regression coverage and updated install docs.
 - [x] T022 Resolve Codex P2 by rendering the branch as a JSON-compatible YAML scalar, including valid Git branch names that contain a double quote.
+- [x] T023 Resolve Codex P1 by binding PR-only evidence to the workflow blob now on the default branch instead of requiring the run to postdate the merge commit.
 
 ## Process Memory
 
@@ -48,13 +49,14 @@
 
 ### Verification Evidence
 
-- `pnpm run preflight` passed after the review fixes: sanitizer, repository baseline, workflow synchronization, syntax checks, synthetic bootstrap coverage, and 120 tests.
+- `pnpm run preflight` passed after the review fixes: sanitizer, repository baseline, workflow synchronization, syntax checks, synthetic bootstrap coverage, and 122 tests.
 - Focused security activation coverage passed for dry-run behavior, idempotency, optional unsupported capabilities, mandatory and optional API failures, security and branch-protection postcondition failures, default-head provenance, stale evidence, feature-only OSV evidence, custom default-head and PR-only target CI, bounded evidence lookup, and monotonic protection updates.
 - A live `node scripts/apply-security-settings.mjs --dry-run` against `kiaquila/unicorn-hub` planned all six security capabilities, proved `baseline-checks`, `guard`, `osv-scan`, and `AI Review`, and confirmed that neither settings nor branch protection were changed.
 - The final two-lane review cleared the implementation after fixes for API response contracts, workflow provenance, evidence collisions, bounded pagination, consumer PR-only metadata, monotonic protection merging, mutation postconditions, and exact actor-set verification.
 - Commit `453143c` was pushed to `codex/github-security-activation`, and ready-for-review PR [#21](https://github.com/kiaquila/unicorn-hub/pull/21) was published with the required attribution.
 - Codex found that non-`main` repositories could never produce the default-head CI and OSV evidence required for activation. Bootstrap now keeps workflow filters and `defaultBaseBranch` aligned through an explicit, configured, or `origin/HEAD` branch choice.
 - Codex also found that a valid Git branch containing `"` could break the generated YAML. Workflow branch values now use JSON-compatible YAML quoting rather than raw interpolation.
+- Codex found that merge timestamps incorrectly invalidated current workflow evidence produced by the installation PR. PR evidence now matches the workflow Git blob on the default branch, while a mismatched historical workflow version fails closed.
 
 ### Known Issues
 

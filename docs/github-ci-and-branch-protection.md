@@ -82,8 +82,11 @@ After the workflows have run on the default branch, use
 The activation script verifies mandatory GitHub security settings first and
 then invokes `scripts/apply-branch-protection.mjs`. The latter reads Checks API
 runs and legacy commit statuses on the default head, plus recent workflow-specific
-pull-request runs for Unicorn's PR-only jobs. Evidence must be newer than the
-workflow version present on the default branch. The update preserves existing
+pull-request runs for Unicorn's PR-only jobs. Evidence must be within the
+configured freshness cutoff; PR-only evidence is accepted only when the
+workflow file at the run head has the same Git blob SHA as the version now on
+the default branch. This lets the installation PR prove its current workflow
+version after merge without accepting evidence from an older version. The update preserves existing
 required checks, approval thresholds, actor restrictions, and stricter controls,
 so activation only tightens protection. It refuses the update if any configured
 context is absent, and re-reads protection after mutation before reporting

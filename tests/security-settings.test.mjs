@@ -52,10 +52,16 @@ if (method === "PATCH" && path === repoPath) {
 if (method === "GET" && path === repoPath + "/commits/main") reply(200, { sha: "main-sha" });
 if (method === "GET" && path.startsWith(repoPath + "/contents/.github/workflows/")) {
   if (state.missingWorkflow && path.includes(state.missingWorkflow)) reply(404, { message: "Not Found" });
-  reply(200, { type: "file" });
+  const requestUrl = new URL("https://synthetic.invalid" + path);
+  const workflow = requestUrl.pathname.split("/").at(-1);
+  const ref = requestUrl.searchParams.get("ref");
+  const sha = ref === "recent-pr-sha" && state.stalePrWorkflowVersion
+    ? "stale-" + workflow
+    : "current-" + workflow;
+  reply(200, { type: "file", sha });
 }
 if (method === "GET" && path.startsWith(repoPath + "/commits?path=")) {
-  reply(200, [{ commit: { committer: { date: "2026-01-01T00:00:00Z" } } }]);
+  reply(200, [{ commit: { committer: { date: state.workflowCommitDate || "2026-01-01T00:00:00Z" } } }]);
 }
 if (method === "GET" && path.includes("/actions/workflows/") && path.endsWith("/runs?per_page=20")) {
   const createdAt = state.staleRuns ? "2000-01-01T00:00:00Z" : new Date().toISOString();
@@ -351,6 +357,22 @@ test("PR-only evidence resolves the base branch when workflow runs omit pull req
   const result = runSecurity("--apply", value);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(stateOf(value).protectionApplied, true);
+});
+
+test("installation PR evidence remains valid when the merge commit is newer than the run", () => {
+  const value = fixture({ workflowCommitDate: "2099-01-01T00:00:00Z" });
+  const result = runSecurity("--apply", value);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(stateOf(value).protectionApplied, true);
+});
+
+test("PR-only evidence from a different workflow version is rejected", () => {
+  const value = fixture({ stalePrWorkflowVersion: true });
+  const result = runSecurity("--apply", value);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /guard/);
+  assert.match(result.stderr, /AI Review/);
+  assert.equal(stateOf(value).protectionApplied, false);
 });
 
 test("existing branch protections are preserved while configured controls tighten", () => {
