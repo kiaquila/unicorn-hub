@@ -41,7 +41,7 @@ test("dependency policy remains inside the existing PR Guard context", () => {
   assert.match(workflow, /check-dependency-policy\.mjs --sync-python/);
   assert.match(workflow, /pnpm\/action-setup@ea17c68df8912ef543352723c149a84f56e3d413/);
   assert.match(workflow, /version: 10\.34\.5/);
-  assert.match(workflow, /astral-sh\/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d/);
+  assert.match(workflow, /astral-sh\/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4/);
   assert.doesNotMatch(workflow, /^  dependency-policy:/m);
 });
 
@@ -53,5 +53,6 @@ test("OSV workflow is blocking and retains all activation triggers", () => {
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /name: osv-scan/);
   assert.match(workflow, /--fail-on-vuln=true/);
-  assert.match(workflow, /osv-reporter-action@6e4298ebc4db23e847df9b2e2de2939d6f066c67/);
+  assert.match(workflow, /osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc/);
+  assert.match(workflow, /osv-reporter-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc/);
 });
