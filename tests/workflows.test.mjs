@@ -41,7 +41,7 @@ test("dependency policy remains inside the existing PR Guard context", () => {
   assert.match(workflow, /check-dependency-policy\.mjs --sync-python/);
   assert.match(workflow, /pnpm\/action-setup@ea17c68df8912ef543352723c149a84f56e3d413/);
   assert.match(workflow, /version: 10\.34\.5/);
-  assert.match(workflow, /astral-sh\/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4/);
+  assert.match(workflow, /astral-sh\/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7/);
   assert.doesNotMatch(workflow, /^  dependency-policy:/m);
 });
 
