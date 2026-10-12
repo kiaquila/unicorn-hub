@@ -27,6 +27,10 @@ numbers for merged historical runs.
 The A/B control is this baseline. The treatment is the first comparable sample
 after the event-driven gate lands.
 
+This table preserves the originally captured snapshot and agreed thresholds.
+The all-attempt audit and completed treatment measurement are recorded in
+`tasks.md`; the audit corrects usage omitted by latest-attempt-only queries.
+
 ## A/B Measurement Contract
 
 Primary metric: average `AI Review` job runner-minutes per PR/head branch.
@@ -42,7 +46,9 @@ Secondary metrics:
 
 The post-change measurement must use the same grouping rule as the baseline:
 group completed, non-skipped `ai-review.yml` `pull_request` runs by PR head
-branch, and include cancelled runs for the minutes they consumed. If a new
+branch, and include cancelled runs for the minutes they consumed. For workflow
+runs with reruns, enumerate every attempt and count all non-skipped jobs
+rather than only the latest attempt. If a new
 workflow is added only to rerun `AI Review`, include it in the secondary
 control-plane metric but keep the primary metric focused on the required
 `AI Review` job.
