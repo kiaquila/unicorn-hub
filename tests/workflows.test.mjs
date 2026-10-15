@@ -56,3 +56,26 @@ test("OSV workflow is blocking and retains all activation triggers", () => {
   assert.match(workflow, /osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc/);
   assert.match(workflow, /osv-reporter-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc/);
 });
+
+test("installed workflow filter routes created/edited native evidence to the trusted runtime", () => {
+  for (const prefix of ["", "templates/"]) {
+    const workflow = readFileSync(join(root, prefix, ".github/workflows/ai-review-rerun.yml"), "utf8");
+    assert.match(workflow, /issue_comment:\n    types: \[created, edited\]/);
+    assert.match(workflow, /run: node scripts\/ai-review-rerun.mjs/);
+    assert.match(workflow, /ref: \$\{\{ github.event.repository.default_branch \}\}/);
+    assert.match(workflow, /cancel-in-progress: false/);
+    const expression = workflow.match(/    if: \|\n([\s\S]*?)    runs-on:/)[1];
+    const route = new Function("github", "startsWith", "contains", `return (${expression});`);
+    for (const action of ["created", "edited"]) {
+      for (const body of ["Codex Review: Didn't find any major issues.", "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues.", "<!-- codex-pull-request-review-summary -->", "<!-- codex-review-state:v1 {} -->"]) {
+        const github = { event_name: "issue_comment", event: { action, issue: { pull_request: {} }, comment: { body, user: { type: "Bot" } } } };
+        assert.equal(Boolean(route(github, (text, prefix) => text.startsWith(prefix), (text, part) => text.includes(part))), true, body);
+        github.event.comment.user.type = "User";
+        assert.equal(Boolean(route(github, (text, prefix) => text.startsWith(prefix), (text, part) => text.includes(part))), false);
+      }
+    }
+  }
+  const policy = readFileSync(join(root, ".github/workflows/ai-command-policy.yml"), "utf8");
+  assert.match(policy, /group: ai-review-wakeup-/);
+  assert.match(policy, /cancel-in-progress: false/);
+});

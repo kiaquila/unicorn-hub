@@ -103,7 +103,9 @@ if (isReview) {
     const rerunResult = await rerunAiReviewForPrHead({
       token,
       repository,
-      headSha
+      headSha,
+      prNumber,
+      evidenceUpdatedAt: requestedAt
     });
     console.log(rerunResult.message);
   } catch (error) {

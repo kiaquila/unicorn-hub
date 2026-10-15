@@ -6,6 +6,10 @@ on:
   issue_comment:
     types: [created, edited]
 
+concurrency:
+  group: ai-review-wakeup-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
 permissions:
   actions: write
   contents: read
@@ -24,6 +28,9 @@ jobs:
         github.event.comment.user.type == 'Bot' &&
         (
           startsWith(github.event.comment.body, 'Codex Review:') ||
+          contains(github.event.comment.body, '<!-- codex-review-receipt:') ||
+          contains(github.event.comment.body, '<!-- codex-pull-request-review-summary') ||
+          contains(github.event.comment.body, '<!-- codex-review-state:') ||
           contains(github.event.comment.body, 'AI_REVIEW_OUTCOME:')
         )
       )

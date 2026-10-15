@@ -19,7 +19,7 @@ function run(args, cwd = root) {
   });
 }
 
-test("bootstrap installs generic blueprint into a synthetic target", () => {
+test("bootstrap installs generic blueprint into a synthetic target", async () => {
   const target = mkdtempSync(join(tmpdir(), "unicorn-bootstrap-"));
 
   const output = run([
@@ -129,6 +129,21 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
   assert.match(prGuard, /Validate context budget/);
   assert.match(prGuard, /check-context-budget\.mjs --target "\$GITHUB_WORKSPACE" "\$BASE_REF" "\$HEAD_REF"/);
   assert.match(prGuard, /check-dependency-policy\.mjs --sync-python/);
+
+  for (const file of ["ai-review-helpers.mjs", "ai-review-gate.mjs", "ai-review-rerun.mjs"]) {
+    assert.equal(readFileSync(join(target, "scripts", file), "utf8"), readFileSync(join(root, "scripts", file), "utf8"));
+  }
+  const reviewRouter = readFileSync(join(target, ".github/workflows/ai-review-rerun.yml"), "utf8");
+  assert.match(reviewRouter, /types: \[created, edited\]/);
+  assert.match(reviewRouter, /contains\(github.event.comment.body, '<!-- codex-review-receipt:'/);
+  assert.match(reviewRouter, /contains\(github.event.comment.body, '<!-- codex-review-state:'/);
+  assert.match(reviewRouter, /run: node scripts\/ai-review-rerun.mjs/);
+  const installedHelpers = await import(join(target, "scripts/ai-review-helpers.mjs"));
+  const syntheticHead = "0123456789abcdef0123456789abcdef01234567";
+  assert.equal(installedHelpers.isAcceptableCodexSummaryComment({
+    user: { login: "chatgpt-codex-connector[bot]" },
+    body: `<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues. :rocket:\n\n**Reviewed commit:** \`${syntheticHead.slice(0, 10)}\``
+  }, syntheticHead), true, "the bootstrapped parser must accept native receipt evidence");
 
   const workspacePolicy = readFileSync(join(target, "pnpm-workspace.yaml"), "utf8");
   assert.match(workspacePolicy, /^minimumReleaseAge: 10080$/m);

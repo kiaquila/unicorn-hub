@@ -242,3 +242,77 @@ test("AI Review rerun helper calls the workflow rerun endpoint for current-head 
     }
   ]);
 });
+
+const nativeReceipt = "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues. :rocket:\n\n**Reviewed commit:** `0123456789`";
+const nativeSummary = '<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {"code_review":{"status":"in_progress"}} -->';
+
+test("runtime router wakes on created/edited receipts and mutable summaries without trusting their verdict", () => {
+  for (const action of ["created", "edited"]) {
+    for (const body of [nativeReceipt, nativeSummary, "<!-- codex-review-state:v1 malformed -->"]) {
+      const event = { action, issue: { pull_request: {}, number: 1 }, comment: { body, user: { login: "chatgpt-codex-connector[bot]" } } };
+      assert.equal(shouldRouteAiReviewRerunEvent(event, "codex"), true);
+      assert.equal(shouldRouteAiReviewRerunEvent({ ...event, comment: { ...event.comment, user: { login: "someone-else[bot]" } } }, "codex"), false);
+      assert.equal(shouldRouteAiReviewRerunEvent(event, "gemini"), false);
+      assert.equal(shouldRouteAiReviewRerunEvent({ ...event, action: "deleted" }, "codex"), false);
+    }
+  }
+});
+
+function wakeupHarness({ statuses = ["completed"], conclusion = "failure", attemptStart = "2026-10-01T10:00:00Z", heads = ["abc"], maxWaitMs = 1000 } = {}) {
+  const calls = [];
+  let clock = 0, listings = 0, pulls = 0;
+  const request = async (_token, _repository, path, options = {}) => {
+    calls.push({ path, method: options.method || "GET" });
+    if (/\/pulls\/1$/.test(path)) return { state: "open", head: { sha: heads[Math.min(pulls++, heads.length - 1)] } };
+    if (path.includes("/workflows/ai-review.yml/runs")) {
+      const status = statuses[Math.min(listings++, statuses.length - 1)];
+      return { workflow_runs: [{ id: 42, event: "pull_request", head_sha: "abc", status, conclusion: status === "completed" ? conclusion : null, run_attempt: 2, created_at: "2026-10-01T09:00:00Z" }] };
+    }
+    if (path.includes("/attempts/2")) return { run_started_at: attemptStart };
+    if (options.method === "POST" && path.endsWith("/rerun")) return null;
+    throw new Error(`Unexpected request ${path}`);
+  };
+  return {
+    calls,
+    run: () => rerunAiReviewForPrHead({ token: "synthetic", repository: "example/project", headSha: "abc", prNumber: 1, evidenceUpdatedAt: "2026-10-01T10:01:00Z", request, sleep: async (ms) => { clock += ms; }, now: () => clock, maxWaitMs })
+  };
+}
+
+test("wakeup received during active gate waits then reruns even if the old attempt succeeded", async () => {
+  for (const conclusion of ["failure", "success"]) {
+    const harness = wakeupHarness({ statuses: ["in_progress", "completed"], conclusion });
+    assert.equal((await harness.run()).action, "rerun");
+    assert.equal(harness.calls.filter((call) => call.method === "POST").length, 1);
+  }
+});
+
+test("new edited evidence invalidates success, while a later attempt suppresses duplicate events", async () => {
+  assert.equal((await wakeupHarness({ conclusion: "success" }).run()).action, "rerun");
+  const duplicate = wakeupHarness({ attemptStart: "2026-10-01T10:02:00Z" });
+  assert.equal((await duplicate.run()).action, "already_evaluated");
+  assert.equal(duplicate.calls.filter((call) => call.method === "POST").length, 0);
+});
+
+test("wakeup refuses stale heads both before listing and immediately before rerun", async () => {
+  for (const heads of [["old"], ["abc", "new"]]) {
+    const harness = wakeupHarness({ heads });
+    assert.equal((await harness.run()).action, "stale_head");
+    assert.equal(harness.calls.filter((call) => call.method === "POST").length, 0);
+  }
+});
+
+test("active gate timeout is bounded and never loops or blindly reruns", async () => {
+  const harness = wakeupHarness({ statuses: ["in_progress"] });
+  await assert.rejects(harness.run, /still active/);
+  assert.ok(harness.calls.length <= 4);
+  assert.equal(harness.calls.filter((call) => call.method === "POST").length, 0);
+});
+
+test("selector never resurrects an older failed run after a newer success", () => {
+  const runs = [
+    { id: 1, event: "pull_request", head_sha: "abc", status: "completed", conclusion: "failure", created_at: "2026-10-01T10:00:00Z" },
+    { id: 2, event: "pull_request", head_sha: "abc", status: "completed", conclusion: "success", created_at: "2026-10-01T10:01:00Z" }
+  ];
+  assert.equal(selectAiReviewRun(runs, "abc").action, "already_success");
+  assert.equal(selectAiReviewRun(runs, "abc").run.id, 2);
+});

@@ -2,12 +2,10 @@
 import { appendFileSync } from "node:fs";
 import {
   createAiReviewRequestMarkerBody,
-  hasHeadUpdateBetweenTimestamps,
+  evaluateCodexEvidence,
   isAcceptableClaudeComment,
-  isAcceptableCodexSummaryComment,
   isAcceptableNativeReview,
-  latestAiReviewRequestMarker,
-  latestCodexNativeReviewResult
+  latestAiReviewRequestMarker
 } from "./ai-review-helpers.mjs";
 import { readConfig } from "./shared.mjs";
 
@@ -65,6 +63,37 @@ async function listPaginated(path) {
     items.push(...batch);
     if (batch.length < 100) return items;
   }
+}
+
+async function fetchReviewThreads() {
+  const threads = [];
+  let cursor = null;
+  do {
+    const result = await request("/graphql", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: `query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $number) {
+              reviewThreads(first: 100, after: $cursor) {
+                nodes { isResolved comments(first: 100) { nodes { author { login __typename } } pageInfo { hasNextPage } } }
+                pageInfo { hasNextPage endCursor }
+              }
+            }
+          }
+        }`,
+        variables: { owner, repo, number: Number(prNumber), cursor }
+      })
+    });
+    const connection = result.data?.repository?.pullRequest?.reviewThreads;
+    if (result.errors || !connection || connection.nodes.some((thread) => thread.comments.pageInfo.hasNextPage)) {
+      throw new Error("Could not completely verify unresolved review threads.");
+    }
+    threads.push(...connection.nodes);
+    cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
+  } while (cursor);
+  return threads;
 }
 
 async function createComment(body) {
@@ -141,22 +170,9 @@ async function fetchEvidence() {
   const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (selectedAgent === "codex") {
     const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
-    const reviewsAfterRequest = reviews.filter((review) => isAfterRequest(review.submitted_at, requestMarker));
-    const latestCodexResult = latestCodexNativeReviewResult(reviewsAfterRequest, reviewComments, headSha, config);
-    if (latestCodexResult === "pass") return "pass";
-    if (latestCodexResult === "fail") return "fail";
-
     const timeline = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/timeline`);
-    const triggerAt = requestMarker.sourceCommentCreatedAt || requestMarker.requestedAt || requestMarker.commentCreatedAt;
-    const summaryAccepted = comments.some((comment) => {
-      if (!isAcceptableCodexSummaryComment(comment, headSha, requestMarker, config)) return false;
-      if (hasHeadUpdateBetweenTimestamps(timeline, triggerAt, comment.created_at)) {
-        console.warn(`AI Review gate rejected Codex summary ${comment.id}: head moved between trigger ${triggerAt} and summary ${comment.created_at}.`);
-        return false;
-      }
-      return true;
-    });
-    return summaryAccepted ? "pass" : "pending";
+    const threads = await fetchReviewThreads();
+    return evaluateCodexEvidence({ comments, reviews, reviewComments, timeline, threads, headSha, requestMarker, config });
   }
 
   if (reviews.some((review) =>
@@ -172,8 +188,8 @@ async function fetchEvidence() {
 await maybePostTriggerComment();
 
 if (!await waitForQuietHead()) {
-  console.log(`AI Review gate skipped stale run for ${headSha}; PR head changed during debounce.`);
-  process.exit(0);
+  console.log(`AI Review gate rejected stale run for ${headSha}; PR head changed during debounce.`);
+  process.exit(1);
 }
 
 const started = Date.now();
@@ -196,8 +212,15 @@ while (Date.now() - started <= maxWaitMs) {
 }
 
 if (outcome === "stale") {
-  console.log(`AI Review gate skipped stale run for ${headSha}; PR head moved.`);
-  process.exit(0);
+  console.log(`AI Review gate rejected stale run for ${headSha}; PR head moved.`);
+  process.exit(1);
+}
+
+if (outcome === "pass" && !await currentHeadMatches()) outcome = "stale";
+
+if (outcome === "stale") {
+  console.error(`AI Review gate rejected stale result for ${headSha}; PR head moved before publication.`);
+  process.exit(1);
 }
 
 if (outcome === "pass") {

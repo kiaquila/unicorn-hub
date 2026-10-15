@@ -10,7 +10,32 @@ Native GitHub PR review. Blocking findings use `P0`, `P1`, or `P2`. Advisory fin
 
 Codex evidence must be tied to the latest PR head. Native reviews must have `commit_id` equal to the current head SHA and must be submitted after the trusted `AI_REVIEW_REQUEST_ID` marker for that head.
 
-When Codex has no inline findings, a top-level `Codex Review:` summary comment from the trusted Codex bot also satisfies the gate only when it either names the current head SHA in its body or is posted after the trusted marker with no commit or force-push event between the source trigger comment and the summary.
+Trusted Codex no-findings comments support both legacy `Codex Review:` bodies and
+native `<!-- codex-review-receipt:v1 -->` receipts. Receipts require exactly one
+`**Reviewed commit:**` binding (10–40 hexadecimal characters matching the current
+full head). Explicit stale or malformed bindings never fall back to timestamps.
+SHA-less legacy comments require a matching trusted marker and no intervening
+head-changing timeline event.
+
+Mutable `<!-- codex-pull-request-review-summary -->` comments can supply evidence
+only with one valid `codex-review-state:v1` object. The object must contain the
+exact current full `code_review.commit_sha`, `status: "completed"`, and explicit
+boolean `has_any_findings: false` and `has_unresolved_findings: false`. Schema,
+types, duplicate markers/fields, and conflicting visible verdicts are validated.
+The inactive security-review state has null fields; active security state must
+be well formed and cannot have unresolved findings. Bare headings, reactions,
+and visible "Completed" text do not prove review success.
+
+Evidence must be at or after the source request time. Explicitly head-bound
+mutable evidence uses `updated_at`; SHA-less legacy evidence uses `created_at`.
+The latest result wins, with failure winning timestamp ties. All unresolved
+Codex threads block, including advisory or earlier-head findings, independently
+of the request marker. The gate rechecks the live PR head before success.
+
+Both created and edited native comments wake the gate. Wakeup routing never
+constitutes an acceptable verdict. Per-PR serialization, a bounded active-run
+wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A newer
+negative or incomplete edit re-evaluates a previously successful gate.
 
 ## Claude
 

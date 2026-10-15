@@ -119,7 +119,7 @@ export function latestAiReviewRequestMarker(comments = [], agent, headSha) {
 export function containsBlockingSeverity(body, agent) {
   const text = String(body || "");
   if (agent === "codex") {
-    return /\bP[0-2]\b/.test(text);
+    return /\bP[0-2]\b/i.test(text);
   }
   if (agent === "gemini") {
     return /\b(critical|high)\b/i.test(text);
@@ -132,25 +132,134 @@ export function extractCodexPriority(body) {
   return match ? Number(match[1]) : null;
 }
 
-export function isAcceptableCodexSummaryComment(comment, headSha, requestMarker = null, config = {}) {
+// Routing is deliberately broader than acceptance: even a negative or malformed
+// edit must wake the gate so an earlier successful result cannot remain green.
+export function isCodexReviewSignal(body) {
+  const text = String(body || "").trim();
+  return /^Codex Review:/i.test(text) ||
+    text.includes("<!-- codex-review-receipt:") ||
+    text.includes("<!-- codex-pull-request-review-summary") ||
+    text.includes("<!-- codex-review-state:");
+}
+
+export function reviewEvidenceTime(comment) {
+  return comment?.updated_at || comment?.created_at;
+}
+
+export function isAfterReviewRequest(value, marker) {
+  const time = Date.parse(value || "");
+  const cutoff = Date.parse(marker?.sourceCommentCreatedAt || marker?.requestedAt || marker?.commentCreatedAt || "");
+  return Number.isFinite(time) && Number.isFinite(cutoff) && time >= cutoff;
+}
+
+function parseStructuredCodexSummary(body, headSha) {
+  const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
+  if (!envelope || (body.match(/codex-pull-request-review-summary/g) || []).length !== 1 ||
+      (body.match(/codex-review-state:/g) || []).length !== 1 || body.includes("codex-review-receipt:")) return null;
+  let state;
+  try { state = JSON.parse(envelope[1]); } catch { return null; }
+  const keysAre = (value, keys) => value && typeof value === "object" && !Array.isArray(value) &&
+    Object.keys(value).sort().join(",") === [...keys].sort().join(",");
+  if (!keysAre(state, ["code_review", "security_review"])) return null;
+  for (const [name, value] of Object.entries(state)) {
+    if (!keysAre(value, ["commit_sha", "has_any_findings", "has_unresolved_findings", "status"])) return null;
+    if (name === "security_review" && Object.values(value).every((field) => field === null)) continue;
+    if (typeof value.commit_sha !== "string" || !/^[a-f0-9]{40}$/.test(value.commit_sha) || typeof value.status !== "string" ||
+        typeof value.has_any_findings !== "boolean" || typeof value.has_unresolved_findings !== "boolean" ||
+        (!value.has_any_findings && value.has_unresolved_findings)) return null;
+  }
+  for (const key of ["code_review", "security_review"]) {
+    if ((envelope[1].match(new RegExp(`"${key}"\\s*:`, "g")) || []).length !== 1) return null;
+  }
+  for (const key of ["commit_sha", "has_any_findings", "has_unresolved_findings", "status"]) {
+    if ((envelope[1].match(new RegExp(`"${key}"\\s*:`, "g")) || []).length !== 2) return null;
+  }
+  const code = state.code_review;
+  if (code.commit_sha !== headSha) return null;
+  // Conflicting visible severity or a second verdict cannot be hidden by JSON.
+  if (containsBlockingSeverity(body, "codex") || /Codex Review:|\bfound\s+(?:a|[1-9])\b|changes.requested/i.test(body.slice(envelope[0].length))) return { result: "fail", explicitSha: true };
+  if (code.has_any_findings || code.has_unresolved_findings || state.security_review.has_unresolved_findings) {
+    return { result: "fail", explicitSha: true };
+  }
+  return { result: code.status === "completed" ? "pass" : "pending", explicitSha: true };
+}
+
+export function classifyCodexSummaryComment(comment, headSha, requestMarker = null, config = {}) {
+  if (!isTrustedReviewLogin(comment?.user?.login, "codex", config)) return null;
   const body = String(comment?.body || "").trim();
-  const login = normalizeLogin(comment?.user?.login);
-  if (!isTrustedReviewLogin(login, "codex", config)) return false;
-  if (!/^Codex Review:/i.test(body)) return false;
-  if (!/did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues/i.test(body)) return false;
+  if (body.includes("codex-pull-request-review-summary") || body.includes("codex-review-state:")) {
+    return parseStructuredCodexSummary(body, headSha);
+  }
+  const receipt = body.startsWith("<!-- codex-review-receipt:v1 -->");
+  const text = receipt ? body.slice("<!-- codex-review-receipt:v1 -->".length).trim() : body;
+  if ((body.match(/codex-review-receipt:/g) || []).length !== Number(receipt) ||
+      !/^Codex Review:/i.test(text) || (text.match(/Codex Review:/gi) || []).length !== 1) return null;
 
-  const shortSha = String(headSha || "").slice(0, 10);
-  if (shortSha && (body.includes(headSha) || body.includes(shortSha))) return true;
+  const commitLines = [...text.matchAll(/^\*\*Reviewed commit:\*\* `([a-f0-9]{10,40})`\s*$/gm)];
+  const commitLabels = (text.match(/Reviewed commit/gi) || []).length;
+  if (commitLabels !== commitLines.length || commitLines.length > 1 || (receipt && commitLines.length !== 1)) return null;
+  // An explicit stale/malformed binding never falls back to timestamp acceptance.
+  let explicitSha = false;
+  if (commitLines.length) {
+    if (!String(headSha).startsWith(commitLines[0][1])) return null;
+    explicitSha = true;
+  } else {
+    const hashes = text.match(/\b[a-f0-9]{10,40}\b/g) || [];
+    if (hashes.length) {
+      if (hashes.some((sha) => !String(headSha).startsWith(sha))) return null;
+      explicitSha = true;
+    }
+  }
+  if (!explicitSha && (!requestMarker || requestMarker.agent !== "codex" || requestMarker.sha !== headSha ||
+      !isAfterReviewRequest(comment.created_at, requestMarker))) return null;
+  const visibleHashes = text.split(/<details\b/i)[0].match(/\b[a-f0-9]{10,40}\b/g) || [];
+  if (visibleHashes.some((sha) => !String(headSha).startsWith(sha))) return null;
+  if (containsBlockingSeverity(text, "codex")) return { result: "fail", explicitSha };
+  const positive = /^Codex Review:\s*did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues\b/i.test(text);
+  // Only the observed no-findings sentence is a positive verdict. Contradictory
+  // prose (outside the optional standard help section) must fail closed.
+  const verdictText = text.split(/<details\b/i)[0];
+  const conflict = /\b(?:found|unresolved|incomplete|pending|in.progress|changes.requested|failed)\b/i.test(verdictText);
+  return { result: positive && !conflict ? "pass" : "fail", explicitSha };
+}
 
-  if (!requestMarker || requestMarker.agent !== "codex" || requestMarker.sha !== headSha) return false;
-  const requestedAt = Date.parse(
-    requestMarker.sourceCommentCreatedAt ||
-    requestMarker.requestedAt ||
-    requestMarker.commentCreatedAt ||
-    ""
-  );
-  const createdAt = Date.parse(comment?.created_at || "");
-  return Number.isFinite(requestedAt) && Number.isFinite(createdAt) && createdAt >= requestedAt;
+export function isAcceptableCodexSummaryComment(comment, headSha, requestMarker = null, config = {}) {
+  return classifyCodexSummaryComment(comment, headSha, requestMarker, config)?.result === "pass";
+}
+
+export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComments = [], threads = [], timeline = [], headSha, requestMarker, config = {} }) {
+  // All unresolved Codex findings block, including advisory and old-head threads.
+  // Request markers only set the evidence cutoff; they cannot resolve findings.
+  if (threads.some((thread) => !thread.isResolved && thread.comments?.nodes?.some((comment) =>
+    isTrustedReviewLogin(comment.author?.__typename === "Bot" && !comment.author.login.endsWith("[bot]")
+      ? `${comment.author.login}[bot]` : comment.author?.login, "codex", config)))) return "fail";
+  const candidates = [];
+  for (const review of reviews) {
+    const result = classifyCodexNativeReview(review, reviewComments, headSha, config);
+    if (result && (result === "fail" || isAfterReviewRequest(review.submitted_at, requestMarker))) {
+      candidates.push({ result, time: Date.parse(review.submitted_at || "") });
+    }
+  }
+  for (const comment of comments) {
+    const parsed = classifyCodexSummaryComment(comment, headSha, requestMarker, config);
+    if (!parsed) {
+      if (isTrustedReviewLogin(comment.user?.login, "codex", config) && isCodexReviewSignal(comment.body)) {
+        candidates.push({ result: "pending", time: Date.parse(reviewEvidenceTime(comment) || "") });
+      }
+      continue;
+    }
+    const timestamp = parsed.explicitSha ? reviewEvidenceTime(comment) : comment.created_at;
+    if (!isAfterReviewRequest(timestamp, requestMarker) && parsed.result !== "fail") continue;
+    if (!parsed.explicitSha && hasHeadUpdateBetweenTimestamps(timeline,
+      requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt, timestamp)) continue;
+    candidates.push({ result: parsed.result, time: Date.parse(timestamp || "") });
+  }
+  const valid = candidates.filter((entry) => Number.isFinite(entry.time));
+  const newest = Math.max(...valid.map((entry) => entry.time));
+  const latest = valid.filter((entry) => entry.time === newest);
+  if (latest.some((entry) => entry.result === "fail")) return "fail";
+  if (latest.some((entry) => entry.result === "pending")) return "pending";
+  return latest.some((entry) => entry.result === "pass") ? "pass" : "pending";
 }
 
 export function hasHeadUpdateBetweenTimestamps(timeline = [], startCreatedAt, endCreatedAt) {
@@ -166,7 +275,7 @@ export function hasHeadUpdateBetweenTimestamps(timeline = [], startCreatedAt, en
 
 export function classifyCodexNativeReview(review, reviewComments = [], headSha, config = {}) {
   if (!review) return null;
-  if (review.commit_id && headSha && review.commit_id !== headSha) return null;
+  if (!headSha || review.commit_id !== headSha) return null;
   const login = normalizeLogin(review.user?.login);
   if (!isTrustedReviewLogin(login, "codex", config)) return null;
   if (containsBlockingSeverity(review.body, "codex")) return "fail";
@@ -200,7 +309,7 @@ export function latestCodexNativeReviewResult(reviews = [], reviewComments = [],
 
 export function isAcceptableNativeReview(review, agent, headSha, config = {}) {
   if (!review) return false;
-  if (review.commit_id && headSha && review.commit_id !== headSha) return false;
+  if (!headSha || review.commit_id !== headSha) return false;
   const login = normalizeLogin(review.user?.login);
   const body = review.body || "";
 

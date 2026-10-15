@@ -30,7 +30,15 @@ For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json
 - Missing review-request markers and missing review evidence fail quickly instead
   of holding a runner open for the old polling window.
 - Review evidence must be bound to the current PR head SHA. Native reviews compare `commit_id` to head and must be submitted after the latest trusted review-request marker for that head. Trusted no-findings Codex summaries that do not name the head SHA must be posted after the marker and must have no commit or force-push event between the source trigger comment and the summary.
-- The `AI Review` gate debounces briefly and re-checks GitHub's current PR head before accepting evidence; stale runs exit without satisfying the latest head.
+- Native receipt comments require one explicit matching reviewed-commit SHA.
+  Mutable structured summaries require a validated `codex-review-state:v1`
+  schema, exact full current SHA, completed status, and explicit no-findings
+  booleans. Their update time must follow the request. Reactions and display
+  text alone never satisfy the gate.
+- The latest evidence is evaluated; negative or incomplete edits invalidate an
+  earlier success. Every unresolved Codex thread blocks independently of the
+  latest request, including advisory and earlier-head findings.
+- The `AI Review` gate debounces briefly and re-checks GitHub's current PR head before accepting evidence and immediately before success; stale runs fail closed.
 - Gate scripts must run from the trusted default branch, not PR-supplied code.
 - Context-budget gates must run against the committed PR diff, not only the local worktree, so placeholder-only specs cannot pass after they are committed.
 - Skipped required gates must not be used as a successful state.
@@ -133,5 +141,27 @@ The default pull request behavior is therefore:
    head.
 5. When trusted native review evidence or a trusted summary/outcome comment
    appears, `ai-review-rerun.yml` reruns `AI Review` again.
-6. The gate passes only if the configured backend returns an acceptable result
+6. Wakeups share a per-PR concurrency group with command policy. If the gate is
+   active, the router waits with bounded backoff, then checks the latest attempt
+   start against the evidence update. It reruns only when that event has not yet
+   been evaluated, and checks the live PR head again before the rerun request.
+   A timeout is an explicit actionable failure, not a silent lost wakeup.
+7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
+
+## Updating The Review Gate Itself
+
+Keep validation and wakeup scripts checked out from the default branch. A PR
+containing a parser fix does not update the trusted parser for its own check.
+After requesting genuine native review of the immutable current head, prefer a
+native formal review accepted by the existing gate for the initial rollout;
+rerun the original PR workflow after that evidence arrives. Never rewrite the
+bot's evidence, publish a synthetic status, switch to a weaker backend, or relax
+protection to install the fix. If the backend emits only evidence that the
+trusted parser cannot understand, retain the reviewed PR and report that exact
+bootstrap blocker until a trusted deployment path is available.
+
+Existing consumers must refresh the three review scripts, command policy,
+review workflows, and review contract together (or run bootstrap with `--force`
+after reviewing consumer customizations). New bootstraps install these files
+from the same blueprint version.
