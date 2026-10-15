@@ -64,6 +64,7 @@ test("installed workflow filter routes created/edited native evidence to the tru
     assert.match(workflow, /run: node scripts\/ai-review-rerun.mjs/);
     assert.match(workflow, /ref: \$\{\{ github.event.repository.default_branch \}\}/);
     assert.match(workflow, /cancel-in-progress: false/);
+    assert.match(workflow, /queue: max/, "pending command markers and evidence wakeups must not evict each other");
     const expression = workflow.match(/    if: \|\n([\s\S]*?)    runs-on:/)[1];
     const route = new Function("github", "startsWith", "contains", `return (${expression});`);
     for (const action of ["created", "edited"]) {
@@ -78,4 +79,5 @@ test("installed workflow filter routes created/edited native evidence to the tru
   const policy = readFileSync(join(root, ".github/workflows/ai-command-policy.yml"), "utf8");
   assert.match(policy, /group: ai-review-wakeup-/);
   assert.match(policy, /cancel-in-progress: false/);
+  assert.match(policy, /queue: max/);
 });

@@ -23,7 +23,7 @@ exact current full `code_review.commit_sha`, `status: "completed"`, and explicit
 boolean `has_any_findings: false` and `has_unresolved_findings: false`. Schema,
 types, duplicate markers/fields, and conflicting visible verdicts are validated.
 The inactive security-review state has null fields; active security state must
-be well formed and cannot have unresolved findings. Bare headings, reactions,
+be well formed, completed, finding-free, and bound to the exact current head. Bare headings, reactions,
 and visible "Completed" text do not prove review success.
 
 Evidence must be at or after the source request time. Explicitly head-bound
@@ -33,7 +33,7 @@ Codex threads block, including advisory or earlier-head findings, independently
 of the request marker. The gate rechecks the live PR head before success.
 
 Both created and edited native comments wake the gate. Wakeup routing never
-constitutes an acceptable verdict. Per-PR serialization, a bounded active-run
+constitutes an acceptable verdict. Per-PR serialization with `queue: max`, a bounded active-run
 wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A newer
 negative or incomplete edit re-evaluates a previously successful gate.
 

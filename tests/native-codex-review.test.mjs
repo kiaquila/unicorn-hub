@@ -78,6 +78,21 @@ test("structured state requires exact full SHA, strict schema/types, and complet
   ]) assert.notEqual(evaluate({ comments: [comment(body)] }), "pass", body);
 });
 
+test("active security review must be completed and finding-free on the exact current head", () => {
+  const completed = { commit_sha: headSha, status: "completed", has_any_findings: false, has_unresolved_findings: false };
+  assert.equal(evaluate({ comments: [comment(summary({ ...state(), security_review: completed }))] }), "pass");
+  for (const overrides of [
+    { commit_sha: oldSha }, { status: "running" }, { status: "failed" }, { status: "cancelled" },
+    { commit_sha: oldSha, status: "failed" }, { has_any_findings: true },
+    { status: "running", has_any_findings: null, has_unresolved_findings: null }
+  ]) {
+    const body = summary({ ...state(), security_review: { ...completed, ...overrides } });
+    assert.notEqual(evaluate({ comments: [comment(body)] }), "pass", JSON.stringify(overrides));
+  }
+  const escapedDuplicate = summary().replace('"has_any_findings":false', '"has_any_findings":true,"has_any_findin\\u0067s":false');
+  assert.notEqual(evaluate({ comments: [comment(escapedDuplicate)] }), "pass");
+});
+
 test("edited summary uses update time and its new exact-head verdict supersedes old evidence", () => {
   const edited = comment(summary(), { created_at: "2026-09-01T00:00:00Z", updated_at: resultAt });
   assert.equal(evaluate({ comments: [edited] }), "pass");

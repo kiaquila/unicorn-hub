@@ -168,20 +168,23 @@ function parseStructuredCodexSummary(body, headSha) {
         typeof value.has_any_findings !== "boolean" || typeof value.has_unresolved_findings !== "boolean" ||
         (!value.has_any_findings && value.has_unresolved_findings)) return null;
   }
-  for (const key of ["code_review", "security_review"]) {
-    if ((envelope[1].match(new RegExp(`"${key}"\\s*:`, "g")) || []).length !== 1) return null;
-  }
-  for (const key of ["commit_sha", "has_any_findings", "has_unresolved_findings", "status"]) {
-    if ((envelope[1].match(new RegExp(`"${key}"\\s*:`, "g")) || []).length !== 2) return null;
+  // Decode key spellings too, so escaped duplicate JSON fields cannot override
+  // an earlier negative value under a second spelling of the same key.
+  const keys = [...envelope[1].matchAll(/("(?:[^"\\]|\\.)*")\s*:/g)].map((match) => JSON.parse(match[1]));
+  for (const key of ["code_review", "security_review", "commit_sha", "has_any_findings", "has_unresolved_findings", "status"]) {
+    const expected = ["code_review", "security_review"].includes(key) ? 1 : 2;
+    if (keys.filter((value) => value === key).length !== expected) return null;
   }
   const code = state.code_review;
   if (code.commit_sha !== headSha) return null;
   // Conflicting visible severity or a second verdict cannot be hidden by JSON.
   if (containsBlockingSeverity(body, "codex") || /Codex Review:|\bfound\s+(?:a|[1-9])\b|changes.requested/i.test(body.slice(envelope[0].length))) return { result: "fail", explicitSha: true };
-  if (code.has_any_findings || code.has_unresolved_findings || state.security_review.has_unresolved_findings) {
+  const security = state.security_review;
+  if (code.has_any_findings || code.has_unresolved_findings || security.has_any_findings || security.has_unresolved_findings) {
     return { result: "fail", explicitSha: true };
   }
-  return { result: code.status === "completed" ? "pass" : "pending", explicitSha: true };
+  const securityCompleted = security.status === null || (security.commit_sha === headSha && security.status === "completed");
+  return { result: code.status === "completed" && securityCompleted ? "pass" : "pending", explicitSha: true };
 }
 
 export function classifyCodexSummaryComment(comment, headSha, requestMarker = null, config = {}) {

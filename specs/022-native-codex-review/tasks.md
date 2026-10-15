@@ -15,13 +15,18 @@
 - Structured summaries are mutable; creation time alone cannot bind a new review to its request.
 - A native review request marker never resolves existing findings.
 
+- Native review identified pending-run eviction in a shared concurrency group;
+  both workflows now use GitHub's documented `queue: max` semantics.
+- Native review identified stale/incomplete active security state; every active
+  review state must now be completed and finding-free on the exact head.
+
 ## Known Issues
 
 Initial rollout must pass the existing trusted default-branch gate without weakening protection.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 139 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 140 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

@@ -141,7 +141,8 @@ The default pull request behavior is therefore:
    head.
 5. When trusted native review evidence or a trusted summary/outcome comment
    appears, `ai-review-rerun.yml` reruns `AI Review` again.
-6. Wakeups share a per-PR concurrency group with command policy. If the gate is
+6. Wakeups share a per-PR concurrency group with command policy using
+   `queue: max` to retain pending commands and evidence events. If the gate is
    active, the router waits with bounded backoff, then checks the latest attempt
    start against the evidence update. It reruns only when that event has not yet
    been evaluated, and checks the live PR head again before the rerun request.
