@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   extractClaudeOutcome,
   isCodexReviewSignal,
+  isCodexStructuredSummarySignal,
   isAiReviewControlComment,
   reviewEvidenceTime,
   isTrustedReviewLogin
@@ -46,6 +47,22 @@ export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", co
   }
 
   return false;
+}
+
+function requiresWithdrawalController(event, selectedAgent, config) {
+  if (normalizeAgent(selectedAgent) !== "codex" || !event.comment) return false;
+  const login = event.comment.user?.login;
+  const current = event.comment.body;
+  const prior = event.changes?.body?.from;
+  if (isTrustedReviewLogin(login, "codex", config)) {
+    if (event.action === "deleted") return true;
+    if (event.action === "edited" && event.issue?.pull_request) {
+      return (isCodexReviewSignal(prior) && !isCodexReviewSignal(current)) ||
+        (isCodexStructuredSummarySignal(prior) && !isCodexStructuredSummarySignal(current));
+    }
+  }
+  return String(login).toLowerCase() === "github-actions[bot]" && ["edited", "deleted"].includes(event.action) &&
+    (isAiReviewControlComment(current) || isAiReviewControlComment(prior));
 }
 
 export function selectAiReviewRun(runs = [], headSha) {
@@ -284,6 +301,13 @@ async function main() {
   }
   if (!shouldRouteAiReviewRerunEvent(event, selectedAgent, config)) {
     console.log("AI Review rerun skipped: event is not trusted review evidence for the selected agent.");
+    return;
+  }
+
+  // Destructive evidence must never race its durable negative record. The
+  // default-branch workflow_run controller writes the fence, then wakes the gate.
+  if (requiresWithdrawalController(event, selectedAgent, config)) {
+    console.log("AI Review rerun deferred: withdrawal controller must persist the fence before validation.");
     return;
   }
 

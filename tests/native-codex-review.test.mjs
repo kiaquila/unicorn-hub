@@ -171,11 +171,11 @@ test("native failures and all unresolved threads survive a new request marker", 
   assert.equal(evaluate({ comments: [comment(receipt)], reviews: [{ ...reviews[0], submitted_at: resultAt }] }), "fail", "failure wins a timestamp tie");
 });
 
-function runGate({ body = receipt, heads = [headSha], threads = [], reviews = [], extraComments = [], inlineComments = [], deletedEvidence = false, historyNodes = {}, reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
+function runGate({ body = receipt, clockStep = 0, heads = [headSha], threads = [], reviews = [], extraComments = [], inlineComments = [], deletedEvidence = false, historyNodes = {}, reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
   const dir = mkdtempSync(join(tmpdir(), "native-review-gate-"));
   try {
     const markerBody = createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "1", sourceCommentId: "1", sourceCommentCreatedAt: triggerAt, requestedAt: triggerAt });
-    const fixture = structuredClone({ heads, threads, reviews, inlineComments, historyNodes, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), ...(deletedEvidence ? [] : [comment(body)]), ...extraComments] });
+    const fixture = structuredClone({ heads, clockStep, threads, reviews, inlineComments, historyNodes, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), ...(deletedEvidence ? [] : [comment(body)]), ...extraComments] });
     for (const [index, item] of fixture.comments.entries()) {
       if (item.user?.login !== bot.login || item.node_id) continue;
       item.node_id = `created-native-${index}`;
@@ -184,6 +184,7 @@ function runGate({ body = receipt, heads = [headSha], threads = [], reviews = []
     }
     const preload = join(dir, "fetch.mjs");
     writeFileSync(preload, `const fixture = ${JSON.stringify(fixture)}; let headRead = 0;
+      if (fixture.clockStep) { let clock = Date.now(); Date.now = () => clock += fixture.clockStep; }
       globalThis.fetch = async (url, options = {}) => {
         let data;
         if (url.endsWith('/graphql') && JSON.parse(options.body).query.includes('userContentEdits')) { const variables = JSON.parse(options.body).variables; const nodes = fixture.historyNodes[variables.id]; data = { data: { node: Array.isArray(nodes) ? nodes[variables.cursor ? 1 : 0] : nodes } }; }
@@ -528,4 +529,15 @@ test("legacy verdicts use the same case-insensitive column-zero grammar as delet
   }
   assert.equal(runGate({ extraComments: [withdrawal(), comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }).status, 1);
   assert.equal(runGate({ extraComments: [withdrawal(), comment(summary(), { created_at: "2026-10-01T10:04:00Z" })] }).status, 0);
+});
+
+
+test("zero-wait validation always takes its initial snapshot despite advancing time", () => {
+  const positive = runGate({ clockStep: 1 });
+  assert.equal(positive.status, 0, positive.stderr);
+  assert.match(positive.stdout, /gate passed/);
+  const negative = runGate({ clockStep: 1, body: receipt.replace("Didn't find any major issues.", "Found a P1 issue.") });
+  assert.equal(negative.status, 1);
+  assert.doesNotMatch(negative.stderr, /Last API error/);
+  assert.equal(runGate({ clockStep: 1, heads: [headSha, oldSha] }).status, 1);
 });

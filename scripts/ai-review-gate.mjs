@@ -286,7 +286,8 @@ let outcome = "pending";
 let lastError = null;
 let pollMs = initialPollMs;
 
-while (Date.now() - started <= maxWaitMs) {
+// Always take the initial snapshot, including an explicit zero-wait run.
+for (let attempt = 0; attempt === 0 || Date.now() - started <= maxWaitMs; attempt += 1) {
   try {
     outcome = await fetchEvidence();
     if (outcome !== "pending") break;

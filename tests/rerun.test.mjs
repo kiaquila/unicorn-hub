@@ -1,5 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   rerunAiReviewForPrHead,
   recordReviewWithdrawal,
@@ -498,4 +502,33 @@ test("machine withdrawal mutations wake repair while newly created records canno
     assert.equal(shouldRouteAiReviewRerunEvent({ action, issue: { pull_request: {}, number: 1 }, comment: { body: "AI Review gate failed", user: { login: "github-actions[bot]" } } }), false);
     assert.equal(shouldRouteAiReviewRerunEvent({ action, issue: { pull_request: {}, number: 1 }, comment: { body: "cleared", user: { login: "github-actions[bot]" } }, changes: { body: { from: '<!-- unicorn-hub:ai-review-withdrawal:v1 {} -->' } } }), action !== "created");
   }
+});
+
+
+test("actual destructive-event router cannot rerun before the durable controller writes", () => {
+  const dir = mkdtempSync(join(tmpdir(), "review-withdrawal-order-"));
+  try {
+    const eventPath = join(dir, "event.json");
+    const preload = join(dir, "fetch.mjs");
+    // Any direct API access here would let the router race the independent writer.
+    writeFileSync(preload, "globalThis.fetch = async () => { throw new Error('Direct destructive rerun raced the withdrawal writer'); };\n");
+    const native = { login: "chatgpt-codex-connector[bot]" };
+    const issue = { number: 1, pull_request: {} };
+    const events = [
+      { action: "deleted", issue, comment: { body: nativeSummary, user: native } },
+      { action: "deleted", pull_request: { number: 1 }, comment: { pull_request_review_id: 2, body: "P1 finding", user: native } },
+      { action: "edited", issue, comment: { body: "Ordinary reply", user: native }, changes: { body: { from: nativeReceipt } } },
+      { action: "edited", issue, comment: { body: nativeReceipt, user: native }, changes: { body: { from: nativeSummary } } },
+      { action: "deleted", issue, comment: { body: '<!-- unicorn-hub:ai-review-withdrawal:v1 {} -->', user: { login: "github-actions[bot]" } } },
+      { action: "edited", issue, comment: { body: "cleared", user: { login: "github-actions[bot]" } }, changes: { body: { from: '<!-- unicorn-hub:ai-review-withdrawal:v1 {} -->' } } }
+    ];
+    for (const event of events) {
+      writeFileSync(eventPath, JSON.stringify(event));
+      const result = spawnSync(process.execPath, ["--import", preload, "scripts/ai-review-rerun.mjs"], { encoding: "utf8",
+        env: { ...process.env, GITHUB_TOKEN: "synthetic", GITHUB_REPOSITORY: "example/project", AI_REVIEW_AGENT: "codex",
+          GITHUB_EVENT_NAME: event.issue ? "issue_comment" : "pull_request_review_comment", GITHUB_EVENT_PATH: eventPath } });
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /deferred: withdrawal controller must persist the fence/);
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

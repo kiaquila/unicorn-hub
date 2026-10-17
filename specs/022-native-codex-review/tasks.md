@@ -110,13 +110,22 @@
   case-insensitive column-zero grammar; whitespace-prefixed legacy bodies do not
   establish a positive verdict.
 
+- The ordinary router defers destructive native events and machine control
+  mutations to the durable controller. Actual-CLI regression coverage forbids
+  any direct API access before that controller records the withdrawal, closing
+  the independent-writer/direct-rerun race.
+
+- Zero-wait validation always evaluates its first evidence snapshot. An advancing
+  synthetic clock reproduces the skipped-first-poll race without timing sleeps;
+  positive, negative, and moved-head outcomes remain enforced.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 178 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 180 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.
