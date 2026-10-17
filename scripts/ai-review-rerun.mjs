@@ -148,7 +148,19 @@ export async function rerunAiReviewForPrHead({
       // A running gate may have read evidence just before this event. Wait for
       // completion, then schedule exactly one fresh attempt if needed.
       const remaining = maxWaitMs - (now() - started);
-      if (remaining <= 0) throw new Error(`AI Review is still active for ${headSha}; retry this evidence wakeup after run ${selected.run.id} completes.`);
+      if (remaining <= 0) {
+        // Do not discard the event while an old evaluation can still turn green.
+        // Cancelling uses the existing Actions permission and leaves the required
+        // check non-successful until a fresh evaluation is explicitly rerun.
+        try {
+          await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}/cancel`, { method: "POST" });
+        } catch (error) {
+          const current = await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}`);
+          if (current.status === "completed") continue; // Completion raced cancellation: reevaluate and rerun.
+          throw error;
+        }
+        throw new Error(`Cancelled stale active AI Review run ${selected.run.id} for ${headSha}; rerun it to evaluate the pending evidence.`);
+      }
       await sleep(Math.min(delay, remaining));
       delay = Math.min(delay * 2, 10000);
       continue;

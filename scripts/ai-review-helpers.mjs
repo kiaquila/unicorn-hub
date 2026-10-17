@@ -165,6 +165,24 @@ export function isAfterReviewRequest(value, marker) {
   return Number.isFinite(time) && Number.isFinite(cutoff) && time >= cutoff;
 }
 
+function isPositiveSummaryRendering(text, headSha, securityActive) {
+  const visible = withoutCodexHelpFooter(text).trim();
+  if (visible === "Completed") return true;
+  const lines = visible.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.shift() !== "This comment shows the latest Codex review activity on this pull request." ||
+      lines.shift() !== "| Review | Status | Commit | Review trigger |" ||
+      lines.shift() !== "| --- | --- | --- | --- |") return false;
+  const seen = new Set();
+  for (const line of lines) {
+    const row = line.match(/^\| (?:📝|🛡️) \*\*(Code Review|Security Review)\*\* \| ✅ \*\*Completed\*\*(?: <relative-time datetime="([^"<>]+)">([^<>]+)<\/relative-time>)? \| `([a-f0-9]{7,40})` \| (?:Manual request|Automatic review) \|$/);
+    if (!row || seen.has(row[1]) || !headSha.startsWith(row[4]) ||
+        (row[2] && (row[2] !== row[3] || !Number.isFinite(Date.parse(row[2]))))) return false;
+    seen.add(row[1]);
+  }
+  return seen.has("Code Review") && seen.size === (securityActive ? 2 : 1) &&
+    (!securityActive || seen.has("Security Review"));
+}
+
 function parseStructuredCodexSummary(body, headSha) {
   const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
   if (!envelope || (body.match(/codex-pull-request-review-summary/g) || []).length !== 1 ||
@@ -199,7 +217,9 @@ function parseStructuredCodexSummary(body, headSha) {
     return { result: "fail", explicitSha: true };
   }
   const securityCompleted = security.status === null || (security.commit_sha === headSha && security.status === "completed");
-  return { result: code.status === "completed" && securityCompleted ? "pass" : "pending", explicitSha: true };
+  const completed = code.status === "completed" && securityCompleted;
+  return { result: completed && isPositiveSummaryRendering(visibleVerdict, headSha, security.status !== null)
+    ? "pass" : "pending", explicitSha: true };
 }
 
 export function classifyCodexSummaryComment(comment, headSha, requestMarker = null, config = {}) {
@@ -233,7 +253,8 @@ export function classifyCodexSummaryComment(comment, headSha, requestMarker = nu
   const visibleHashes = withoutCodexHelpFooter(text).match(/\b[a-f0-9]{10,40}\b/g) || [];
   if (visibleHashes.some((sha) => !String(headSha).startsWith(sha))) return null;
   if (containsBlockingSeverity(text, "codex")) return { result: "fail", explicitSha };
-  const positive = /^Codex Review:\s*did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues\b/i.test(text);
+  const positiveText = withoutCodexHelpFooter(text).replace(/^\*\*Reviewed commit:\*\* `[a-f0-9]{10,40}`\s*$/gm, "").trim();
+  const positive = /^Codex Review:\s*did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues(?: for [a-f0-9]{10,40})?\.(?: (?:Nice work!|:rocket:|🚀))?$/i.test(positiveText);
   // Only the observed no-findings sentence is a positive verdict. Contradictory
   // prose (outside the optional standard help section) must fail closed.
   const verdictText = withoutCodexHelpFooter(text);
@@ -328,7 +349,9 @@ export function classifyCodexNativeReview(review, reviewComments = [], headSha, 
   // edits can withdraw that verdict without changing GitHub's review state.
   if (review.state === "COMMENTED" && review.last_edited_at) return "pending";
   const visible = withoutCodexHelpFooter(review.body || "").trim();
-  if (!visible) return "pass";
+  // Missing inline comments cannot establish a positive verdict: they may have
+  // been deleted. Require explicit fresh evidence rather than implicit success.
+  if (!visible) return "pending";
   const parsed = classifyCodexSummaryComment({ ...review, created_at: review.submitted_at }, headSha, requestMarker, config);
   if (parsed) return parsed.result;
   if (isCodexReviewSignal(visible)) return "pending";

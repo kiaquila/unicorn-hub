@@ -271,7 +271,7 @@ function wakeupHarness({ statuses = ["completed"], conclusion = "failure", attem
       return { workflow_runs: [{ id: 42, event: "pull_request", head_sha: "abc", status, conclusion: status === "completed" ? conclusion : null, run_attempt: 2, created_at: "2026-10-01T09:00:00Z" }] };
     }
     if (path.includes("/attempts/2")) return { run_started_at: attemptStart };
-    if (options.method === "POST" && path.endsWith("/rerun")) return null;
+    if (options.method === "POST" && (path.endsWith("/rerun") || path.endsWith("/cancel"))) return null;
     throw new Error(`Unexpected request ${path}`);
   };
   return {
@@ -303,11 +303,11 @@ test("wakeup refuses stale heads both before listing and immediately before reru
   }
 });
 
-test("active gate timeout is bounded and never loops or blindly reruns", async () => {
+test("active gate timeout cancels stale evaluation instead of losing the event", async () => {
   const harness = wakeupHarness({ statuses: ["in_progress"] });
-  await assert.rejects(harness.run, /still active/);
-  assert.ok(harness.calls.length <= 4);
-  assert.equal(harness.calls.filter((call) => call.method === "POST").length, 0);
+  await assert.rejects(harness.run, /Cancelled stale active AI Review/);
+  assert.ok(harness.calls.length <= 5);
+  assert.deepEqual(harness.calls.filter((call) => call.method === "POST").map((call) => call.path), ["/repos/example/project/actions/runs/42/cancel"]);
 });
 
 test("selector never resurrects an older failed run after a newer success", () => {
@@ -375,4 +375,27 @@ test("deletions force a fresh evaluation after success despite the deleted comme
   const evidenceUpdatedAt = "2026-10-01T10:03:00Z";
   assert.equal((await wakeupHarness({ conclusion: "success", attemptStart: "2026-10-01T10:02:00Z", evidenceUpdatedAt }).run()).action, "rerun");
   assert.equal((await wakeupHarness({ conclusion: "success", attemptStart: "2026-10-01T10:04:00Z", evidenceUpdatedAt }).run()).action, "already_evaluated");
+});
+
+
+test("completion racing stale-run cancellation still receives a fresh rerun", async () => {
+  let listings = 0;
+  const mutations = [];
+  const result = await rerunAiReviewForPrHead({ token: "synthetic", repository: "example/project", headSha: "abc", prNumber: 1,
+    evidenceUpdatedAt: "2026-10-01T10:01:00Z", maxWaitMs: 0,
+    request: async (_token, _repository, path, options = {}) => {
+      if (path.endsWith("/pulls/1")) return { state: "open", head: { sha: "abc" } };
+      if (path.includes("/workflows/ai-review.yml/runs")) return { workflow_runs: [{ id: 42, event: "pull_request", head_sha: "abc", status: listings++ ? "completed" : "in_progress", conclusion: "success", run_attempt: 1 }] };
+      if (options.method === "POST") {
+        mutations.push(path);
+        if (path.endsWith("/cancel")) throw new Error("409 already completed");
+        if (path.endsWith("/rerun")) return null;
+      }
+      if (path.endsWith("/runs/42")) return { status: "completed", conclusion: "success" };
+      if (path.endsWith("/attempts/1")) return { run_started_at: "2026-10-01T10:00:00Z" };
+      throw new Error(`Unexpected request ${path}`);
+    }
+  });
+  assert.equal(result.action, "rerun");
+  assert.deepEqual(mutations, ["/repos/example/project/actions/runs/42/cancel", "/repos/example/project/actions/runs/42/rerun"]);
 });

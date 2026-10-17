@@ -148,7 +148,7 @@ test("native failures and all unresolved threads survive a new request marker", 
     assert.equal(evaluate({ comments: [comment(receipt)], threads }), "pass");
   }
   assert.equal(evaluate({ reviews: [{ id: 1, user: bot, state: "APPROVED", submitted_at: resultAt }] }), "pending");
-  assert.equal(evaluate({ reviews: [{ id: 1, user: bot, commit_id: headSha, state: "APPROVED", submitted_at: resultAt }] }), "pass");
+  assert.equal(evaluate({ reviews: [{ id: 1, user: bot, commit_id: headSha, state: "APPROVED", body: "Approved.", submitted_at: resultAt }] }), "pass");
   assert.equal(evaluate({ comments: [comment(receipt)], reviews: [{ ...reviews[0], submitted_at: resultAt }] }), "fail", "failure wins a timestamp tie");
 });
 
@@ -200,7 +200,7 @@ test("native review mutations invalidate earlier receipts using server update ti
     assert.equal(runGate({ reviews: [node] }).status, 1);
     assert.equal(evaluate({ comments: [comment(receipt, { created_at: "2026-10-01T10:04:00Z" })], reviews: [review] }), "pass");
   }
-  const oldApproval = { user: bot, commit_id: headSha, state: "APPROVED", submitted_at: "2026-10-01T09:59:00Z", updated_at: "2026-10-01T10:03:00Z" };
+  const oldApproval = { user: bot, commit_id: headSha, state: "APPROVED", body: "Approved.", submitted_at: "2026-10-01T09:59:00Z", updated_at: "2026-10-01T10:03:00Z" };
   assert.equal(evaluate({ reviews: [oldApproval] }), "pending", "positive edits cannot renew request eligibility");
   assert.equal(evaluate({ reviews: [{ ...oldApproval, submitted_at: "2026-10-01T10:01:00Z" }], comments: [comment(receipt.replace("Didn't find any major issues.", "Found a P1 issue."))] }), "fail");
 });
@@ -326,4 +326,36 @@ test("actual gate loses success after the only native receipt is deleted", () =>
   const deleted = runGate({ deletedEvidence: true });
   assert.equal(deleted.status, 1);
   assert.doesNotMatch(deleted.stderr, /Last API error/);
+});
+
+
+test("positive native envelopes reject arbitrary finding prose and unknown rendering", () => {
+  for (const prose of ["A major bug remains.", "Detected a security issue.", "Something needs fixing.", "Approved. A bug remains."]) {
+    for (const body of [summary() + "\n" + prose, receipt + "\n" + prose]) {
+      assert.notEqual(evaluate({ comments: [comment(body)] }), "pass", prose);
+      assert.equal(runGate({ body }).status, 1, prose);
+    }
+  }
+  const table = "This comment shows the latest Codex review activity on this pull request.\n\n" +
+    "| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n" +
+    `| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-01T10:02:00Z">2026-10-01T10:02:00Z</relative-time> | \`${headSha.slice(0, 7)}\` | Manual request |`;
+  const rendered = summary().replace(/Completed$/, table);
+  assert.equal(evaluate({ comments: [comment(rendered)] }), "pass");
+  assert.equal(runGate({ body: rendered }).status, 0);
+  for (const body of [rendered + "\nA major bug remains.", rendered.replace("Manual request", "A major bug remains."), rendered.replace(headSha.slice(0, 7) + "`", oldSha.slice(0, 7) + "`")]) {
+    assert.notEqual(evaluate({ comments: [comment(body)] }), "pass");
+  }
+});
+
+test("deleting the last inline finding cannot create an implicit positive formal verdict", () => {
+  for (const reviewState of ["COMMENTED", "APPROVED"]) {
+    const review = { id: 2, user: bot, state: reviewState, commit_id: headSha, body: "", submitted_at: resultAt, updated_at: resultAt, last_edited_at: null };
+    const finding = { pull_request_review_id: 2, user: bot, body: "P1 blocker", created_at: resultAt };
+    assert.equal(evaluate({ reviews: [review], reviewComments: [finding] }), "fail");
+    assert.equal(evaluate({ reviews: [review], reviewComments: [] }), "pending");
+    const node = { databaseId: 2, state: reviewState, body: "", submittedAt: resultAt, updatedAt: resultAt,
+      lastEditedAt: null, commit: { oid: headSha }, author: { login: "chatgpt-codex-connector", __typename: "Bot" } };
+    assert.equal(runGate({ deletedEvidence: true, reviews: [node] }).status, 1);
+    assert.equal(evaluate({ reviews: [review], comments: [comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }), "pass", "a fresh explicit native verdict can establish success");
+  }
 });

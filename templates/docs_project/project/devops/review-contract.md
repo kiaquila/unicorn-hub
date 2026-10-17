@@ -24,7 +24,9 @@ boolean `has_any_findings: false` and `has_unresolved_findings: false`. Schema,
 types, duplicate markers/fields, and conflicting visible verdicts are validated.
 Visible failure or incomplete statuses cannot be hidden by completed JSON;
 compound enum-style negative statuses remain blocking after normalization.
-Standard help inside the optional details section is not a verdict.
+Positive summaries and receipts allow only recognized positive renderings;
+arbitrary additional prose remains non-successful even without a severity tag.
+Standard help inside the optional labelled details section is not a verdict.
 The inactive security-review state has null fields; active security state must
 be well formed, completed, finding-free, and bound to the exact current head. Bare headings, reactions,
 and visible "Completed" text do not prove review success.
@@ -42,7 +44,9 @@ prose. Nonempty bodies require a recognized no-findings/approval verdict or an
 explicit advisory priority. Inline findings are checked on both commented and
 approved reviews; blocking inline edits use their own update time, while
 positive edits cannot renew old approval eligibility. Edited COMMENTED reviews
-lose their implicit no-findings verdict.
+remain pending. Empty formal reviews are also pending: deletion of the last
+inline finding cannot itself create positive evidence; require a fresh explicit
+native verdict.
 
 Created, edited, and deleted native comments, plus formal review and inline
 review-comment mutations, wake the gate. Deletions always force a fresh check;
@@ -51,7 +55,9 @@ replies remain unrelated: pending withdrawal tombstones require a former review
 signal verified from complete server edit history.
  Wakeup routing never
 constitutes an acceptable verdict. Per-PR serialization with `queue: max`, a bounded active-run
-wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A newer
+wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A wait
+timeout cancels the stale active gate before reporting failure and requiring a
+fresh rerun; completion racing cancellation still receives that rerun. A newer
 negative or incomplete edit re-evaluates a previously successful gate.
 Request wakeup deduplication uses the marker's server publication time, while
 native-review eligibility retains the human source request time. Missing marker

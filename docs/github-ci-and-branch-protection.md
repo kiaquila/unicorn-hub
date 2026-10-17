@@ -154,7 +154,9 @@ The default pull request behavior is therefore:
    active, the router waits with bounded backoff, then checks the latest attempt
    start against the evidence update. It reruns only when that event has not yet
    been evaluated, and checks the live PR head again before the rerun request.
-   A timeout is an explicit actionable failure, not a silent lost wakeup.
+   A timeout cancels the stale active gate before failing with an actionable
+   rerun instruction, so that attempt cannot later publish stale success. If
+   completion races cancellation, the completed run still receives a fresh rerun.
    Request wakeups use the server publication time of the marker for attempt
    deduplication, while review eligibility still uses the human source time.
    Missing publication timestamps and failed rerun requests fail command policy.
@@ -167,12 +169,15 @@ The default pull request behavior is therefore:
    that remove every review marker. The gate checks server edit history for
    unknown native comments: only former review signals leave a pending tombstone;
    ordinary bot replies remain unrelated. Missing/redacted history or a mutation
-   during pagination fails closed. An edited `COMMENTED` formal review loses its
-   implicit no-findings verdict; a fresh native result must re-establish it.
+   during pagination fails closed. Empty formal reviews never establish no-findings evidence, including after
+   the last inline finding is deleted; a fresh explicit native verdict is required.
+   Edited `COMMENTED` formal reviews also remain pending.
    Fresh formal approvals and comments also reject visible failed/incomplete
    states using the same negative-state classifier as native summaries.
    Withdrawal, revocation, stopped/unavailable states, and standard non-success
    workflow conclusions are also negative across every accepted review format.
+   Positive summaries/receipts accept only recognized rendering, so arbitrary
+   additional finding prose cannot hide behind positive machine state.
    Nonempty formal-review bodies need a recognized no-findings/approval verdict
    or explicit advisory priority; unknown finding prose never inherits success
    from the formal state. Inline comments are checked even on formal approvals.

@@ -69,13 +69,20 @@
   Four targeted regressions fail against the preceding commit in a synthetic
   checkout and pass with the fix; the actual gate also rejects removed evidence.
 
+- Native review identified arbitrary prose appended to positive native envelopes,
+  empty formal reviews resurrecting success after inline deletion, and active-run
+  timeouts losing invalidation events. Positive rendering is now allowlisted;
+  empty formal reviews are pending until an explicit verdict. Timeout cancels the
+  stale evaluation, with completion/cancellation races covered by a real rerun.
+  Regressions exercise classifiers, the actual gate, and the Actions API boundary.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 161 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 164 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.
