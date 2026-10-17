@@ -57,7 +57,7 @@ AI_REVIEW_AGENT=codex
 
 Supported review backends:
 
-- `codex`: native GitHub PR review with `P0`-`P3` severity markers, or a no-findings `Codex Review:` summary comment bound to a trusted current-head review-request marker
+- `codex`: native GitHub PR review with `P0`-`P3` severity markers, legacy no-findings comments, SHA-bound native receipts, or strictly validated structured summaries; all require a trusted current-head request and no unresolved Codex findings
 - `claude`: top-level comment with `AI_REVIEW_OUTCOME: pass|advisory|block`
 - `gemini`: native GitHub PR review from the configured app
 
@@ -81,7 +81,11 @@ still match the latest GitHub PR head.
 `AI Review` is event-driven: it fails fast while review evidence is absent, then
 `AI Command Policy` and `AI Review Rerun` use native GitHub Actions reruns to
 re-check the required status after a trusted trigger or trusted review evidence
-appears.
+appears or is edited. Routers serialize per PR, wait briefly for an active gate,
+and suppress events already covered by a newer attempt. Privileged scripts remain
+on the trusted default branch. Read-only validation permits an explicitly
+promoted, independently reviewed immutable snapshot for initial rollout; see
+`docs/github-ci-and-branch-protection.md`.
 
 Bot-authored comments cannot start the policy workflow, so the administrative
 trigger comment that `AI Review` posts in `trigger_mode=comment` does not
@@ -102,3 +106,8 @@ A task is complete only when the current PR head SHA has:
 - no unresolved merge conflicts
 - updated specs and durable docs where required
 - only final human approval or merge mechanics remaining
+
+Withdrawal publication is a gate precondition: read-only validation checks trusted
+source runs against durable records, so later evidence cannot overtake a pending
+or failed independent writer. Source API failures and incomplete pagination block
+validation.

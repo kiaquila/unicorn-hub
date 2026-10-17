@@ -177,7 +177,7 @@ test("Codex no-findings summary is accepted only after a matching request marker
 
   assert.equal(
     isAcceptableCodexSummaryComment({
-      body: "Codex Review: Didn't find any major issues. Can't wait for the next one!",
+      body: "Codex Review: Didn't find any major issues.",
       user: { login: "chatgpt-codex-connector[bot]" },
       created_at: "2026-04-29T19:32:55Z"
     }, "abc123def456", requestMarker),
@@ -186,7 +186,7 @@ test("Codex no-findings summary is accepted only after a matching request marker
 
   assert.equal(
     isAcceptableCodexSummaryComment({
-      body: "Codex Review: Didn't find any major issues. Can't wait for the next one!",
+      body: "Codex Review: Didn't find any major issues.",
       user: { login: "chatgpt-codex-connector[bot]" },
       created_at: "2026-04-29T19:29:46Z"
     }, "abc123def456", requestMarker),
@@ -195,7 +195,7 @@ test("Codex no-findings summary is accepted only after a matching request marker
 
   assert.equal(
     isAcceptableCodexSummaryComment({
-      body: "Codex Review: Didn't find any major issues. Can't wait for the next one!",
+      body: "Codex Review: Didn't find any major issues.",
       user: { login: "chatgpt-codex-connector[bot]" },
       created_at: "2026-04-29T19:29:50Z"
     }, "abc123def456", requestMarker),
@@ -261,14 +261,14 @@ test("Codex commented reviews are classified by inline priorities", () => {
     user: { login: "chatgpt-codex-connector[bot]" }
   };
 
-  assert.equal(classifyCodexNativeReview(review, [], "abc"), "pass");
+  assert.equal(classifyCodexNativeReview(review, [], "abc"), "pending");
   assert.equal(classifyCodexNativeReview(review, [
     {
       pull_request_review_id: 123,
       body: "![P3 Badge] advisory",
       user: { login: "chatgpt-codex-connector[bot]" }
     }
-  ], "abc"), "pass");
+  ], "abc"), "pending");
   assert.equal(classifyCodexNativeReview(review, [
     {
       pull_request_review_id: 123,
@@ -299,7 +299,7 @@ test("Codex commented reviews are classified by inline priorities", () => {
       body: "![P3 Badge] advisory",
       user: { login: "chatgpt-codex-connector[bot]" }
     }
-  ], "abc"), "pass");
+  ], "abc"), "pending");
   assert.equal(classifyCodexNativeReview(review, [], "new-head"), null);
 });
 

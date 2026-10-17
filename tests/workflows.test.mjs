@@ -56,3 +56,84 @@ test("OSV workflow is blocking and retains all activation triggers", () => {
   assert.match(workflow, /osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc/);
   assert.match(workflow, /osv-reporter-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc/);
 });
+
+test("installed workflow filter routes created/edited native evidence to the trusted runtime", () => {
+  for (const prefix of ["", "templates/"]) {
+    const workflow = readFileSync(join(root, prefix, ".github/workflows/ai-review-rerun.yml"), "utf8");
+    assert.match(workflow, /pull_request_review:\n    types: \[submitted, edited, dismissed\]/);
+    assert.match(workflow, /issue_comment:\n    types: \[created, edited, deleted\]/);
+    assert.match(workflow, /run: node scripts\/ai-review-rerun.mjs/);
+    assert.match(workflow, /ref: \$\{\{ github.event.repository.default_branch \}\}/);
+    assert.match(workflow, /cancel-in-progress: false/);
+    assert.match(workflow, /queue: max/, "pending command markers and evidence wakeups must not evict each other");
+    assert.match(workflow, /pull_request_review_comment:\n    types: \[created, edited, deleted\]/);
+    const expression = workflow.match(/    if: \|\n([\s\S]*?)    runs-on:/)[1];
+    const route = new Function("github", "startsWith", "contains", `return (${expression});`);
+    const destructiveEdit = { event_name: "issue_comment", event: { action: "edited", issue: { pull_request: {} }, comment: { body: "Review withdrawn", user: { type: "Bot" } } } };
+    assert.equal(Boolean(route(destructiveEdit, (text, prefix) => text.startsWith(prefix), (text, part) => text.includes(part))), true);
+    for (const action of ["submitted", "edited", "dismissed"]) {
+      const github = { event_name: "pull_request_review", event: { action, review: { user: { type: "Bot" } } } };
+      assert.equal(Boolean(route(github)), true);
+    }
+    for (const action of ["created", "edited", "deleted"]) {
+      const inline = { event_name: "pull_request_review_comment", event: { action, pull_request: { number: 1 }, comment: { body: "P1 blocker", user: { type: "Bot" } } } };
+      assert.equal(Boolean(route(inline)), true);
+      inline.event.comment.user.type = "User";
+      assert.equal(Boolean(route(inline)), false);
+    }
+    for (const action of ["created", "edited", "deleted"]) {
+      for (const body of ["Codex Review: Didn't find any major issues.", "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues.", "<!-- codex-pull-request-review-summary -->", "<!-- codex-review-state:v1 {} -->"]) {
+        const github = { event_name: "issue_comment", event: { action, issue: { pull_request: {} }, comment: { body, user: { type: "Bot" } } } };
+        assert.equal(Boolean(route(github, (text, prefix) => text.startsWith(prefix), (text, part) => text.includes(part))), true, body);
+        github.event.comment.user.type = "User";
+        assert.equal(Boolean(route(github, (text, prefix) => text.startsWith(prefix), (text, part) => text.includes(part))), false);
+      }
+    }
+  }
+  const policy = readFileSync(join(root, ".github/workflows/ai-command-policy.yml"), "utf8");
+  assert.match(policy, /group: ai-review-wakeup-/);
+  assert.match(policy, /cancel-in-progress: false/);
+  assert.match(policy, /queue: max/);
+});
+
+
+test("deletion recording executes only in the default-branch controller with existing write scope", () => {
+  const policy = readFileSync(join(root, ".github/workflows/ai-command-policy.yml"), "utf8");
+  assert.match(policy, /workflow_run:\n    workflows: \[AI Review Rerun\]\n    types: \[requested\]/);
+  const recorder = policy.slice(policy.indexOf("  record-review-withdrawal:"));
+  assert.match(recorder, /if: github.event_name == 'workflow_run'/);
+  assert.match(recorder, /ref: \$\{\{ github.event.repository.default_branch \}\}/);
+  assert.match(recorder, /persist-credentials: false/);
+  assert.match(recorder, /run: node scripts\/ai-review-rerun.mjs/);
+  assert.doesNotMatch(recorder, /artifact|AI_REVIEW_GATE_PIN/);
+  const router = readFileSync(join(root, ".github/workflows/ai-review-rerun.yml"), "utf8");
+  assert.match(router, /run-name: AI review evidence:/);
+  assert.match(router, /startsWith\(github.event.changes.body.from, '<!-- unicorn-hub:ai-review-withdrawal:'/);
+  assert.doesNotMatch(router, /issues: write/);
+  assert.match(readFileSync(join(root, ".github/workflows/ai-review.yml"), "utf8"), /timeout-minutes: 10/);
+});
+
+
+test("withdrawal metadata shares case-insensitive column-zero legacy grammar with runtime", () => {
+  for (const prefix of ["", "templates/"]) {
+    const workflow = readFileSync(join(root, prefix, ".github/workflows/ai-review-rerun.yml"), "utf8");
+    const expressions = [...workflow.split("\n")[1].matchAll(/\$\{\{ (.*?) \}\}/g)].map((match) => match[1]);
+    const withdrawal = new Function("github", "startsWith", "contains", `return (${expressions.at(-2)});`);
+    const structured = new Function("github", "contains", `return (${expressions.at(-1)});`);
+    const startsWith = (text = "", part) => text.toLowerCase().startsWith(part.toLowerCase());
+    const contains = (text = "", part) => text.toLowerCase().includes(part.toLowerCase());
+    for (const [body, expected] of [["Command response", false], ["Example: Codex Review: reference", false],
+      ["Codex Review: Didn't find any major issues.", true], ["codex review: Didn't find any major issues.", true],
+      [" Codex Review: Didn't find any major issues.", false], ["\nCodex Review: Didn't find any major issues.", false],
+      ["<!-- codex-review-state:v1 {} -->", true], ["<!-- codex-review-receipt:v1 -->", true]]) {
+      assert.equal(withdrawal({ event: { action: "deleted", comment: { body }, changes: { body: {} } } }, startsWith, contains), expected, body);
+    }
+    const github = { event: { action: "edited", comment: { body: "<!-- codex-review-receipt:v1 -->" },
+      changes: { body: { from: "<!-- codex-review-state:v1 {} -->" } } } };
+    assert.equal(structured(github, contains), true);
+    github.event.comment.body = "<!-- codex-review-state:v1 {} -->";
+    assert.equal(structured(github, contains), false, "normal summary updates must not fence their own completion");
+    github.event.comment.body = "Ordinary reply";
+    assert.equal(withdrawal(github, startsWith, contains), true);
+  }
+});

@@ -3,7 +3,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   extractClaudeOutcome,
-  isTrustedReviewLogin
+  isCodexReviewSignal,
+  isCodexStructuredSummarySignal,
+  isAiReviewControlComment,
+  reviewEvidenceTime,
+  isTrustedReviewLogin,
+  reviewWithdrawalPrNumber
 } from "./ai-review-helpers.mjs";
 import { readConfig } from "./shared.mjs";
 
@@ -17,9 +22,15 @@ function normalizeAgent(agent) {
 export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", config = {}) {
   const agent = normalizeAgent(selectedAgent);
 
+  if (event.action && !["created", "edited", "submitted", "dismissed", "deleted"].includes(event.action)) return false;
+
   if (event?.review) {
     return ["codex", "gemini"].includes(agent) &&
       isTrustedReviewLogin(event.review.user?.login, agent, config);
+  }
+
+  if (event?.pull_request && event?.comment?.pull_request_review_id) {
+    return agent === "codex" && isTrustedReviewLogin(event.comment.user?.login, "codex", config);
   }
 
   if (!event?.issue?.pull_request || !event?.comment) return false;
@@ -27,7 +38,9 @@ export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", co
   const login = event.comment.user?.login;
 
   if (agent === "codex") {
-    return /^Codex Review:/i.test(body) && isTrustedReviewLogin(login, "codex", config);
+    return (["edited", "deleted"].includes(event.action) && String(login).toLowerCase() === "github-actions[bot]" &&
+      (isAiReviewControlComment(body) || isAiReviewControlComment(event.changes?.body?.from))) ||
+      ((["edited", "deleted"].includes(event.action) || isCodexReviewSignal(body)) && isTrustedReviewLogin(login, "codex", config));
   }
 
   if (agent === "claude") {
@@ -37,29 +50,32 @@ export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", co
   return false;
 }
 
+function requiresWithdrawalController(event, selectedAgent, config) {
+  if (normalizeAgent(selectedAgent) !== "codex" || !event.comment) return false;
+  const login = event.comment.user?.login;
+  const current = event.comment.body;
+  const prior = event.changes?.body?.from;
+  if (isTrustedReviewLogin(login, "codex", config)) {
+    if (event.action === "deleted") return true;
+    if (event.action === "edited" && event.issue?.pull_request) {
+      return (isCodexReviewSignal(prior) && !isCodexReviewSignal(current)) ||
+        (isCodexStructuredSummarySignal(prior) && !isCodexStructuredSummarySignal(current));
+    }
+  }
+  return String(login).toLowerCase() === "github-actions[bot]" && ["edited", "deleted"].includes(event.action) &&
+    (isAiReviewControlComment(current) || isAiReviewControlComment(prior));
+}
+
 export function selectAiReviewRun(runs = [], headSha) {
   const matchingRuns = runs
     .filter((run) => run.event === "pull_request" && run.head_sha === headSha)
     .sort((left, right) => Date.parse(right.created_at || "") - Date.parse(left.created_at || ""));
 
-  const activeRun = matchingRuns.find((run) => activeStatuses.has(run.status));
-  if (activeRun) {
-    return { action: "already_running", run: activeRun };
-  }
-
-  const rerunnableRun = matchingRuns.find((run) =>
-    run.status === "completed" && rerunnableConclusions.has(run.conclusion)
-  );
-  if (rerunnableRun) {
-    return { action: "rerun", run: rerunnableRun };
-  }
-
-  const successfulRun = matchingRuns.find((run) =>
-    run.status === "completed" && run.conclusion === "success"
-  );
-  if (successfulRun) {
-    return { action: "already_success", run: successfulRun };
-  }
+  // Only the newest run matters: an old failure must not supersede success.
+  const run = matchingRuns[0];
+  if (run && activeStatuses.has(run.status)) return { action: "already_running", run };
+  if (run?.status === "completed" && rerunnableConclusions.has(run.conclusion)) return { action: "rerun", run };
+  if (run?.status === "completed" && run.conclusion === "success") return { action: "already_success", run };
 
   return { action: "not_found", run: null };
 }
@@ -81,6 +97,35 @@ async function defaultRequest(token, repository, path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+export async function reviewEventEvidenceTime({ token, repository, event, request = defaultRequest }) {
+  // Deletion payloads retain the old content update time, not deletion time.
+  // Force a fresh evaluation instead of deduplicating against that old value.
+  if (event.action === "deleted") return undefined;
+  if (!event.review) return reviewEvidenceTime(event.comment);
+  if (!["edited", "dismissed"].includes(event.action)) return event.review.submitted_at;
+  // Review webhooks keep the original submitted_at after edits/dismissals.
+  // Use server state, not delivery time, so delayed events remain deduplicable.
+  if (!event.review.node_id) throw new Error("Missing native review node ID.");
+  const result = await request(token, repository, "/graphql", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      query: `query($id: ID!) { node(id: $id) { __typename ... on PullRequestReview {
+        id updatedAt pullRequest { number repository { nameWithOwner } }
+      } } }`,
+      variables: { id: event.review.node_id }
+    })
+  });
+  const review = result.data?.node;
+  if (result.errors || review?.__typename !== "PullRequestReview" || review.id !== event.review.node_id ||
+      review.pullRequest?.number !== event.pull_request?.number ||
+      review.pullRequest?.repository?.nameWithOwner?.toLowerCase() !== repository.toLowerCase() ||
+      !Number.isFinite(Date.parse(review.updatedAt || ""))) {
+    throw new Error("Could not verify native review mutation time.");
+  }
+  return review.updatedAt;
+}
+
 async function listPaginated(request, token, repository, path) {
   const items = [];
   const separator = path.includes("?") ? "&" : "?";
@@ -96,61 +141,120 @@ export async function rerunAiReviewForPrHead({
   token,
   repository,
   headSha,
-  request = defaultRequest
+  prNumber,
+  evidenceUpdatedAt,
+  forceRerun = false,
+  request = defaultRequest,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  now = Date.now,
+  maxWaitMs = 120000
 }) {
   if (!token || !repository || !headSha) {
     throw new Error("token, repository, and headSha are required to rerun AI Review.");
   }
-
   const [owner, repo] = repository.split("/");
-  const runs = await listPaginated(
-    request,
-    token,
-    repository,
-    `/repos/${owner}/${repo}/actions/workflows/ai-review.yml/runs?event=pull_request&head_sha=${encodeURIComponent(headSha)}`
-  );
-  const selected = selectAiReviewRun(runs, headSha);
-
-  if (selected.action === "rerun") {
-    await request(
-      token,
-      repository,
-      `/repos/${owner}/${repo}/actions/runs/${selected.run.id}/rerun`,
-      { method: "POST" }
-    );
-    return {
-      ...selected,
-      message: `Requested AI Review rerun for ${headSha} from run ${selected.run.id}.`
-    };
+  const started = now();
+  let delay = 2000;
+  let cancellationRequested = false;
+  let cancellationStarted;
+  let forceCancellationRequested = false;
+  while (true) {
+    if (prNumber) {
+      const pull = await request(token, repository, `/repos/${owner}/${repo}/pulls/${prNumber}`);
+      if (pull.state !== "open" || pull.head?.sha !== headSha) {
+        return { action: "stale_head", run: null, message: `AI Review wakeup ignored: PR head no longer matches ${headSha}.` };
+      }
+    }
+    const runs = await listPaginated(request, token, repository,
+      `/repos/${owner}/${repo}/actions/workflows/ai-review.yml/runs?event=pull_request&head_sha=${encodeURIComponent(headSha)}`);
+    const selected = selectAiReviewRun(runs, headSha);
+    if (selected.action === "already_running") {
+      // A running gate may have read evidence just before this event. Wait for
+      // completion, then schedule exactly one fresh attempt if needed.
+      const remaining = maxWaitMs - (now() - started);
+      if (remaining <= 0 && !cancellationRequested) {
+        cancellationRequested = true;
+        cancellationStarted = now();
+        try {
+          await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}/cancel`, { method: "POST" });
+        } catch (error) {
+          const current = await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}`);
+          if (current.status !== "completed") throw error;
+        }
+        // 202 only acknowledges cancellation. Keep the wakeup until terminal
+        // state is observed, then rerun even when stale success won the race.
+        continue;
+      }
+      if (cancellationRequested && !forceCancellationRequested && now() - cancellationStarted >= 30000) {
+        forceCancellationRequested = true;
+        try {
+          await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}/force-cancel`, { method: "POST" });
+        } catch (error) {
+          const current = await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}`);
+          if (current.status !== "completed") throw error;
+        }
+        continue;
+      }
+      await sleep(cancellationRequested ? delay : Math.min(delay, remaining));
+      delay = Math.min(delay * 2, 10000);
+      continue;
+    }
+    let alreadyEvaluated = false;
+    if (!forceRerun && !cancellationRequested && evidenceUpdatedAt && selected.run) {
+      // The attempt endpoint records the latest rerun start rather than the
+      // original run creation time. This suppresses duplicate/delayed events.
+      const attempt = await request(token, repository,
+        `/repos/${owner}/${repo}/actions/runs/${selected.run.id}/attempts/${selected.run.run_attempt || 1}`);
+      const attemptStart = Date.parse(attempt.run_started_at || "");
+      const evidenceTime = Date.parse(evidenceUpdatedAt);
+      alreadyEvaluated = Number.isFinite(attemptStart) && Number.isFinite(evidenceTime) && attemptStart > evidenceTime;
+    }
+    if (selected.run && !alreadyEvaluated && (selected.action === "rerun" || evidenceUpdatedAt || forceRerun || cancellationRequested)) {
+      // Close the list-runs/new-push race immediately before mutation.
+      if (prNumber) {
+        const pull = await request(token, repository, `/repos/${owner}/${repo}/pulls/${prNumber}`);
+        if (pull.state !== "open" || pull.head?.sha !== headSha) {
+          return { action: "stale_head", run: null, message: `AI Review wakeup ignored: PR head changed before rerun of ${headSha}.` };
+        }
+      }
+      await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}/rerun`, { method: "POST" });
+      return { ...selected, action: "rerun", message: `Requested AI Review rerun for ${headSha} from run ${selected.run.id}.` };
+    }
+    const action = alreadyEvaluated ? "already_evaluated" : selected.action;
+    return { ...selected, action, message: `AI Review wakeup ${action} for ${headSha}.` };
   }
+}
 
-  const runId = selected.run?.id ? ` run ${selected.run.id}` : "";
-  const messages = {
-    already_running: `AI Review is already running for ${headSha}${runId}.`,
-    already_success: `AI Review already passed for ${headSha}${runId}.`,
-    not_found: `No completed AI Review pull_request run found for ${headSha}.`
-  };
-
-  return {
-    ...selected,
-    message: messages[selected.action]
-  };
+export async function recordReviewWithdrawal({ token, repository, runId, defaultBranch, selectedAgent = "codex", config = {}, request = defaultRequest }) {
+  if (normalizeAgent(selectedAgent) !== "codex") return { action: "ignored" };
+  if (!Number.isSafeInteger(runId) || runId <= 0) throw new Error("Invalid withdrawal source run ID.");
+  const prefix = `/repos/${repository}`;
+  // Treat workflow-run metadata as data only. The writer executes solely in the
+  // default-branch workflow_run controller; it never downloads PR artifacts.
+  const run = await request(token, repository, `${prefix}/actions/runs/${runId}`);
+  const prNumber = reviewWithdrawalPrNumber(run, { repository, defaultBranch, config });
+  if (prNumber === null) return { action: "ignored" };
+  const pull = await request(token, repository, `${prefix}/pulls/${prNumber}`);
+  if (pull.state !== "open") return { action: "closed" };
+  const headSha = pull.head?.sha;
+  if (!/^[a-f0-9]{40}$/.test(headSha || "")) throw new Error("Invalid withdrawal PR head.");
+  const record = { agent: "codex", head_sha: headSha, pr_number: prNumber, source_created_at: run.created_at, source_run_id: runId };
+  const body = `<!-- unicorn-hub:ai-review-withdrawal:v1 ${JSON.stringify(record)} -->`;
+  const comments = await listPaginated(request, token, repository, `${prefix}/issues/${prNumber}/comments`);
+  let marker = comments.find((comment) => comment.user?.login?.toLowerCase() === "github-actions[bot]" && comment.body === body);
+  if (!marker) marker = await request(token, repository, `${prefix}/issues/${prNumber}/comments`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body })
+  });
+  if (!Number.isFinite(Date.parse(marker?.created_at || ""))) throw new Error("Missing withdrawal publication time.");
+  return rerunAiReviewForPrHead({ token, repository, headSha, prNumber, evidenceUpdatedAt: marker.created_at, request });
 }
 
 async function resolvePullContext({ token, repository, event, request = defaultRequest }) {
-  if (event?.pull_request) {
-    return {
-      prNumber: event.pull_request.number,
-      headSha: event.pull_request.head?.sha
-    };
-  }
-
-  if (!event?.issue?.pull_request || !event?.issue?.number) {
-    throw new Error("Could not resolve pull request from event.");
-  }
+  const number = event?.pull_request?.number || (event?.issue?.pull_request && event?.issue?.number);
+  if (!number) throw new Error("Could not resolve pull request from event.");
 
   const [owner, repo] = repository.split("/");
-  const pull = await request(token, repository, `/repos/${owner}/${repo}/pulls/${event.issue.number}`);
+  const pull = await request(token, repository, `/repos/${owner}/${repo}/pulls/${number}`);
   return {
     prNumber: pull.number,
     headSha: pull.head?.sha
@@ -170,16 +274,32 @@ async function main() {
   }
 
   const event = JSON.parse(readFileSync(eventPath, "utf8"));
+  if (process.env.GITHUB_EVENT_NAME === "workflow_run") {
+    const result = await recordReviewWithdrawal({ token, repository, runId: event.workflow_run?.id, defaultBranch: event.repository?.default_branch, selectedAgent, config });
+    console.log(result.message || `Review withdrawal ${result.action}.`);
+    return;
+  }
   if (!shouldRouteAiReviewRerunEvent(event, selectedAgent, config)) {
     console.log("AI Review rerun skipped: event is not trusted review evidence for the selected agent.");
     return;
   }
 
+  // Destructive evidence must never race its durable negative record. The
+  // default-branch workflow_run controller writes the fence, then wakes the gate.
+  if (requiresWithdrawalController(event, selectedAgent, config)) {
+    console.log("AI Review rerun deferred: withdrawal controller must persist the fence before validation.");
+    return;
+  }
+
   const context = await resolvePullContext({ token, repository, event });
+  const evidenceUpdatedAt = await reviewEventEvidenceTime({ token, repository, event });
   const result = await rerunAiReviewForPrHead({
     token,
     repository,
-    headSha: context.headSha
+    headSha: context.headSha,
+    prNumber: context.prNumber,
+    evidenceUpdatedAt,
+    forceRerun: event.action === "deleted"
   });
   console.log(result.message);
 }

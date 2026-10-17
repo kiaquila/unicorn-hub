@@ -2,12 +2,16 @@
 import { appendFileSync } from "node:fs";
 import {
   createAiReviewRequestMarkerBody,
-  hasHeadUpdateBetweenTimestamps,
+  evaluateCodexEvidence,
   isAcceptableClaudeComment,
-  isAcceptableCodexSummaryComment,
   isAcceptableNativeReview,
-  latestAiReviewRequestMarker,
-  latestCodexNativeReviewResult
+  isCodexReviewSignal,
+  hasCodexReviewSignalInEditDiff,
+  isCodexStructuredSummarySignal,
+  hasCodexStructuredSummaryInEditDiff,
+  hasUnrecordedReviewWithdrawals,
+  isTrustedReviewLogin,
+  latestAiReviewRequestMarker
 } from "./ai-review-helpers.mjs";
 import { readConfig } from "./shared.mjs";
 
@@ -65,6 +69,113 @@ async function listPaginated(path) {
     items.push(...batch);
     if (batch.length < 100) return items;
   }
+}
+
+async function fetchReviewThreads() {
+  const threads = [];
+  let cursor = null;
+  do {
+    const result = await request("/graphql", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: `query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $number) {
+              reviewThreads(first: 100, after: $cursor) {
+                nodes { isResolved comments(first: 100) { nodes { author { login __typename } } pageInfo { hasNextPage } } }
+                pageInfo { hasNextPage endCursor }
+              }
+            }
+          }
+        }`,
+        variables: { owner, repo, number: Number(prNumber), cursor }
+      })
+    });
+    const connection = result.data?.repository?.pullRequest?.reviewThreads;
+    if (result.errors || !connection || connection.nodes.some((thread) => thread.comments.pageInfo.hasNextPage) ||
+        (connection.pageInfo.hasNextPage && !connection.pageInfo.endCursor)) {
+      throw new Error("Could not completely verify unresolved review threads.");
+    }
+    threads.push(...connection.nodes);
+    cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
+  } while (cursor);
+  return threads;
+}
+
+async function fetchCodexReviews() {
+  const reviews = [];
+  let cursor = null;
+  do {
+    const result = await request("/graphql", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: `query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+          repository(owner: $owner, name: $repo) { pullRequest(number: $number) {
+            reviews(first: 100, after: $cursor) {
+              nodes { databaseId state body submittedAt updatedAt lastEditedAt commit { oid } author { login __typename } }
+              pageInfo { hasNextPage endCursor }
+            }
+          } }
+        }`,
+        variables: { owner, repo, number: Number(prNumber), cursor }
+      })
+    });
+    const connection = result.data?.repository?.pullRequest?.reviews;
+    if (result.errors || !connection ||
+        connection.nodes.some((review) => !Number.isFinite(Date.parse(review.updatedAt || ""))) ||
+        (connection.pageInfo.hasNextPage && !connection.pageInfo.endCursor)) {
+      throw new Error("Could not completely verify native review updates.");
+    }
+    reviews.push(...connection.nodes.map((review) => ({
+      id: review.databaseId, state: review.state, body: review.body,
+      submitted_at: review.submittedAt, updated_at: review.updatedAt, last_edited_at: review.lastEditedAt, commit_id: review.commit?.oid,
+      user: { login: review.author?.__typename === "Bot" && !review.author.login.endsWith("[bot]")
+        ? `${review.author.login}[bot]` : review.author?.login }
+    })));
+    cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
+  } while (cursor);
+  return reviews;
+}
+
+async function fetchPriorReviewSignal(comment) {
+  if (!comment.node_id) throw new Error("Missing native comment node ID.");
+  let cursor = null;
+  let snapshotTime = null;
+  const signals = { review: false, structured: false };
+  do {
+    const result = await request("/graphql", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: `query($id: ID!, $cursor: String) { node(id: $id) { ... on IssueComment {
+          id body updatedAt lastEditedAt includesCreatedEdit userContentEdits(first: 100, after: $cursor) {
+            nodes { diff } pageInfo { hasNextPage endCursor }
+          }
+        } } }`,
+        variables: { id: comment.node_id, cursor }
+      })
+    });
+    const node = result.data?.node;
+    const connection = node?.userContentEdits;
+    if (result.errors || node?.id !== comment.node_id || !connection ||
+        !Number.isFinite(Date.parse(node.updatedAt || "")) || (snapshotTime && node.updatedAt !== snapshotTime) ||
+        connection.nodes.some((edit) => typeof edit.diff !== "string") ||
+        (connection.pageInfo.hasNextPage && !connection.pageInfo.endCursor)) {
+      throw new Error("Could not completely verify native comment edit history.");
+    }
+    snapshotTime = node.updatedAt;
+    comment.body = node.body;
+    comment.updated_at = node.updatedAt;
+    signals.review ||= isCodexReviewSignal(node.body) || connection.nodes.some((edit) => hasCodexReviewSignalInEditDiff(edit.diff));
+    signals.structured ||= isCodexStructuredSummarySignal(node.body) || connection.nodes.some((edit) => hasCodexStructuredSummaryInEditDiff(edit.diff));
+    cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
+    if (!cursor && node.lastEditedAt && !node.includesCreatedEdit) {
+      throw new Error("Native comment creation history is unavailable.");
+    }
+  } while (cursor);
+  return signals;
 }
 
 async function createComment(body) {
@@ -138,27 +249,44 @@ async function fetchEvidence() {
     ) ? "pass" : "pending";
   }
 
-  const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (selectedAgent === "codex") {
-    const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
-    const reviewsAfterRequest = reviews.filter((review) => isAfterRequest(review.submitted_at, requestMarker));
-    const latestCodexResult = latestCodexNativeReviewResult(reviewsAfterRequest, reviewComments, headSha, config);
-    if (latestCodexResult === "pass") return "pass";
-    if (latestCodexResult === "fail") return "fail";
-
-    const timeline = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/timeline`);
-    const triggerAt = requestMarker.sourceCommentCreatedAt || requestMarker.requestedAt || requestMarker.commentCreatedAt;
-    const summaryAccepted = comments.some((comment) => {
-      if (!isAcceptableCodexSummaryComment(comment, headSha, requestMarker, config)) return false;
-      if (hasHeadUpdateBetweenTimestamps(timeline, triggerAt, comment.created_at)) {
-        console.warn(`AI Review gate rejected Codex summary ${comment.id}: head moved between trigger ${triggerAt} and summary ${comment.created_at}.`);
-        return false;
+    for (const comment of comments) {
+      if (isTrustedReviewLogin(comment.user?.login, "codex", config) && !isCodexStructuredSummarySignal(comment.body)) {
+        const signals = await fetchPriorReviewSignal(comment);
+        comment.prior_review_signal = signals.review;
+        comment.prior_structured_summary = signals.structured;
       }
-      return true;
-    });
-    return summaryAccepted ? "pass" : "pending";
+    }
+    const reviews = await fetchCodexReviews();
+    const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
+    const timeline = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/timeline`);
+    const threads = await fetchReviewThreads();
+    // A later wakeup must observe a destructive source even while the separate
+    // default-branch writer is queued, failed, or still publishing its record.
+    const pull = await request(`/repos/${owner}/${repo}/pulls/${prNumber}`);
+    if (pull.head?.sha !== headSha) return "stale";
+    const defaultBranch = pull.base?.repo?.default_branch;
+    if (pull.number !== Number(prNumber) || !defaultBranch || !Number.isFinite(Date.parse(pull.created_at || ""))) {
+      throw new Error("Could not verify withdrawal scope.");
+    }
+    const runs = [];
+    for (let page = 1; ; page++) {
+      const response = await request(`/repos/${owner}/${repo}/actions/workflows/ai-review-rerun.yml/runs?created=${encodeURIComponent(`>=${pull.created_at}`)}&per_page=100&page=${page}`);
+      if (!Array.isArray(response.workflow_runs) || !Number.isSafeInteger(response.total_count) ||
+          response.total_count < 0 || response.total_count > 1000) throw new Error("Could not completely verify withdrawal source runs.");
+      runs.push(...response.workflow_runs);
+      if (response.workflow_runs.length < 100) {
+        if (runs.length !== response.total_count || new Set(runs.map((run) => run.id)).size !== runs.length) {
+          throw new Error("Withdrawal source pagination changed or is incomplete.");
+        }
+        break;
+      }
+    }
+    if (hasUnrecordedReviewWithdrawals({ runs, comments, repository, defaultBranch, prNumber, config })) return "pending";
+    return evaluateCodexEvidence({ comments, reviews, reviewComments, timeline, threads, headSha, requestMarker, config });
   }
 
+  const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (reviews.some((review) =>
     isAfterRequest(review.submitted_at, requestMarker) &&
     isAcceptableNativeReview(review, selectedAgent, headSha, config)
@@ -172,8 +300,8 @@ async function fetchEvidence() {
 await maybePostTriggerComment();
 
 if (!await waitForQuietHead()) {
-  console.log(`AI Review gate skipped stale run for ${headSha}; PR head changed during debounce.`);
-  process.exit(0);
+  console.log(`AI Review gate rejected stale run for ${headSha}; PR head changed during debounce.`);
+  process.exit(1);
 }
 
 const started = Date.now();
@@ -181,7 +309,8 @@ let outcome = "pending";
 let lastError = null;
 let pollMs = initialPollMs;
 
-while (Date.now() - started <= maxWaitMs) {
+// Always take the initial snapshot, including an explicit zero-wait run.
+for (let attempt = 0; attempt === 0 || Date.now() - started <= maxWaitMs; attempt += 1) {
   try {
     outcome = await fetchEvidence();
     if (outcome !== "pending") break;
@@ -196,8 +325,15 @@ while (Date.now() - started <= maxWaitMs) {
 }
 
 if (outcome === "stale") {
-  console.log(`AI Review gate skipped stale run for ${headSha}; PR head moved.`);
-  process.exit(0);
+  console.log(`AI Review gate rejected stale run for ${headSha}; PR head moved.`);
+  process.exit(1);
+}
+
+if (outcome === "pass" && !await currentHeadMatches()) outcome = "stale";
+
+if (outcome === "stale") {
+  console.error(`AI Review gate rejected stale result for ${headSha}; PR head moved before publication.`);
+  process.exit(1);
 }
 
 if (outcome === "pass") {

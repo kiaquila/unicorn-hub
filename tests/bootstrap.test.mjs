@@ -19,7 +19,7 @@ function run(args, cwd = root) {
   });
 }
 
-test("bootstrap installs generic blueprint into a synthetic target", () => {
+test("bootstrap installs generic blueprint into a synthetic target", async () => {
   const target = mkdtempSync(join(tmpdir(), "unicorn-bootstrap-"));
 
   const output = run([
@@ -129,6 +129,34 @@ test("bootstrap installs generic blueprint into a synthetic target", () => {
   assert.match(prGuard, /Validate context budget/);
   assert.match(prGuard, /check-context-budget\.mjs --target "\$GITHUB_WORKSPACE" "\$BASE_REF" "\$HEAD_REF"/);
   assert.match(prGuard, /check-dependency-policy\.mjs --sync-python/);
+
+  for (const file of ["ai-review-helpers.mjs", "ai-review-gate.mjs", "ai-review-rerun.mjs"]) {
+    assert.equal(readFileSync(join(target, "scripts", file), "utf8"), readFileSync(join(root, "scripts", file), "utf8"));
+  }
+  assert.equal(readFileSync(join(target, ".github/workflows/ai-review.yml"), "utf8"),
+    readFileSync(join(root, ".github/workflows/ai-review.yml"), "utf8"),
+    "bootstrap must preserve read-only validation and base-bound trusted source promotion");
+  const reviewRouter = readFileSync(join(target, ".github/workflows/ai-review-rerun.yml"), "utf8");
+  assert.match(reviewRouter, /issue_comment:\n    types: \[created, edited, deleted\]/);
+  assert.match(reviewRouter, /pull_request_review_comment:\n    types: \[created, edited, deleted\]/);
+  assert.equal(reviewRouter, readFileSync(join(root, ".github/workflows/ai-review-rerun.yml"), "utf8"));
+  const installedPolicy = readFileSync(join(target, ".github/workflows/ai-command-policy.yml"), "utf8");
+  assert.equal(installedPolicy, readFileSync(join(root, ".github/workflows/ai-command-policy.yml"), "utf8"));
+  assert.match(installedPolicy, /record-review-withdrawal:/);
+  assert.match(installedPolicy, /workflow_run:/);
+  const installedRouter = await import(join(target, "scripts/ai-review-rerun.mjs"));
+  assert.equal(typeof installedRouter.recordReviewWithdrawal, "function");
+  assert.equal(installedRouter.shouldRouteAiReviewRerunEvent({ action: "deleted", issue: { pull_request: {}, number: 1 }, comment: { body: "", user: { login: "chatgpt-codex-connector[bot]" } } }), true);
+  assert.equal(installedRouter.shouldRouteAiReviewRerunEvent({ action: "edited", pull_request: { number: 1 }, comment: { pull_request_review_id: 2, body: "P1 blocker", user: { login: "chatgpt-codex-connector[bot]" } } }), true);
+  assert.match(reviewRouter, /contains\(github.event.comment.body, '<!-- codex-review-receipt:'/);
+  assert.match(reviewRouter, /contains\(github.event.comment.body, '<!-- codex-review-state:'/);
+  assert.match(reviewRouter, /run: node scripts\/ai-review-rerun.mjs/);
+  const installedHelpers = await import(join(target, "scripts/ai-review-helpers.mjs"));
+  const syntheticHead = "0123456789abcdef0123456789abcdef01234567";
+  assert.equal(installedHelpers.isAcceptableCodexSummaryComment({
+    user: { login: "chatgpt-codex-connector[bot]" },
+    body: `<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues. :rocket:\n\n**Reviewed commit:** \`${syntheticHead.slice(0, 10)}\``
+  }, syntheticHead), true, "the bootstrapped parser must accept native receipt evidence");
 
   const workspacePolicy = readFileSync(join(target, "pnpm-workspace.yaml"), "utf8");
   assert.match(workspacePolicy, /^minimumReleaseAge: 10080$/m);
