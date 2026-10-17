@@ -158,7 +158,10 @@ Wakeup and administrative request scripts always use the default branch.
 Validation also defaults to that branch, resolved to an immutable SHA, and has
 only `contents: read`, `pull-requests: read`, and `issues: read`. Checkout never
 persists credentials. Optional `trigger_mode=comment` writes run in a separate
-default-branch job; request failure makes the actual `AI Review` job fail.
+default-branch job, and the write job is enabled only when the workflow itself
+is dispatched from the default ref. A branch/tag diagnostic can validate with
+`trigger_mode=skip` only; requesting a write there fails the actual `AI Review`
+job. Request failure or cancellation also fails validation.
 
 A parser-fix PR cannot update the default-branch parser for its own check. First
 prefer genuine native formal evidence understood by the existing parser. If

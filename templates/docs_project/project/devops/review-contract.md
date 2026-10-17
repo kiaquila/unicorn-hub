@@ -38,7 +38,9 @@ wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A newer
 negative or incomplete edit re-evaluates a previously successful gate.
 
 Validation has a read-only token; administrative writes remain in an isolated
-default-branch job. It normally checks out an immutable default-branch SHA.
+default-branch job that can run only from the default workflow ref. Non-default
+diagnostic dispatches cannot request writes. Validation normally checks out an
+immutable default-branch SHA.
 For a parser's initial rollout, a maintainer may set repository variable
 `AI_REVIEW_GATE_PIN=<default-full-sha>:<independently-reviewed-gate-full-sha>`
 only after inspecting, testing, and obtaining genuine native review of that

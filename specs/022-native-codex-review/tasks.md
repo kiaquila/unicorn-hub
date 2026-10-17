@@ -20,6 +20,9 @@
   both workflows now use GitHub's documented `queue: max` semantics.
 - Native review identified stale/incomplete active security state; every active
   review state must now be completed and finding-free on the exact head.
+- Native review identified dispatch workflow provenance: checking out default
+  scripts alone does not make a branch's workflow definition trusted. The write
+  job now requires the default workflow ref; a non-default comment request fails.
 
 ## Known Issues
 

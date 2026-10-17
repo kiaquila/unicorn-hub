@@ -60,6 +60,7 @@ test("only the isolated default-branch request job can write; validation fails a
   assert.match(workflow, /permissions:\n  contents: read\n  pull-requests: read\n  issues: read/);
   assert.match(requestJob, /permissions:\n      contents: read\n      pull-requests: write\n      issues: write/);
   assert.match(requestJob, /ref: \$\{\{ github.event.repository.default_branch \}\}/);
+  assert.match(requestJob, /github.ref == format\('refs\/heads\/\{0\}', github.event.repository.default_branch\)/);
   assert.doesNotMatch(requestJob, /AI_REVIEW_GATE_PIN|steps.source|pull_request.head|secrets\./);
   assert.doesNotMatch(validationJob, /: write|continue-on-error|secrets\./);
   assert.match(validationJob, /needs: request-review\n    if: \|\n      always\(\)/);
@@ -68,7 +69,11 @@ test("only the isolated default-branch request job can write; validation fails a
   assert.equal((workflow.match(/persist-credentials: false/g) || []).length, 3);
   const verifyRequest = validationJob.match(/- name: Verify request job[\s\S]*?        run: \|\n([\s\S]*?)\n      - name:/)[1].replace(/^          /gm, "");
   for (const result of ["success", "skipped", "failure", "cancelled", ""]) {
-    const execution = spawnSync("bash", ["-c", verifyRequest], { env: { ...process.env, REQUEST_RESULT: result } });
-    assert.equal(execution.status === 0, ["success", "skipped"].includes(result), result);
+    for (const mode of ["skip", "comment"]) {
+      const execution = spawnSync("bash", ["-c", verifyRequest], {
+        env: { ...process.env, REQUEST_RESULT: result, EVENT_NAME: "workflow_dispatch", REQUESTED_TRIGGER_MODE: mode }
+      });
+      assert.equal(execution.status === 0, result === "success" || (result === "skipped" && mode === "skip"), `${result}/${mode}`);
+    }
   }
 });
