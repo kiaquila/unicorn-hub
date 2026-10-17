@@ -441,7 +441,7 @@ test("legacy review markers survive prefixed and HTML-rendered edit histories", 
   for (const diff of [
     "-Codex Review: Found a P1 bug.\n+Ordinary text",
     "<del>Codex Review: Found a P1 bug.</del><ins>Ordinary text</ins>",
-    "&lt;del&gt;Codex Review: Review withdrawn&lt;/del&gt;",
+    "<del>Codex Review: Review withdrawn</del>",
     "<del>Codex</del> Review: Found a bug.",
     "&#67;odex Review: Found a bug."
   ]) {
@@ -622,6 +622,24 @@ test("HTML history excludes tag names and quoted attributes from prior evidence"
     assert.equal(result.status, 0, diff);
   }
   assert.equal(hasCodexStructuredSummaryInEditDiff(`<div title="unrelated"><del>${summary()}</del></div>`), true);
+});
+
+test("escaped tag text cannot close an HTML insertion before tokenization", () => {
+  const ordinary = comment("New reply", { node_id: "html-entity-history",
+    created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+  for (const close of ["&lt;/ins&gt;", "&#60;/ins&#62;", "&#x3c;/ins&#x3e;"]) {
+    const diff = `<ins>New ${close} codex-review-state: <!-- codex-review-receipt:v1 --></ins><del>Ordinary reply</del>`;
+    assert.equal(hasCodexReviewSignalInEditDiff(diff), false, diff);
+    assert.equal(hasCodexStructuredSummaryInEditDiff(diff), false, diff);
+    const result = runGate({ extraComments: [ordinary], historyNodes: { [ordinary.node_id]: {
+      id: ordinary.node_id, body: ordinary.body, updatedAt: ordinary.updated_at,
+      lastEditedAt: ordinary.updated_at, includesCreatedEdit: true,
+      userContentEdits: { nodes: [{ diff }], pageInfo: { hasNextPage: false } }
+    } } });
+    assert.equal(result.status, 0, diff);
+  }
+  assert.equal(hasCodexReviewSignalInEditDiff("&lt;del&gt;Codex Review: reference&lt;/del&gt;"), false);
+  assert.equal(hasCodexReviewSignalInEditDiff(`<del>${receipt.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</del>`), true);
 });
 
 

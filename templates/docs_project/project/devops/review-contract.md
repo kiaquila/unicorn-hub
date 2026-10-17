@@ -119,7 +119,8 @@ diff prefixes and paired file headers before the first hunk. Partial hunks below
 line one cannot establish a start-of-body legacy verdict. HTML history removes
 diff-specific `del`/`ins` markup, preserving text, evidence-bearing HTML comments,
 and container boundaries. Tag names and quoted attributes are excluded; nested
-insertions are removed completely.
+insertions are removed completely. Real diff markup is tokenized before retained
+text entities are decoded, so escaped tags cannot close an insertion.
 Explicit receipts and structured envelopes retain their own marker rules.
 
 Destructive native events and machine review-control mutations defer in the

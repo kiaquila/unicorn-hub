@@ -145,8 +145,8 @@ export function isCodexReviewSignal(body) {
 function priorBodyFromEditDiff(diff) {
   // Reconstruct only the prior side. Added or quoted review-like prose is not
   // evidence that a native verdict was withdrawn.
-  const markup = String(diff).replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-  const decodeText = (text) => text.replace(/&amp;/g, "&")
+  const markup = String(diff);
+  const decodeText = (text) => text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
     .replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (_match, code) => {
       const value = code[0].toLowerCase() === "x" ? Number.parseInt(code.slice(1), 16) : Number(code);
       return value <= 0x10ffff ? String.fromCodePoint(value) : "";

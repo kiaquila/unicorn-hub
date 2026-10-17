@@ -151,13 +151,19 @@
   quoted angle brackets, custom tag names, and nested insertions; genuine prior
   structured HTML-comment markers remain recognized.
 
+- Real HTML diff tokens are parsed before any retained-text entity decoding.
+  Escaped closing tags inside added text cannot end an insertion or leak new
+  review markers into prior evidence. Named, decimal, and hexadecimal escapes
+  are covered through the actual gate; escaped genuine prior receipts still
+  retain their evidence markers.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 187 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 188 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.
