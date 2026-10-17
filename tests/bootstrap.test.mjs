@@ -133,6 +133,9 @@ test("bootstrap installs generic blueprint into a synthetic target", async () =>
   for (const file of ["ai-review-helpers.mjs", "ai-review-gate.mjs", "ai-review-rerun.mjs"]) {
     assert.equal(readFileSync(join(target, "scripts", file), "utf8"), readFileSync(join(root, "scripts", file), "utf8"));
   }
+  assert.equal(readFileSync(join(target, ".github/workflows/ai-review.yml"), "utf8"),
+    readFileSync(join(root, ".github/workflows/ai-review.yml"), "utf8"),
+    "bootstrap must preserve read-only validation and base-bound trusted source promotion");
   const reviewRouter = readFileSync(join(target, ".github/workflows/ai-review-rerun.yml"), "utf8");
   assert.match(reviewRouter, /types: \[created, edited\]/);
   assert.match(reviewRouter, /contains\(github.event.comment.body, '<!-- codex-review-receipt:'/);

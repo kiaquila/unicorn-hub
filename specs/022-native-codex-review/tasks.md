@@ -6,6 +6,7 @@
 - [x] T002 Implement strict native parsing, evidence ordering, unresolved-thread checks, and final-head validation.
 - [x] T003 Fix runtime and workflow routing, bounded active-run wakeups, and duplicate suppression.
 - [x] T004 Update templates, bootstrap regressions, and durable review documentation.
+- [x] T004a Isolate read-only validation from default-branch writes and add explicit immutable, base-bound source promotion for initial rollout.
 - [ ] T005 Run full preflight, publish, and obtain native review of the final head.
 - [ ] T006 Verify all gates and threads, wait 120 seconds, and merge normally.
 
@@ -22,12 +23,15 @@
 
 ## Known Issues
 
-Initial rollout must pass the existing trusted default-branch gate without weakening protection.
+Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 140 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 143 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.
 - Native review and initial trusted-parser rollout remain deployment gates.
+- Source-promotion tests execute the actual workflow shell against a synthetic
+  Git repository; branch names, partial SHAs, injection strings, stale base pins,
+  and failed request jobs cannot select a gate or produce a passing validation.

@@ -14,7 +14,7 @@ Update evidence parsing, selection, final head validation, event routing, bounde
 - AC-002: Invalid, conflicting, stale, forged, incomplete, or unresolved evidence fails closed; a new request cannot erase findings.
 - AC-003: Created and edited evidence wakes the actual gate, including events received during an active run, without repeated reruns for the same input.
 - AC-004: Bootstrap installs the corrected scripts and workflows; template parity and full preflight pass.
-- AC-005: Initial rollout retains the default-branch trust boundary and real required checks.
+- AC-005: Initial rollout retains default-branch privileged automation and real required checks; an independently reviewed immutable gate can be explicitly promoted for read-only validation, bound to the current default SHA.
 
 ## Negative Scenarios
 

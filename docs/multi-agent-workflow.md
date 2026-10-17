@@ -82,8 +82,9 @@ still match the latest GitHub PR head.
 `AI Command Policy` and `AI Review Rerun` use native GitHub Actions reruns to
 re-check the required status after a trusted trigger or trusted review evidence
 appears or is edited. Routers serialize per PR, wait briefly for an active gate,
-and suppress events already covered by a newer attempt. Gate scripts remain on
-the trusted default branch; see the initial-rollout contract in
+and suppress events already covered by a newer attempt. Privileged scripts remain
+on the trusted default branch. Read-only validation permits an explicitly
+promoted, independently reviewed immutable snapshot for initial rollout; see
 `docs/github-ci-and-branch-protection.md`.
 
 Bot-authored comments cannot start the policy workflow, so the administrative

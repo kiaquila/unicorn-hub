@@ -39,7 +39,9 @@ For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json
   earlier success. Every unresolved Codex thread blocks independently of the
   latest request, including advisory and earlier-head findings.
 - The `AI Review` gate debounces briefly and re-checks GitHub's current PR head before accepting evidence and immediately before success; stale runs fail closed.
-- Gate scripts must run from the trusted default branch, not PR-supplied code.
+- Privileged automation always uses the trusted default branch. Validation uses
+  a read-only token and the default branch, or an independently reviewed,
+  immutable source explicitly promoted by a maintainer as described below.
 - Context-budget gates must run against the committed PR diff, not only the local worktree, so placeholder-only specs cannot pass after they are committed.
 - Skipped required gates must not be used as a successful state.
 - Node installation never falls back from a frozen lockfile; PR CI also passes `--ignore-scripts --ignore-pnpmfile`, and a missing or stale lockfile fails.
@@ -152,15 +154,37 @@ The default pull request behavior is therefore:
 
 ## Updating The Review Gate Itself
 
-Keep validation and wakeup scripts checked out from the default branch. A PR
-containing a parser fix does not update the trusted parser for its own check.
-After requesting genuine native review of the immutable current head, prefer a
-native formal review accepted by the existing gate for the initial rollout;
-rerun the original PR workflow after that evidence arrives. Never rewrite the
-bot's evidence, publish a synthetic status, switch to a weaker backend, or relax
-protection to install the fix. If the backend emits only evidence that the
-trusted parser cannot understand, retain the reviewed PR and report that exact
-bootstrap blocker until a trusted deployment path is available.
+Wakeup and administrative request scripts always use the default branch.
+Validation also defaults to that branch, resolved to an immutable SHA, and has
+only `contents: read`, `pull-requests: read`, and `issues: read`. Checkout never
+persists credentials. Optional `trigger_mode=comment` writes run in a separate
+default-branch job; request failure makes the actual `AI Review` job fail.
+
+A parser-fix PR cannot update the default-branch parser for its own check. First
+prefer genuine native formal evidence understood by the existing parser. If
+the backend only emits a new native format, a maintainer can explicitly promote
+an independently reviewed gate snapshot without changing required checks:
+
+1. Inspect the exact gate snapshot, its configuration and imports. Run preflight
+   and obtain genuine native review of that immutable commit. Do not establish
+   trust merely because the candidate parser reports its own success.
+2. Set the repository Actions variable `AI_REVIEW_GATE_PIN` to
+   `<current-default-full-sha>:<independently-reviewed-gate-full-sha>`. Both must
+   be full lowercase commit SHAs in the same repository. This is a deliberate
+   trusted-code promotion by a maintainer, never a PR input, comment, branch
+   name, or automatic fallback.
+3. Obtain native review of the final PR head, including the workflow changes.
+   Run or rerun the real `pull_request` workflow. It must evaluate live native
+   evidence and unresolved threads using the promoted code, with a read-only
+   token. No write-capable job uses the override. A manual dispatch is useful
+   for diagnosis but is not a substitute for required PR check evidence.
+4. Verify every required check and merge normally. Remove the variable after
+   merge and verify default-branch operation. A changed default SHA invalidates
+   the pin and fails closed until it is removed or independently reapproved.
+
+Never rewrite the bot's evidence, publish a synthetic status, switch to a weaker
+backend, or relax protection. If neither authentic legacy evidence nor reviewed
+source promotion is available, preserve the PR and report the bootstrap blocker.
 
 Existing consumers must refresh the three review scripts, command policy,
 review workflows, and review contract together (or run bootstrap with `--force`

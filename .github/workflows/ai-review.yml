@@ -15,26 +15,29 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
+  pull-requests: read
+  issues: read
 
 concurrency:
   group: ai-review-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  ai-review:
-    name: AI Review
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.draft == false
+  request-review:
+    name: Request native review
+    if: github.event_name == 'workflow_dispatch' && inputs.trigger_mode == 'comment'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     steps:
-      - name: Checkout trusted gate scripts
+      - name: Checkout trusted request scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
 
       - name: Resolve PR context
         id: pr
@@ -42,6 +45,97 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           AI_REVIEW_PR_NUMBER: ${{ inputs.pr_number }}
+
+      - name: Post administrative native request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AI_REVIEW_AGENT: ${{ vars.AI_REVIEW_AGENT || 'codex' }}
+          AI_REVIEW_PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          AI_REVIEW_HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { createAiReviewRequestMarkerBody } from './scripts/ai-review-helpers.mjs';
+          const agent = process.env.AI_REVIEW_AGENT.trim().toLowerCase();
+          const commands = { codex: '@codex review', claude: '@claude review once', gemini: '/gemini review' };
+          if (!Object.hasOwn(commands, agent)) throw new Error('Unsupported AI_REVIEW_AGENT');
+          const endpoint = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/issues/${process.env.AI_REVIEW_PR_NUMBER}/comments`;
+          async function post(body) {
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, accept: 'application/vnd.github+json', 'content-type': 'application/json' },
+              body: JSON.stringify({ body })
+            });
+            if (!response.ok) throw new Error(`Request comment failed: ${response.status}`);
+            return response.json();
+          }
+          const source = await post(`${commands[agent]}\n\n_Administrative trigger; a trusted human request may still be required by the native backend._`);
+          await post(createAiReviewRequestMarkerBody({
+            agent, headSha: process.env.AI_REVIEW_HEAD_SHA,
+            requestId: `workflow-${source.id}-${process.env.AI_REVIEW_HEAD_SHA.slice(0, 12)}`,
+            sourceCommentId: String(source.id), sourceCommentCreatedAt: source.created_at,
+            requestedAt: source.created_at
+          }));
+          NODE
+
+  ai-review:
+    name: AI Review
+    needs: request-review
+    if: |
+      always() && (github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.draft == false)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verify request job
+        env:
+          REQUEST_RESULT: ${{ needs.request-review.result }}
+        run: |
+          case "$REQUEST_RESULT" in
+            success|skipped) ;;
+            *) echo '::error::Native request job failed or was cancelled.'; exit 1 ;;
+          esac
+
+      - name: Checkout trusted control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Resolve PR context
+        id: pr
+        run: node scripts/resolve-pr-context.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AI_REVIEW_PR_NUMBER: ${{ inputs.pr_number }}
+
+      - name: Select trusted gate source
+        id: source
+        shell: bash
+        env:
+          REVIEW_GATE_PIN: ${{ vars.AI_REVIEW_GATE_PIN }}
+        run: |
+          set -euo pipefail
+          default_sha="$(git rev-parse HEAD)"
+          gate_sha="$default_sha"
+          if [ -n "$REVIEW_GATE_PIN" ]; then
+            if [[ ! "$REVIEW_GATE_PIN" =~ ^[a-f0-9]{40}:[a-f0-9]{40}$ ]]; then
+              echo '::error::AI_REVIEW_GATE_PIN must be <default-sha>:<independently-reviewed-gate-sha>, both full lowercase SHAs.'
+              exit 1
+            fi
+            if [ "${REVIEW_GATE_PIN%%:*}" != "$default_sha" ]; then
+              echo '::error::AI_REVIEW_GATE_PIN is stale for this default branch; remove or independently reapprove it.'
+              exit 1
+            fi
+            gate_sha="${REVIEW_GATE_PIN#*:}"
+          fi
+          echo "gate_sha=$gate_sha" >> "$GITHUB_OUTPUT"
+          echo "Validating native review with immutable gate source $gate_sha"
+
+      - name: Checkout approved immutable gate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.source.outputs.gate_sha }}
+          persist-credentials: false
 
       - name: Resolve selected review policy
         id: policy
@@ -74,7 +168,6 @@ jobs:
               ;;
           esac
           echo "selected_agent=$selected" >> "$GITHUB_OUTPUT"
-          echo "trigger_mode=$trigger_mode" >> "$GITHUB_OUTPUT"
 
       - name: Route and validate selected native review
         run: node scripts/ai-review-gate.mjs
@@ -83,7 +176,7 @@ jobs:
           AI_REVIEW_AGENT: ${{ steps.policy.outputs.selected_agent }}
           AI_REVIEW_PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           AI_REVIEW_HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
-          AI_REVIEW_TRIGGER_MODE: ${{ steps.policy.outputs.trigger_mode }}
+          AI_REVIEW_TRIGGER_MODE: skip
           AI_REVIEW_WAIT_MS: "30000"
           AI_REVIEW_POLL_MS: "5000"
           AI_REVIEW_MAX_POLL_MS: "10000"

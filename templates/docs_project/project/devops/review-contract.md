@@ -37,6 +37,16 @@ constitutes an acceptable verdict. Per-PR serialization with `queue: max`, a bou
 wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A newer
 negative or incomplete edit re-evaluates a previously successful gate.
 
+Validation has a read-only token; administrative writes remain in an isolated
+default-branch job. It normally checks out an immutable default-branch SHA.
+For a parser's initial rollout, a maintainer may set repository variable
+`AI_REVIEW_GATE_PIN=<default-full-sha>:<independently-reviewed-gate-full-sha>`
+only after inspecting, testing, and obtaining genuine native review of that
+gate snapshot. The pin is not a PR input or an automatic fallback, and expires
+when the default SHA changes. The final PR head still needs real current-head
+native evidence, resolved threads, and all real required checks. Remove the pin
+after merge; never use a synthetic status or relax protection.
+
 ## Claude
 
 Top-level comment must start with:
