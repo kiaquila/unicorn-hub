@@ -408,7 +408,10 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
       }
       continue;
     }
-    const eligibilityTime = parsed.explicitSha ? reviewEvidenceTime(comment) : comment.created_at;
+    // Only a structured snapshot carries a new whole-review verdict on edit.
+    // Code-only receipts/legacy positives retain their original publication age.
+    const eligibilityTime = parsed.explicitSha && isCodexStructuredSummarySignal(comment.body)
+      ? reviewEvidenceTime(comment) : comment.created_at;
     if (!isAfterReviewRequest(eligibilityTime, requestMarker) && parsed.result !== "fail") continue;
     if (!parsed.explicitSha && hasHeadUpdateBetweenTimestamps(timeline,
       requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt, eligibilityTime)) continue;

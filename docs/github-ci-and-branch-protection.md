@@ -243,6 +243,11 @@ must still be fully complete and consistent. The paired verdict uses the older
 of the summary update and receipt publication times, so it cannot renew an older
 receipt over intervening negative evidence. Source state is never rewritten.
 
+Positive code-only receipts and legacy verdicts retain their original publication
+time even when edited. A benign edit cannot make them newer than an intervening
+failure or request. Negative edits still use server update time; only structured
+snapshots can publish a fresh whole-review verdict through an edit.
+
 ## Updating The Review Gate Itself
 
 Wakeup and administrative request scripts always use the default branch.

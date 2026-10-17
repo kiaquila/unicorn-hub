@@ -594,3 +594,24 @@ test("corroborated structured recovery requires both artifacts after withdrawal"
   assert.equal(evaluate({ comments: [removed, freshSummary, comment(receipt)] }), "pending");
   assert.equal(evaluate({ comments: [removed, freshSummary, freshReceipt] }), "pass");
 });
+
+
+test("edited code-only positives cannot renew their age over intervening failures", () => {
+  const unknown = comment(summary(state({ has_any_findings: null, has_unresolved_findings: null })), { created_at: "2026-10-01T10:05:00Z" });
+  const negative = comment(receipt.replace("Didn't find any major issues.", "Found a P1 issue."), { created_at: "2026-10-01T10:03:00Z" });
+  for (const body of [receipt, receipt.replace("<!-- codex-review-receipt:v1 -->\n\n", "")]) {
+    const edited = comment(body, { node_id: "edited-positive", created_at: resultAt, updated_at: "2026-10-01T10:04:00Z" });
+    assert.notEqual(evaluate({ comments: [edited, negative, unknown] }), "pass");
+    assert.notEqual(evaluate({ comments: [edited, negative] }), "pass");
+    assert.notEqual(evaluate({ comments: [edited, unknown], reviews: [{ user: bot, state: "CHANGES_REQUESTED", commit_id: headSha, submitted_at: negative.created_at }] }), "pass");
+    const result = runGate({ extraComments: [edited, negative, unknown], historyNodes: { "edited-positive": {
+      id: edited.node_id, body, updatedAt: edited.updated_at, lastEditedAt: edited.updated_at, includesCreatedEdit: true,
+      userContentEdits: { nodes: [{ diff: body }], pageInfo: { hasNextPage: false } }
+    } } });
+    assert.equal(result.status, 1, result.stdout);
+    assert.doesNotMatch(result.stderr, /Last API error/);
+    const fresh = comment(receipt, { created_at: "2026-10-01T10:06:00Z" });
+    assert.equal(evaluate({ comments: [edited, negative, unknown, fresh] }), "pass");
+    assert.equal(evaluate({ comments: [edited, negative, fresh] }), "pass");
+  }
+});

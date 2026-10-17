@@ -126,13 +126,18 @@
   active security state still requires explicit complete finding-free fields.
   The observed thumbs-up receipt suffix has narrow positive-rendering coverage.
 
+- Code-only positive receipts and legacy verdicts now retain publication time
+  after edits. Classifier and actual-gate regressions reproduce a positive edit
+  masking an intervening failure, including omitted-flag corroboration, and
+  verify that a genuinely new native receipt can restore a positive result.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 182 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 183 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.
