@@ -61,13 +61,21 @@
   summaries, and both formal review states. The matrix regression reproduced
   the withdrawal false green before the fix, then passed.
 
+- Comprehensive native review identified untagged formal finding prose, deleted
+  issue evidence, and missing inline-comment mutation events. Formal bodies now
+  need recognized positive evidence or advisory priority; inline findings apply
+  to approvals too. Deletions force reevaluation without stale-time deduplication,
+  and blocking inline edits supersede earlier positives using their update time.
+  Four targeted regressions fail against the preceding commit in a synthetic
+  checkout and pass with the fix; the actual gate also rejects removed evidence.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 156 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 161 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

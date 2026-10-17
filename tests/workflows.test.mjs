@@ -61,11 +61,12 @@ test("installed workflow filter routes created/edited native evidence to the tru
   for (const prefix of ["", "templates/"]) {
     const workflow = readFileSync(join(root, prefix, ".github/workflows/ai-review-rerun.yml"), "utf8");
     assert.match(workflow, /pull_request_review:\n    types: \[submitted, edited, dismissed\]/);
-    assert.match(workflow, /issue_comment:\n    types: \[created, edited\]/);
+    assert.match(workflow, /issue_comment:\n    types: \[created, edited, deleted\]/);
     assert.match(workflow, /run: node scripts\/ai-review-rerun.mjs/);
     assert.match(workflow, /ref: \$\{\{ github.event.repository.default_branch \}\}/);
     assert.match(workflow, /cancel-in-progress: false/);
     assert.match(workflow, /queue: max/, "pending command markers and evidence wakeups must not evict each other");
+    assert.match(workflow, /pull_request_review_comment:\n    types: \[created, edited, deleted\]/);
     const expression = workflow.match(/    if: \|\n([\s\S]*?)    runs-on:/)[1];
     const route = new Function("github", "startsWith", "contains", `return (${expression});`);
     const destructiveEdit = { event_name: "issue_comment", event: { action: "edited", issue: { pull_request: {} }, comment: { body: "Review withdrawn", user: { type: "Bot" } } } };
@@ -74,7 +75,13 @@ test("installed workflow filter routes created/edited native evidence to the tru
       const github = { event_name: "pull_request_review", event: { action, review: { user: { type: "Bot" } } } };
       assert.equal(Boolean(route(github)), true);
     }
-    for (const action of ["created", "edited"]) {
+    for (const action of ["created", "edited", "deleted"]) {
+      const inline = { event_name: "pull_request_review_comment", event: { action, pull_request: { number: 1 }, comment: { body: "P1 blocker", user: { type: "Bot" } } } };
+      assert.equal(Boolean(route(inline)), true);
+      inline.event.comment.user.type = "User";
+      assert.equal(Boolean(route(inline)), false);
+    }
+    for (const action of ["created", "edited", "deleted"]) {
       for (const body of ["Codex Review: Didn't find any major issues.", "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues.", "<!-- codex-pull-request-review-summary -->", "<!-- codex-review-state:v1 {} -->"]) {
         const github = { event_name: "issue_comment", event: { action, issue: { pull_request: {} }, comment: { body, user: { type: "Bot" } } } };
         assert.equal(Boolean(route(github, (text, prefix) => text.startsWith(prefix), (text, part) => text.includes(part))), true, body);

@@ -152,11 +152,11 @@ test("native failures and all unresolved threads survive a new request marker", 
   assert.equal(evaluate({ comments: [comment(receipt)], reviews: [{ ...reviews[0], submitted_at: resultAt }] }), "fail", "failure wins a timestamp tie");
 });
 
-function runGate({ body = receipt, heads = [headSha], threads = [], reviews = [], extraComments = [], historyNodes = {}, reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
+function runGate({ body = receipt, heads = [headSha], threads = [], reviews = [], extraComments = [], inlineComments = [], deletedEvidence = false, historyNodes = {}, reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
   const dir = mkdtempSync(join(tmpdir(), "native-review-gate-"));
   try {
     const markerBody = createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "1", sourceCommentId: "1", sourceCommentCreatedAt: triggerAt, requestedAt: triggerAt });
-    const fixture = { heads, threads, reviews, historyNodes, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), comment(body), ...extraComments] };
+    const fixture = { heads, threads, reviews, inlineComments, historyNodes, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), ...(deletedEvidence ? [] : [comment(body)]), ...extraComments] };
     const preload = join(dir, "fetch.mjs");
     writeFileSync(preload, `const fixture = ${JSON.stringify(fixture)}; let headRead = 0;
       globalThis.fetch = async (url, options = {}) => {
@@ -165,6 +165,7 @@ function runGate({ body = receipt, heads = [headSha], threads = [], reviews = []
         else if (url.endsWith('/graphql')) data = { errors: fixture.graphErrors, data: { repository: { pullRequest: { reviews: { nodes: fixture.reviews, pageInfo: fixture.reviewPageInfo }, reviewThreads: { nodes: fixture.threads, pageInfo: { hasNextPage: false } } } } } };
         else if (/\\/pulls\\/1$/.test(url)) data = { head: { sha: fixture.heads[Math.min(headRead++, fixture.heads.length - 1)] } };
         else if (url.includes('/issues/1/comments')) data = fixture.comments;
+        else if (url.includes('/pulls/1/comments')) data = fixture.inlineComments;
         else if (/\\/(reviews|comments|timeline)\\?/.test(url)) data = [];
         else throw new Error('Unexpected gate request: ' + url);
         return { ok: true, status: 200, json: async () => data };
@@ -263,7 +264,7 @@ test("fresh formal approvals and implicit COMMENTED verdicts reject negative and
       assert.equal(runGate({ reviews: [node] }).status, 1, `${reviewState}: ${body}`);
     }
     const help = { user: bot, commit_id: headSha, state: reviewState, submitted_at: resultAt,
-      body: "Completed\n<details><summary>About Codex in GitHub</summary>Help: the app reacts while reviews are running.</details>" };
+      body: "Approved.\n<details><summary>About Codex in GitHub</summary>Help: the app reacts while reviews are running.</details>" };
     assert.equal(evaluate({ reviews: [help] }), "pass");
   }
 });
@@ -286,4 +287,43 @@ test("withdrawn, revoked, stopped and unavailable review states invalidate every
     }
   }
   assert.equal(runGate({ body: summary() + "\nReview withdrawn" }).status, 1);
+});
+
+
+test("fresh formal review bodies need a recognized verdict or explicit advisory priority", () => {
+  for (const reviewState of ["APPROVED", "COMMENTED"]) {
+    for (const body of ["Codex Review: Found a major bug.", "Detected a major bug.", "There is an untagged security issue.", "Unrecognized review result"]) {
+      const review = { id: 2, user: bot, commit_id: headSha, state: reviewState, body,
+        submitted_at: "2026-10-01T10:03:00Z", updated_at: "2026-10-01T10:03:00Z", last_edited_at: null };
+      assert.notEqual(evaluate({ comments: [comment(receipt)], reviews: [review] }), "pass", `${reviewState}: ${body}`);
+      const node = { databaseId: 2, state: reviewState, body, submittedAt: review.submitted_at, updatedAt: review.updated_at,
+        lastEditedAt: null, commit: { oid: headSha }, author: { login: "chatgpt-codex-connector", __typename: "Bot" } };
+      assert.equal(runGate({ reviews: [node] }).status, 1);
+    }
+    for (const body of ["Approved.", "No issues found.", "Codex Review: Didn't find any major issues.", "P3 advisory note"]) {
+      assert.equal(evaluate({ reviews: [{ user: bot, commit_id: headSha, state: reviewState, body, submitted_at: resultAt }] }), "pass", body);
+    }
+  }
+});
+
+test("blocking inline edits supersede later receipts without renewing old positive reviews", () => {
+  for (const reviewState of ["APPROVED", "COMMENTED"]) {
+    const review = { id: 2, user: bot, commit_id: headSha, state: reviewState, body: "", submitted_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:01:00Z" };
+    const edited = { pull_request_review_id: 2, user: bot, body: "P1 blocker", created_at: review.submitted_at, updated_at: "2026-10-01T10:03:00Z" };
+    assert.equal(evaluate({ reviews: [review], reviewComments: [edited], comments: [comment(receipt)] }), "fail");
+    const node = { databaseId: 2, state: reviewState, body: "", submittedAt: review.submitted_at, updatedAt: review.updated_at,
+      lastEditedAt: null, commit: { oid: headSha }, author: { login: "chatgpt-codex-connector", __typename: "Bot" } };
+    assert.equal(runGate({ reviews: [node], inlineComments: [edited] }).status, 1);
+    assert.equal(evaluate({ reviews: [review], reviewComments: [{ ...edited, body: "P3 advisory" }], comments: [comment(receipt.replace("Didn't find any major issues.", "Found a P1 issue."))] }), "fail");
+    assert.equal(evaluate({ reviews: [review], reviewComments: [{ ...edited, user: { login: "untrusted[bot]" } }], comments: [comment(receipt)] }), "pass");
+    const oldNegative = { ...review, state: "CHANGES_REQUESTED" };
+    assert.equal(evaluate({ reviews: [oldNegative], reviewComments: [{ ...edited, body: "P3 advisory" }], comments: [comment(receipt)] }), "pass", "benign advisory edits cannot refresh an older negative formal state");
+  }
+});
+
+test("actual gate loses success after the only native receipt is deleted", () => {
+  assert.equal(runGate({}).status, 0);
+  const deleted = runGate({ deletedEvidence: true });
+  assert.equal(deleted.status, 1);
+  assert.doesNotMatch(deleted.stderr, /Last API error/);
 });

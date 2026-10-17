@@ -19,11 +19,15 @@ function normalizeAgent(agent) {
 export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", config = {}) {
   const agent = normalizeAgent(selectedAgent);
 
-  if (event.action && !["created", "edited", "submitted", "dismissed"].includes(event.action)) return false;
+  if (event.action && !["created", "edited", "submitted", "dismissed", "deleted"].includes(event.action)) return false;
 
   if (event?.review) {
     return ["codex", "gemini"].includes(agent) &&
       isTrustedReviewLogin(event.review.user?.login, agent, config);
+  }
+
+  if (event?.pull_request && event?.comment?.pull_request_review_id) {
+    return agent === "codex" && isTrustedReviewLogin(event.comment.user?.login, "codex", config);
   }
 
   if (!event?.issue?.pull_request || !event?.comment) return false;
@@ -31,7 +35,7 @@ export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", co
   const login = event.comment.user?.login;
 
   if (agent === "codex") {
-    return (event.action === "edited" || isCodexReviewSignal(body)) && isTrustedReviewLogin(login, "codex", config);
+    return (["edited", "deleted"].includes(event.action) || isCodexReviewSignal(body)) && isTrustedReviewLogin(login, "codex", config);
   }
 
   if (agent === "claude") {
@@ -73,6 +77,9 @@ async function defaultRequest(token, repository, path, options = {}) {
 }
 
 export async function reviewEventEvidenceTime({ token, repository, event, request = defaultRequest }) {
+  // Deletion payloads retain the old content update time, not deletion time.
+  // Force a fresh evaluation instead of deduplicating against that old value.
+  if (event.action === "deleted") return undefined;
   if (!event.review) return reviewEvidenceTime(event.comment);
   if (!["edited", "dismissed"].includes(event.action)) return event.review.submitted_at;
   // Review webhooks keep the original submitted_at after edits/dismissals.
@@ -115,6 +122,7 @@ export async function rerunAiReviewForPrHead({
   headSha,
   prNumber,
   evidenceUpdatedAt,
+  forceRerun = false,
   request = defaultRequest,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now = Date.now,
@@ -146,7 +154,7 @@ export async function rerunAiReviewForPrHead({
       continue;
     }
     let alreadyEvaluated = false;
-    if (evidenceUpdatedAt && selected.run) {
+    if (!forceRerun && evidenceUpdatedAt && selected.run) {
       // The attempt endpoint records the latest rerun start rather than the
       // original run creation time. This suppresses duplicate/delayed events.
       const attempt = await request(token, repository,
@@ -155,7 +163,7 @@ export async function rerunAiReviewForPrHead({
       const evidenceTime = Date.parse(evidenceUpdatedAt);
       alreadyEvaluated = Number.isFinite(attemptStart) && Number.isFinite(evidenceTime) && attemptStart > evidenceTime;
     }
-    if (selected.run && !alreadyEvaluated && (selected.action === "rerun" || evidenceUpdatedAt)) {
+    if (selected.run && !alreadyEvaluated && (selected.action === "rerun" || evidenceUpdatedAt || forceRerun)) {
       // Close the list-runs/new-push race immediately before mutation.
       if (prNumber) {
         const pull = await request(token, repository, `/repos/${owner}/${repo}/pulls/${prNumber}`);
@@ -208,7 +216,8 @@ async function main() {
     repository,
     headSha: context.headSha,
     prNumber: context.prNumber,
-    evidenceUpdatedAt
+    evidenceUpdatedAt,
+    forceRerun: event.action === "deleted"
   });
   console.log(result.message);
 }

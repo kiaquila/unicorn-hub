@@ -254,12 +254,13 @@ test("runtime router wakes on created/edited receipts and mutable summaries with
       assert.equal(shouldRouteAiReviewRerunEvent(event, "codex"), true);
       assert.equal(shouldRouteAiReviewRerunEvent({ ...event, comment: { ...event.comment, user: { login: "someone-else[bot]" } } }, "codex"), false);
       assert.equal(shouldRouteAiReviewRerunEvent(event, "gemini"), false);
-      assert.equal(shouldRouteAiReviewRerunEvent({ ...event, action: "deleted" }, "codex"), false);
+      assert.equal(shouldRouteAiReviewRerunEvent({ ...event, action: "deleted" }, "codex"), true);
+      assert.equal(shouldRouteAiReviewRerunEvent({ ...event, action: "labeled" }, "codex"), false);
     }
   }
 });
 
-function wakeupHarness({ statuses = ["completed"], conclusion = "failure", attemptStart = "2026-10-01T10:00:00Z", heads = ["abc"], maxWaitMs = 1000 } = {}) {
+function wakeupHarness({ statuses = ["completed"], conclusion = "failure", attemptStart = "2026-10-01T10:00:00Z", heads = ["abc"], maxWaitMs = 1000, forceRerun = false, evidenceUpdatedAt = "2026-10-01T10:01:00Z" } = {}) {
   const calls = [];
   let clock = 0, listings = 0, pulls = 0;
   const request = async (_token, _repository, path, options = {}) => {
@@ -275,7 +276,7 @@ function wakeupHarness({ statuses = ["completed"], conclusion = "failure", attem
   };
   return {
     calls,
-    run: () => rerunAiReviewForPrHead({ token: "synthetic", repository: "example/project", headSha: "abc", prNumber: 1, evidenceUpdatedAt: "2026-10-01T10:01:00Z", request, sleep: async (ms) => { clock += ms; }, now: () => clock, maxWaitMs })
+    run: () => rerunAiReviewForPrHead({ token: "synthetic", repository: "example/project", headSha: "abc", prNumber: 1, evidenceUpdatedAt, forceRerun, request, sleep: async (ms) => { clock += ms; }, now: () => clock, maxWaitMs })
   };
 }
 
@@ -350,4 +351,28 @@ test("trusted Codex edits still wake validation after removing every review mark
     assert.equal(shouldRouteAiReviewRerunEvent(event), true);
     assert.equal(shouldRouteAiReviewRerunEvent({ ...event, comment: { ...event.comment, user: { login: "untrusted[bot]" } } }), false);
   }
+});
+
+
+test("native issue deletions and inline comment mutations route through trusted identities", async () => {
+  for (const action of ["created", "edited", "deleted"]) {
+    const event = { action, pull_request: { number: 1 }, comment: { pull_request_review_id: 2, body: "P1 blocker", updated_at: "2026-10-01T10:03:00Z", user: { login: "chatgpt-codex-connector[bot]" } } };
+    assert.equal(shouldRouteAiReviewRerunEvent(event), true);
+    assert.equal(shouldRouteAiReviewRerunEvent({ ...event, comment: { ...event.comment, user: { login: "untrusted[bot]" } } }), false);
+    const timestamp = await reviewEventEvidenceTime({ event });
+    assert.equal(timestamp, action === "deleted" ? undefined : event.comment.updated_at);
+  }
+  const issueDeletion = { action: "deleted", issue: { number: 1, pull_request: {} }, comment: { body: "Review withdrawn", user: { login: "chatgpt-codex-connector[bot]" } } };
+  assert.equal(shouldRouteAiReviewRerunEvent(issueDeletion), true);
+  assert.equal(await reviewEventEvidenceTime({ event: issueDeletion }), undefined);
+});
+
+test("deletions force a fresh evaluation after success despite the deleted comment's old timestamp", async () => {
+  const deletion = wakeupHarness({ conclusion: "success", attemptStart: "2026-10-01T10:04:00Z", forceRerun: true });
+  assert.equal((await deletion.run()).action, "rerun");
+  assert.equal(deletion.calls.filter((call) => call.path.includes("/attempts/")).length, 0);
+  assert.equal(deletion.calls.filter((call) => call.method === "POST").length, 1);
+  const evidenceUpdatedAt = "2026-10-01T10:03:00Z";
+  assert.equal((await wakeupHarness({ conclusion: "success", attemptStart: "2026-10-01T10:02:00Z", evidenceUpdatedAt }).run()).action, "rerun");
+  assert.equal((await wakeupHarness({ conclusion: "success", attemptStart: "2026-10-01T10:04:00Z", evidenceUpdatedAt }).run()).action, "already_evaluated");
 });

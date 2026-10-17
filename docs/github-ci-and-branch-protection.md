@@ -173,6 +173,15 @@ The default pull request behavior is therefore:
    states using the same negative-state classifier as native summaries.
    Withdrawal, revocation, stopped/unavailable states, and standard non-success
    workflow conclusions are also negative across every accepted review format.
+   Nonempty formal-review bodies need a recognized no-findings/approval verdict
+   or explicit advisory priority; unknown finding prose never inherits success
+   from the formal state. Inline comments are checked even on formal approvals.
+   Inline review-comment creation, edits, and deletion wake validation; blocking
+   inline edits use their own server update time to supersede older positives.
+   Positive/advisory edits cannot refresh an older verdict. Native issue-comment
+   deletions always force a fresh evaluation after active runs complete: their
+   old content timestamp cannot safely deduplicate deletion events. Duplicate
+   deletion deliveries may rerun twice, preserving validation over deduplication.
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 

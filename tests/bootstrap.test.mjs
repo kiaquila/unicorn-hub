@@ -137,7 +137,12 @@ test("bootstrap installs generic blueprint into a synthetic target", async () =>
     readFileSync(join(root, ".github/workflows/ai-review.yml"), "utf8"),
     "bootstrap must preserve read-only validation and base-bound trusted source promotion");
   const reviewRouter = readFileSync(join(target, ".github/workflows/ai-review-rerun.yml"), "utf8");
-  assert.match(reviewRouter, /types: \[created, edited\]/);
+  assert.match(reviewRouter, /issue_comment:\n    types: \[created, edited, deleted\]/);
+  assert.match(reviewRouter, /pull_request_review_comment:\n    types: \[created, edited, deleted\]/);
+  assert.equal(reviewRouter, readFileSync(join(root, ".github/workflows/ai-review-rerun.yml"), "utf8"));
+  const installedRouter = await import(join(target, "scripts/ai-review-rerun.mjs"));
+  assert.equal(installedRouter.shouldRouteAiReviewRerunEvent({ action: "deleted", issue: { pull_request: {}, number: 1 }, comment: { body: "", user: { login: "chatgpt-codex-connector[bot]" } } }), true);
+  assert.equal(installedRouter.shouldRouteAiReviewRerunEvent({ action: "edited", pull_request: { number: 1 }, comment: { pull_request_review_id: 2, body: "P1 blocker", user: { login: "chatgpt-codex-connector[bot]" } } }), true);
   assert.match(reviewRouter, /contains\(github.event.comment.body, '<!-- codex-review-receipt:'/);
   assert.match(reviewRouter, /contains\(github.event.comment.body, '<!-- codex-review-state:'/);
   assert.match(reviewRouter, /run: node scripts\/ai-review-rerun.mjs/);

@@ -37,7 +37,19 @@ The latest result wins, with failure winning timestamp ties. All unresolved
 Codex threads block, including advisory or earlier-head findings, independently
 of the request marker. The gate rechecks the live PR head before success.
 
-Both created and edited native comments wake the gate. Wakeup routing never
+Formal reviews reject negative/incomplete state text and unrecognized finding
+prose. Nonempty bodies require a recognized no-findings/approval verdict or an
+explicit advisory priority. Inline findings are checked on both commented and
+approved reviews; blocking inline edits use their own update time, while
+positive edits cannot renew old approval eligibility. Edited COMMENTED reviews
+lose their implicit no-findings verdict.
+
+Created, edited, and deleted native comments, plus formal review and inline
+review-comment mutations, wake the gate. Deletions always force a fresh check;
+the deleted comment's old update time cannot suppress this rerun. Ordinary bot
+replies remain unrelated: pending withdrawal tombstones require a former review
+signal verified from complete server edit history.
+ Wakeup routing never
 constitutes an acceptable verdict. Per-PR serialization with `queue: max`, a bounded active-run
 wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A newer
 negative or incomplete edit re-evaluates a previously successful gate.

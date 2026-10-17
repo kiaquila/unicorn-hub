@@ -253,10 +253,9 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
       ? `${comment.author.login}[bot]` : comment.author?.login, "codex", config)))) return "fail";
   const candidates = [];
   for (const review of reviews) {
-    const result = classifyCodexNativeReview(review, reviewComments, headSha, config);
+    const result = classifyCodexNativeReview(review, reviewComments, headSha, config, requestMarker);
     if (result && (result !== "pass" || isAfterReviewRequest(review.submitted_at, requestMarker))) {
-      const orderingTime = result !== "pass" ? (review.updated_at || review.submitted_at) : review.submitted_at;
-      candidates.push({ result, time: Date.parse(orderingTime || "") });
+      candidates.push({ result, time: nativeReviewEvidenceTime(review, reviewComments, result, config) });
     }
   }
   for (const comment of comments) {
@@ -298,7 +297,17 @@ export function hasHeadUpdateBetweenTimestamps(timeline = [], startCreatedAt, en
   });
 }
 
-export function classifyCodexNativeReview(review, reviewComments = [], headSha, config = {}) {
+function nativeReviewEvidenceTime(review, reviewComments, result, config) {
+  const times = [result === "pass" ? review.submitted_at : (review.updated_at || review.submitted_at)];
+  if (result === "fail") {
+    times.push(...reviewComments.filter((comment) => comment.pull_request_review_id === review.id &&
+      isTrustedReviewLogin(comment.user?.login, "codex", config) &&
+      (extractCodexPriority(comment.body) === null || extractCodexPriority(comment.body) <= 2)).map(reviewEvidenceTime));
+  }
+  return Math.max(...times.map((time) => Date.parse(time || "")).filter(Number.isFinite));
+}
+
+export function classifyCodexNativeReview(review, reviewComments = [], headSha, config = {}, requestMarker = null) {
   if (!review) return null;
   if (!headSha || review.commit_id !== headSha) return null;
   const login = normalizeLogin(review.user?.login);
@@ -306,22 +315,30 @@ export function classifyCodexNativeReview(review, reviewComments = [], headSha, 
   if (containsBlockingSeverity(review.body, "codex") ||
       containsNegativeReviewState(withoutCodexHelpFooter(review.body))) return "fail";
 
-  if (review.state === "APPROVED") return "pass";
   if (["CHANGES_REQUESTED", "DISMISSED"].includes(review.state)) return "fail";
-  if (review.state !== "COMMENTED") return null;
-  // COMMENTED is only an implicit no-findings verdict at submission. Body
-  // edits can withdraw that verdict without changing GitHub's review state.
-  if (review.last_edited_at) return "pending";
+  if (!["APPROVED", "COMMENTED"].includes(review.state)) return null;
 
   const commentsForReview = reviewComments.filter((comment) =>
     comment.pull_request_review_id === review.id &&
     isTrustedReviewLogin(comment.user?.login, "codex", config)
   );
-  if (commentsForReview.length === 0) return "pass";
-
   const priorities = commentsForReview.map((comment) => extractCodexPriority(comment.body));
-  if (priorities.some((priority) => priority === null)) return "fail";
-  return Math.min(...priorities) <= 2 ? "fail" : "pass";
+  if (priorities.some((priority) => priority === null || priority <= 2)) return "fail";
+  // COMMENTED is only an implicit no-findings verdict at submission. Body
+  // edits can withdraw that verdict without changing GitHub's review state.
+  if (review.state === "COMMENTED" && review.last_edited_at) return "pending";
+  const visible = withoutCodexHelpFooter(review.body || "").trim();
+  if (!visible) return "pass";
+  const parsed = classifyCodexSummaryComment({ ...review, created_at: review.submitted_at }, headSha, requestMarker, config);
+  if (parsed) return parsed.result;
+  if (isCodexReviewSignal(visible)) return "pending";
+  if (/^(?:approved|lgtm|looks good(?: to me)?|no (?:major )?issues(?: found)?)[.!]?$/i.test(visible)) return "pass";
+  const hashes = visible.match(/\b[a-f0-9]{10,40}\b/g) || [];
+  if (hashes.some((sha) => !headSha.startsWith(sha))) return "pending";
+  const bodyPriority = extractCodexPriority(visible);
+  if (bodyPriority !== null && bodyPriority >= 3) return "pass";
+  // Unknown finding prose must not inherit success from the formal state.
+  return "pending";
 }
 
 export function latestCodexNativeReviewResult(reviews = [], reviewComments = [], headSha, config = {}) {
@@ -332,7 +349,8 @@ export function latestCodexNativeReviewResult(reviews = [], reviewComments = [],
     }))
     .filter((entry) => entry.result !== null)
     .sort((left, right) =>
-      Date.parse(right.review.submitted_at || "") - Date.parse(left.review.submitted_at || "")
+      nativeReviewEvidenceTime(right.review, reviewComments, right.result, config) -
+      nativeReviewEvidenceTime(left.review, reviewComments, left.result, config)
     )[0]?.result || null;
 }
 
@@ -343,9 +361,7 @@ export function isAcceptableNativeReview(review, agent, headSha, config = {}) {
   const body = review.body || "";
 
   if (agent === "codex") {
-    return isTrustedReviewLogin(login, agent, config) &&
-      review.state === "APPROVED" &&
-      !containsBlockingSeverity(body, agent);
+    return review.state === "APPROVED" && classifyCodexNativeReview(review, [], headSha, config) === "pass";
   }
 
   if (agent === "gemini") {
