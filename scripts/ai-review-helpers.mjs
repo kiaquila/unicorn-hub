@@ -152,7 +152,7 @@ function priorBodyFromEditDiff(diff) {
     });
   if (/<(?:del|ins)\b/i.test(decoded)) {
     const prior = decoded.replace(/<ins\b[^>]*>[\s\S]*?<\/ins>/gi, "")
-      .replace(/<\/?[a-z][^>]*>/gi, "");
+      .replace(/<\/?del\b[^>]*>/gi, "");
     return prior;
   }
   const lines = decoded.split("\n");
