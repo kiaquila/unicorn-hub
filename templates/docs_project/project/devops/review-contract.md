@@ -131,7 +131,7 @@ cannot race the independent writer and briefly restore an older positive result.
 When the native backend omits both code findings flags in a completed summary,
 that summary remains pending by itself. The gate can corroborate it only with a
 separate trusted v1 no-findings receipt bound to the exact head and created after
-the current request. Only exact observed celebratory receipt closings are accepted, including `:+1:`,
+the current request. Only exact observed celebratory receipt closings are accepted, including `:+1:`, "Delightful!",
 "Can't wait for the next one!", and "Already looking forward to the next diff.".
 Unknown closings or appended findings remain non-passing. Both artifacts
 must be newer than any withdrawal they clear. Mixed null/boolean flags, missing

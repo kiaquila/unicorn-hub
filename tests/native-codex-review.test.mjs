@@ -58,7 +58,7 @@ test("native receipt and legacy no-findings preserve explicit head binding", () 
 
 test("observed native receipt closings remain exact and cannot hide findings", () => {
   const omittedFlags = summary(state({ has_any_findings: null, has_unresolved_findings: null }));
-  for (const closing of ["Can't wait for the next one!", "Already looking forward to the next diff."]) {
+  for (const closing of ["Can't wait for the next one!", "Already looking forward to the next diff.", "Delightful!"]) {
     const body = receipt.replace(":rocket:", closing) + "\n" + helpFooter;
     assert.equal(evaluate({ comments: [comment(body), comment(omittedFlags)] }), "pass");
     assert.equal(runGate({ body, extraComments: [comment(omittedFlags)] }).status, 0);

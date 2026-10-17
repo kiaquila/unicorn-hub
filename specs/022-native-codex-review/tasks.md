@@ -157,7 +157,7 @@
   are covered through the actual gate; escaped genuine prior receipts still
   retain their evidence markers.
 
-- Exact observed native no-findings closings include the two textual celebrations
+- Exact observed native no-findings closings include the observed textual celebrations
   alongside existing emoji/short variants. Regression coverage exercises genuine
   omitted-flag corroboration and rejects appended findings, unknown prose, stale
   heads, and untrusted identities.
