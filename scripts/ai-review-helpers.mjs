@@ -354,6 +354,51 @@ export function isAcceptableCodexSummaryComment(comment, headSha, requestMarker 
   return classifyCodexSummaryComment(comment, headSha, requestMarker, config)?.result === "pass";
 }
 
+export function reviewWithdrawalPrNumber(run, { repository, defaultBranch, config = {} }) {
+  const title = String(run.display_title || "").match(/^AI review evidence:(issue_comment|pull_request_review_comment):(deleted|edited):([1-9][0-9]*):([^:]+):(true|false):(true|false):(true|false)$/);
+  if (typeof run.path !== "string" || run.repository?.full_name?.toLowerCase() !== repository.toLowerCase() ||
+      !title || title[1] !== run.event || !Number.isFinite(Date.parse(run.created_at || ""))) return null;
+  const nativeWithdrawal = isTrustedReviewLogin(title[4], "codex", config) &&
+    ((title[2] === "deleted" && (title[1] === "pull_request_review_comment" || title[6] === "true")) ||
+      (title[2] === "edited" && (title[6] === "true" || title[7] === "true")));
+  const machineMutation = title[4].toLowerCase() === "github-actions[bot]" && title[5] === "true";
+  if (!nativeWithdrawal && !machineMutation) return null;
+  const prNumber = Number(title[3]);
+  if (!Number.isSafeInteger(prNumber)) throw new Error("Invalid withdrawal PR number.");
+  const workflowPath = ".github/workflows/ai-review-rerun.yml";
+  const workflowRef = run.path.startsWith(`${workflowPath}@`) ? run.path.slice(workflowPath.length + 1) : null;
+  if (run.path !== workflowPath && (!workflowRef || ![
+    run.head_branch, run.head_sha, run.head_branch && `refs/heads/${run.head_branch}`,
+    defaultBranch, defaultBranch && `refs/heads/${defaultBranch}`,
+    ...(run.event === "pull_request_review_comment" ? [`refs/pull/${prNumber}/merge`, `refs/pull/${prNumber}/head`] : [])
+  ].filter(Boolean).includes(workflowRef))) return null;
+
+  // issue_comment definitions come from the default branch. For PR-context
+  // runs, constrain this negative-only record to the API-associated PR, so a
+  // contributor cannot use a forged run title to write on another PR.
+  if (run.event === "issue_comment" ? !defaultBranch || run.head_branch !== defaultBranch
+    : !run.pull_requests?.some((pull) => pull.number === prNumber)) return null;
+  return prNumber;
+}
+
+export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, defaultBranch, prNumber, config = {} }) {
+  return runs.some((run) => {
+    if (reviewWithdrawalPrNumber(run, { repository, defaultBranch, config }) !== Number(prNumber)) return false;
+    if (!Number.isSafeInteger(run.id) || run.id <= 0) throw new Error("Invalid withdrawal source run ID.");
+    return !comments.some((comment) => {
+      if (normalizeLogin(comment.user?.login) !== "github-actions[bot]") return false;
+      const match = String(comment.body || "").match(/^<!-- unicorn-hub:ai-review-withdrawal:v1 (.+) -->$/);
+      let record;
+      try { record = match && JSON.parse(match[1]); } catch { return false; }
+      if (!record || !/^[a-f0-9]{40}$/.test(record.head_sha || "")) return false;
+      const expected = { agent: "codex", head_sha: record.head_sha, pr_number: Number(prNumber),
+        source_created_at: run.created_at, source_run_id: run.id };
+      return match[1] === JSON.stringify(expected) &&
+        Number.isFinite(Date.parse(comment.created_at || "")) && Date.parse(comment.created_at) >= Date.parse(run.created_at);
+    });
+  });
+}
+
 export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComments = [], threads = [], timeline = [], headSha, requestMarker, config = {} }) {
   // All unresolved Codex findings block, including advisory and old-head threads.
   // Request markers only set the evidence cutoff; they cannot resolve findings.

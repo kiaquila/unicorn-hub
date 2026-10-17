@@ -106,3 +106,8 @@ A task is complete only when the current PR head SHA has:
 - no unresolved merge conflicts
 - updated specs and durable docs where required
 - only final human approval or merge mechanics remaining
+
+Withdrawal publication is a gate precondition: read-only validation checks trusted
+source runs against durable records, so later evidence cannot overtake a pending
+or failed independent writer. Source API failures and incomplete pagination block
+validation.

@@ -9,6 +9,7 @@ import {
   hasCodexReviewSignalInEditDiff,
   isCodexStructuredSummarySignal,
   hasCodexStructuredSummaryInEditDiff,
+  hasUnrecordedReviewWithdrawals,
   isTrustedReviewLogin,
   latestAiReviewRequestMarker
 } from "./ai-review-helpers.mjs";
@@ -260,6 +261,28 @@ async function fetchEvidence() {
     const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
     const timeline = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/timeline`);
     const threads = await fetchReviewThreads();
+    // A later wakeup must observe a destructive source even while the separate
+    // default-branch writer is queued, failed, or still publishing its record.
+    const pull = await request(`/repos/${owner}/${repo}/pulls/${prNumber}`);
+    if (pull.head?.sha !== headSha) return "stale";
+    const defaultBranch = pull.base?.repo?.default_branch;
+    if (pull.number !== Number(prNumber) || !defaultBranch || !Number.isFinite(Date.parse(pull.created_at || ""))) {
+      throw new Error("Could not verify withdrawal scope.");
+    }
+    const runs = [];
+    for (let page = 1; ; page++) {
+      const response = await request(`/repos/${owner}/${repo}/actions/workflows/ai-review-rerun.yml/runs?created=${encodeURIComponent(`>=${pull.created_at}`)}&per_page=100&page=${page}`);
+      if (!Array.isArray(response.workflow_runs) || !Number.isSafeInteger(response.total_count) ||
+          response.total_count < 0 || response.total_count > 1000) throw new Error("Could not completely verify withdrawal source runs.");
+      runs.push(...response.workflow_runs);
+      if (response.workflow_runs.length < 100) {
+        if (runs.length !== response.total_count || new Set(runs.map((run) => run.id)).size !== runs.length) {
+          throw new Error("Withdrawal source pagination changed or is incomplete.");
+        }
+        break;
+      }
+    }
+    if (hasUnrecordedReviewWithdrawals({ runs, comments, repository, defaultBranch, prNumber, config })) return "pending";
     return evaluateCodexEvidence({ comments, reviews, reviewComments, timeline, threads, headSha, requestMarker, config });
   }
 

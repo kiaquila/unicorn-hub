@@ -162,13 +162,19 @@
   omitted-flag corroboration and rejects appended findings, unknown prose, stale
   heads, and untrusted identities.
 
+- Read-only validation checks all server-listed withdrawal sources against exact
+  durable records using the writer's shared provenance validation. Later wakeups
+  cannot overtake queued, active, or failed writers. Actual-gate regressions cover
+  recovery, stale/forged records, previous-head processing, API failures, and
+  complete pagination with explicit fail-closed search limits.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 189 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 190 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

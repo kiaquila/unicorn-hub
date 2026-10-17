@@ -239,6 +239,18 @@ ordinary rerun router. Only the default-branch withdrawal controller wakes their
 validation, after the durable negative record has been published. A direct rerun
 cannot race the independent writer and briefly restore an older positive result.
 
+
+The read-only gate also checks server-listed withdrawal source runs for this PR
+since its creation. A source requires its exact trusted durable record even while
+the separate writer is queued, running, or failed; later positive wakeups cannot
+publish green before that fence. Writer and gate share provenance validation.
+Records already persisted on an earlier head prove that source was processed;
+current-head records still require a newer complete structured snapshot. This
+uses `actions: read` only. API errors, changing/incomplete pagination, and the
+Actions search limit fail closed instead of silently skipping sources. A deleted
+durable record must be restored by replaying its original default-branch
+controller; later reviews or replacement records cannot silently erase its source.
+
 When the native backend omits both code findings flags in a completed summary,
 that summary remains pending by itself. The gate can corroborate it only with a
 separate trusted v1 no-findings receipt bound to the exact head and created after

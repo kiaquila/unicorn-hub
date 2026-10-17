@@ -188,11 +188,11 @@ test("native failures and all unresolved threads survive a new request marker", 
   assert.equal(evaluate({ comments: [comment(receipt)], reviews: [{ ...reviews[0], submitted_at: resultAt }] }), "fail", "failure wins a timestamp tie");
 });
 
-function runGate({ body = receipt, clockStep = 0, heads = [headSha], threads = [], reviews = [], extraComments = [], inlineComments = [], deletedEvidence = false, historyNodes = {}, reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
+function runGate({ body = receipt, clockStep = 0, heads = [headSha], threads = [], reviews = [], extraComments = [], inlineComments = [], deletedEvidence = false, historyNodes = {}, reviewPageInfo = { hasNextPage: false }, graphErrors = null, withdrawalPages = [{ total_count: 0, workflow_runs: [] }], withdrawalApiError = false }) {
   const dir = mkdtempSync(join(tmpdir(), "native-review-gate-"));
   try {
     const markerBody = createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "1", sourceCommentId: "1", sourceCommentCreatedAt: triggerAt, requestedAt: triggerAt });
-    const fixture = structuredClone({ heads, clockStep, threads, reviews, inlineComments, historyNodes, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), ...(deletedEvidence ? [] : [comment(body)]), ...extraComments] });
+    const fixture = structuredClone({ heads, clockStep, threads, reviews, inlineComments, historyNodes, reviewPageInfo, graphErrors, withdrawalPages, withdrawalApiError, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), ...(deletedEvidence ? [] : [comment(body)]), ...extraComments] });
     for (const [index, item] of fixture.comments.entries()) {
       if (item.user?.login !== bot.login || item.node_id) continue;
       item.node_id = `created-native-${index}`;
@@ -206,7 +206,11 @@ function runGate({ body = receipt, clockStep = 0, heads = [headSha], threads = [
         let data;
         if (url.endsWith('/graphql') && JSON.parse(options.body).query.includes('userContentEdits')) { const variables = JSON.parse(options.body).variables; const nodes = fixture.historyNodes[variables.id]; data = { data: { node: Array.isArray(nodes) ? nodes[variables.cursor ? 1 : 0] : nodes } }; }
         else if (url.endsWith('/graphql')) data = { errors: fixture.graphErrors, data: { repository: { pullRequest: { reviews: { nodes: fixture.reviews, pageInfo: fixture.reviewPageInfo }, reviewThreads: { nodes: fixture.threads, pageInfo: { hasNextPage: false } } } } } };
-        else if (/\\/pulls\\/1$/.test(url)) data = { head: { sha: fixture.heads[Math.min(headRead++, fixture.heads.length - 1)] } };
+        else if (/\\/pulls\\/1$/.test(url)) data = { number: 1, created_at: '2026-09-01T00:00:00Z', base: { repo: { default_branch: 'main' } }, head: { sha: fixture.heads[Math.min(headRead++, fixture.heads.length - 1)] } };
+        else if (url.includes('/workflows/ai-review-rerun.yml/runs')) {
+          if (fixture.withdrawalApiError) return { ok: false, status: 403, statusText: 'Forbidden', text: async () => 'Missing Actions read access' };
+          data = fixture.withdrawalPages[Number(new URL(url).searchParams.get('page')) - 1];
+        }
         else if (url.includes('/issues/1/comments')) data = fixture.comments;
         else if (url.includes('/pulls/1/comments')) data = fixture.inlineComments;
         else if (/\\/(reviews|comments|timeline)\\?/.test(url)) data = [];
@@ -224,9 +228,10 @@ test("actual gate publishes success only after native evidence and final live-he
   assert.equal(passed.status, 0, passed.stderr);
   assert.match(passed.stdout, /gate passed/);
   assert.equal(runGate({ body: summary() }).status, 0);
-  const raced = runGate({ heads: [headSha, oldSha] });
+  const raced = runGate({ heads: [headSha, headSha, oldSha] });
   assert.equal(raced.status, 1);
   assert.match(raced.stderr, /stale result/);
+  assert.equal(runGate({ heads: [headSha, oldSha] }).status, 1, "the withdrawal-scope snapshot also rechecks the live head");
   assert.equal(runGate({ graphErrors: [{ message: "Cannot verify threads" }] }).status, 1);
   assert.equal(runGate({ threads: [{ isResolved: false, comments: { nodes: [{ author: { login: bot.login } }], pageInfo: { hasNextPage: false } } }] }).status, 1);
 });
@@ -429,6 +434,40 @@ test("only the complete standard help footer is excluded from every verdict", ()
 
 const withdrawal = (extra = {}) => comment(`<!-- unicorn-hub:ai-review-withdrawal:v1 ${JSON.stringify({ agent: "codex", head_sha: headSha, pr_number: 1, source_created_at: "2026-10-01T10:03:00Z", source_run_id: 42 })} -->`, {
   user: { login: "github-actions[bot]" }, created_at: "2026-10-01T10:03:10Z", ...extra
+});
+
+test("later wakeups cannot pass while the independent withdrawal writer is pending or failed", () => {
+  const source = { id: 42, repository: { full_name: "example/project" }, event: "issue_comment",
+    path: ".github/workflows/ai-review-rerun.yml@main", head_branch: "main", created_at: "2026-10-01T10:03:00Z",
+    display_title: "AI review evidence:issue_comment:deleted:1:chatgpt-codex-connector[bot]:false:true:false" };
+  const fresh = comment(summary(), { created_at: "2026-10-01T10:04:00Z" });
+  const pages = (runs) => [{ total_count: runs.length, workflow_runs: runs }];
+  for (const status of ["queued", "in_progress", "completed"]) {
+    const runs = [{ ...source, status, conclusion: status === "completed" ? "failure" : null }];
+    const blocked = runGate({ extraComments: [fresh], withdrawalPages: pages(runs) });
+    assert.equal(blocked.status, 1, status);
+    assert.doesNotMatch(blocked.stderr, /Last API error/);
+    assert.equal(runGate({ extraComments: [withdrawal(), fresh], withdrawalPages: pages(runs) }).status, 0);
+    assert.equal(runGate({ extraComments: [withdrawal()], withdrawalPages: pages(runs) }).status, 1, "a record still needs a newer whole-review snapshot");
+  }
+  for (const invalid of [withdrawal({ user: { login: "untrusted[bot]" } }),
+    withdrawal({ body: withdrawal().body.replace('"source_run_id":42', '"source_run_id":43') }),
+    withdrawal({ created_at: "2026-10-01T10:01:00Z" })]) {
+    assert.equal(runGate({ extraComments: [invalid, fresh], withdrawalPages: pages([source]) }).status, 1);
+  }
+  const processedOldHead = withdrawal({ body: withdrawal().body.replace(headSha, oldSha) });
+  assert.equal(runGate({ extraComments: [processedOldHead, fresh], withdrawalPages: pages([source]) }).status, 0);
+  for (const unrelated of [{ ...source, display_title: source.display_title.replace(":deleted:1:", ":deleted:2:") },
+    { ...source, path: ".github/workflows/other.yml" }, { ...source, repository: { full_name: "example/other" } },
+    { ...source, display_title: source.display_title.replace(bot.login, "untrusted[bot]") }]) {
+    assert.equal(runGate({ withdrawalPages: pages([unrelated]) }).status, 0);
+  }
+  const otherRuns = Array.from({ length: 100 }, (_, index) => ({ id: index + 100, display_title: "Unrelated" }));
+  assert.equal(runGate({ withdrawalPages: [{ total_count: 101, workflow_runs: otherRuns }, { total_count: 101, workflow_runs: [source] }] }).status, 1);
+  assert.equal(runGate({ withdrawalApiError: true }).status, 1);
+  for (const page of [{ total_count: 1001, workflow_runs: [] }, { total_count: 1, workflow_runs: [] }, { total_count: 0 }]) {
+    assert.equal(runGate({ withdrawalPages: [page] }).status, 1);
+  }
 });
 
 test("durable deletion tombstones invalidate every pre-deletion positive verdict", () => {
