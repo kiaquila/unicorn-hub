@@ -152,11 +152,11 @@ test("native failures and all unresolved threads survive a new request marker", 
   assert.equal(evaluate({ comments: [comment(receipt)], reviews: [{ ...reviews[0], submitted_at: resultAt }] }), "fail", "failure wins a timestamp tie");
 });
 
-function runGate({ body = receipt, heads = [headSha], threads = [], reviews = [], reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
+function runGate({ body = receipt, heads = [headSha], threads = [], reviews = [], extraComments = [], reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
   const dir = mkdtempSync(join(tmpdir(), "native-review-gate-"));
   try {
     const markerBody = createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "1", sourceCommentId: "1", sourceCommentCreatedAt: triggerAt, requestedAt: triggerAt });
-    const fixture = { heads, threads, reviews, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), comment(body)] };
+    const fixture = { heads, threads, reviews, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), comment(body), ...extraComments] };
     const preload = join(dir, "fetch.mjs");
     writeFileSync(preload, `const fixture = ${JSON.stringify(fixture)}; let headRead = 0;
       globalThis.fetch = async (url, options = {}) => {
@@ -206,4 +206,14 @@ test("native review mutations invalidate earlier receipts using server update ti
 test("native review metadata and incomplete pagination fail closed in the actual gate", () => {
   assert.equal(runGate({ reviews: [{ databaseId: 2, state: "APPROVED" }] }).status, 1);
   assert.equal(runGate({ reviewPageInfo: { hasNextPage: true, endCursor: null } }).status, 1);
+});
+
+
+test("destructive native edits invalidate earlier evidence even after all markers disappear", () => {
+  const cleared = comment("Review withdrawn", { created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+  assert.equal(evaluate({ comments: [comment(receipt), cleared] }), "pending");
+  assert.equal(runGate({ extraComments: [cleared] }).status, 1);
+  assert.equal(evaluate({ comments: [comment(receipt), { ...cleared, body: "" }] }), "pending");
+  assert.equal(evaluate({ comments: [comment(receipt), { ...cleared, user: { login: "untrusted[bot]" } }] }), "pass");
+  assert.equal(evaluate({ comments: [cleared, comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }), "pass");
 });

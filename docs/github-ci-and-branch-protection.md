@@ -163,6 +163,9 @@ The default pull request behavior is therefore:
    the webhook retains the original submission time. The gate reads review
    update times through GraphQL: a negative edit or dismissal invalidates an
    earlier pass, while editing an old approval cannot renew its eligibility.
+   All authenticated Codex issue-comment edits wake validation, including edits
+   that remove every review marker. Unclassifiable trusted-bot content leaves
+   the gate pending and cannot resurrect an older positive result.
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 

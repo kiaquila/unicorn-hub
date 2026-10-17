@@ -39,13 +39,18 @@
   the gate uses GraphQL review updates so negative edits and dismissals
   supersede earlier receipts without renewing stale approvals.
 
+- Native review identified destructive edits that remove all envelope markers.
+  Trusted Codex edits now always wake validation; unclassifiable trusted-bot
+  content invalidates older passes. Runtime, installed workflow, and evidence
+  regressions first reproduced the stale-green behavior, then passed.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 150 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 152 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

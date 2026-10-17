@@ -31,7 +31,7 @@ export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", co
   const login = event.comment.user?.login;
 
   if (agent === "codex") {
-    return isCodexReviewSignal(body) && isTrustedReviewLogin(login, "codex", config);
+    return (event.action === "edited" || isCodexReviewSignal(body)) && isTrustedReviewLogin(login, "codex", config);
   }
 
   if (agent === "claude") {

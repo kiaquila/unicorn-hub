@@ -260,7 +260,9 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   for (const comment of comments) {
     const parsed = classifyCodexSummaryComment(comment, headSha, requestMarker, config);
     if (!parsed) {
-      if (isTrustedReviewLogin(comment.user?.login, "codex", config) && isCodexReviewSignal(comment.body)) {
+      // An edited native result can lose every marker. Unknown trusted-bot
+      // content must not resurrect an older pass after destructive edits.
+      if (isTrustedReviewLogin(comment.user?.login, "codex", config)) {
         candidates.push({ result: "pending", time: Date.parse(reviewEvidenceTime(comment) || "") });
       }
       continue;

@@ -342,3 +342,12 @@ test("native mutation wakeups use verified server update time and fail closed on
     }
   }
 });
+
+
+test("trusted Codex edits still wake validation after removing every review marker", () => {
+  for (const body of ["Review withdrawn", ""]) {
+    const event = { action: "edited", issue: { number: 1, pull_request: {} }, comment: { body, user: { login: "chatgpt-codex-connector[bot]" } } };
+    assert.equal(shouldRouteAiReviewRerunEvent(event), true);
+    assert.equal(shouldRouteAiReviewRerunEvent({ ...event, comment: { ...event.comment, user: { login: "untrusted[bot]" } } }), false);
+  }
+});

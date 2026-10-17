@@ -68,6 +68,8 @@ test("installed workflow filter routes created/edited native evidence to the tru
     assert.match(workflow, /queue: max/, "pending command markers and evidence wakeups must not evict each other");
     const expression = workflow.match(/    if: \|\n([\s\S]*?)    runs-on:/)[1];
     const route = new Function("github", "startsWith", "contains", `return (${expression});`);
+    const destructiveEdit = { event_name: "issue_comment", event: { action: "edited", issue: { pull_request: {} }, comment: { body: "Review withdrawn", user: { type: "Bot" } } } };
+    assert.equal(Boolean(route(destructiveEdit, (text, prefix) => text.startsWith(prefix), (text, part) => text.includes(part))), true);
     for (const action of ["submitted", "edited", "dismissed"]) {
       const github = { event_name: "pull_request_review", event: { action, review: { user: { type: "Bot" } } } };
       assert.equal(Boolean(route(github)), true);
