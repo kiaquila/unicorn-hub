@@ -90,7 +90,7 @@ if (isReview) {
   const requestedAt = event.comment.created_at || new Date().toISOString();
   const requestId = `${sourceCommentId}-${String(headSha).slice(0, 12)}`;
 
-  await createComment(createAiReviewRequestMarkerBody({
+  const markerComment = await createComment(createAiReviewRequestMarkerBody({
     agent: selected,
     headSha,
     requestId,
@@ -98,6 +98,9 @@ if (isReview) {
     sourceCommentCreatedAt: event.comment.created_at,
     requestedAt
   }));
+  if (!Number.isFinite(Date.parse(markerComment?.created_at || ""))) {
+    throw new Error("Could not verify AI review marker publication time.");
+  }
 
   try {
     const rerunResult = await rerunAiReviewForPrHead({
@@ -105,11 +108,12 @@ if (isReview) {
       repository,
       headSha,
       prNumber,
-      evidenceUpdatedAt: requestedAt
+      evidenceUpdatedAt: markerComment.created_at
     });
     console.log(rerunResult.message);
   } catch (error) {
-    console.warn(`AI Review rerun request failed after marker was recorded: ${error.message}`);
+    console.error(`AI Review rerun request failed after marker was recorded: ${error.message}`);
+    process.exitCode = 1;
   }
 }
 

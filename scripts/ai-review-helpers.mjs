@@ -146,6 +146,17 @@ export function reviewEvidenceTime(comment) {
   return comment?.updated_at || comment?.created_at;
 }
 
+function containsNegativeReviewState(text) {
+  const plain = String(text).replace(/[*_`~]/g, "");
+  return /\b(?:unresolved|incomplete|pending|in[\s-]+progress|changes[\s-]+requested|fail(?:ed|ure)?|running|queued|cancel(?:led|ed)|error(?:ed)?|blocked|unknown|not\s+(?:completed|finished))\b/i.test(plain);
+}
+
+function withoutCodexHelpFooter(text) {
+  // Only the labelled standard help footer is excluded. Folded review results
+  // remain evidence and must not hide a negative status or stale binding.
+  return String(text).replace(/\s*<details>\s*<summary>[^<]*?About Codex(?: in GitHub)?\s*<\/summary>(?:(?!<\/?details\b)[\s\S])*<\/details>\s*$/i, "");
+}
+
 export function isAfterReviewRequest(value, marker) {
   const time = Date.parse(value || "");
   const cutoff = Date.parse(marker?.sourceCommentCreatedAt || marker?.requestedAt || marker?.commentCreatedAt || "");
@@ -178,7 +189,9 @@ function parseStructuredCodexSummary(body, headSha) {
   const code = state.code_review;
   if (code.commit_sha !== headSha) return null;
   // Conflicting visible severity or a second verdict cannot be hidden by JSON.
-  if (containsBlockingSeverity(body, "codex") || /Codex Review:|\bfound\s+(?:a|[1-9])\b|changes.requested/i.test(body.slice(envelope[0].length))) return { result: "fail", explicitSha: true };
+  const visibleVerdict = withoutCodexHelpFooter(body.slice(envelope[0].length));
+  if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visibleVerdict) ||
+      /Codex Review:|\bfound\s+(?:a|[1-9])\b/i.test(visibleVerdict)) return { result: "fail", explicitSha: true };
   const security = state.security_review;
   if (code.has_any_findings || code.has_unresolved_findings || security.has_any_findings || security.has_unresolved_findings) {
     return { result: "fail", explicitSha: true };
@@ -215,14 +228,14 @@ export function classifyCodexSummaryComment(comment, headSha, requestMarker = nu
   }
   if (!explicitSha && (!requestMarker || requestMarker.agent !== "codex" || requestMarker.sha !== headSha ||
       !isAfterReviewRequest(comment.created_at, requestMarker))) return null;
-  const visibleHashes = text.split(/<details\b/i)[0].match(/\b[a-f0-9]{10,40}\b/g) || [];
+  const visibleHashes = withoutCodexHelpFooter(text).match(/\b[a-f0-9]{10,40}\b/g) || [];
   if (visibleHashes.some((sha) => !String(headSha).startsWith(sha))) return null;
   if (containsBlockingSeverity(text, "codex")) return { result: "fail", explicitSha };
   const positive = /^Codex Review:\s*did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues\b/i.test(text);
   // Only the observed no-findings sentence is a positive verdict. Contradictory
   // prose (outside the optional standard help section) must fail closed.
-  const verdictText = text.split(/<details\b/i)[0];
-  const conflict = /\b(?:found|unresolved|incomplete|pending|in.progress|changes.requested|failed)\b/i.test(verdictText);
+  const verdictText = withoutCodexHelpFooter(text);
+  const conflict = /\bfound\b/i.test(verdictText) || containsNegativeReviewState(verdictText);
   return { result: positive && !conflict ? "pass" : "fail", explicitSha };
 }
 

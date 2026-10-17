@@ -35,6 +35,9 @@ For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json
   schema, exact full current SHA, completed status, and explicit no-findings
   booleans. Their update time must follow the request. Reactions and display
   text alone never satisfy the gate.
+- Completed structured state with a visible failed, pending, running, unresolved,
+  or other negative/incomplete verdict fails closed. Standard help in the
+  optional details section is not a review verdict.
 - The latest evidence is evaluated; negative or incomplete edits invalidate an
   earlier success. Every unresolved Codex thread blocks independently of the
   latest request, including advisory and earlier-head findings.
@@ -152,6 +155,9 @@ The default pull request behavior is therefore:
    start against the evidence update. It reruns only when that event has not yet
    been evaluated, and checks the live PR head again before the rerun request.
    A timeout is an explicit actionable failure, not a silent lost wakeup.
+   Request wakeups use the server publication time of the marker for attempt
+   deduplication, while review eligibility still uses the human source time.
+   Missing publication timestamps and failed rerun requests fail command policy.
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 

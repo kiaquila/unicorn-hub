@@ -26,6 +26,10 @@
 - Native review identified a negative legacy-edit ordering gap. Accepted
   negative edits now use update time for ordering while keeping creation-time
   eligibility; regression tests first reproduced the false green, then passed.
+- Native review identified delayed-marker deduplication and visible structured
+  status conflicts. Request wakeups now use marker publication time, and a
+  visible failed/incomplete verdict blocks completed JSON. Both regressions
+  reproduced the original false behavior before their fixes.
 
 ## Known Issues
 
@@ -33,7 +37,7 @@ Initial rollout requires independent native review of the promoted snapshot and 
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 144 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 146 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

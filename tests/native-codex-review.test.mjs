@@ -93,6 +93,21 @@ test("active security review must be completed and finding-free on the exact cur
   assert.notEqual(evaluate({ comments: [comment(escapedDuplicate)] }), "pass");
 });
 
+test("structured completed state rejects contradictory visible failure or incomplete status", () => {
+  for (const text of ["Review failed", "Review failure", "pending", "in progress", "unresolved",
+    "Review incomplete", "Review running", "Review queued", "Review cancelled", "Review blocked", "Review not completed", "Review error",
+    "Review in  progress", "Review not **completed**", "<details><summary>Review status</summary>Review failed</details>"]) {
+    assert.notEqual(evaluate({ comments: [comment(summary() + `\n${text}`)] }), "pass", text);
+  }
+  const help = "<details><summary>About Codex</summary>Codex reacts while a review is running.</details>";
+  assert.equal(evaluate({ comments: [comment(summary() + `\n${help}`)] }), "pass");
+  const foldedFailure = "<details><summary>Review status</summary>Review failed</details>";
+  for (const body of [`${summary()}\n${help}\n${foldedFailure}`, `${summary()}\n${foldedFailure}\n${help}`]) {
+    assert.equal(evaluate({ comments: [comment(body)] }), "fail");
+  }
+  assert.equal(evaluate({ comments: [comment(`Codex Review: Didn't find any major issues.\n<details><summary>Review status</summary>Review pending</details>`)] }), "fail");
+});
+
 test("edited summary uses update time and its new exact-head verdict supersedes old evidence", () => {
   const edited = comment(summary(), { created_at: "2026-09-01T00:00:00Z", updated_at: resultAt });
   assert.equal(evaluate({ comments: [edited] }), "pass");

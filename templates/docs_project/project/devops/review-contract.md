@@ -22,6 +22,8 @@ only with one valid `codex-review-state:v1` object. The object must contain the
 exact current full `code_review.commit_sha`, `status: "completed"`, and explicit
 boolean `has_any_findings: false` and `has_unresolved_findings: false`. Schema,
 types, duplicate markers/fields, and conflicting visible verdicts are validated.
+Visible failure or incomplete statuses cannot be hidden by completed JSON;
+standard help inside the optional details section is not a verdict.
 The inactive security-review state has null fields; active security state must
 be well formed, completed, finding-free, and bound to the exact current head. Bare headings, reactions,
 and visible "Completed" text do not prove review success.
@@ -38,6 +40,9 @@ Both created and edited native comments wake the gate. Wakeup routing never
 constitutes an acceptable verdict. Per-PR serialization with `queue: max`, a bounded active-run
 wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A newer
 negative or incomplete edit re-evaluates a previously successful gate.
+Request wakeup deduplication uses the marker's server publication time, while
+native-review eligibility retains the human source request time. Missing marker
+timestamps and rerun API failures fail command policy explicitly.
 
 Validation has a read-only token; administrative writes remain in an isolated
 default-branch job that can run only from the default workflow ref. Non-default
