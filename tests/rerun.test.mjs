@@ -410,7 +410,7 @@ test("withdrawal controller records a server-timed fence before waking the actua
   let recorded;
   const request = async (_token, _repository, path, options = {}) => {
     calls.push({ path, method: options.method || "GET", body: options.body });
-    if (path.endsWith("/actions/runs/99")) return { path: ".github/workflows/ai-review-rerun.yml@refs/pull/1/merge", head_branch: "feature/example", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]:false:false", created_at: "2026-10-01T10:03:00Z" };
+    if (path.endsWith("/actions/runs/99")) return { path: ".github/workflows/ai-review-rerun.yml@refs/pull/1/merge", head_branch: "feature/example", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]:false:false:false", created_at: "2026-10-01T10:03:00Z" };
     if (path.endsWith("/pulls/1")) return { state: "open", head: { sha: headSha } };
     if (path.includes("/issues/1/comments") && options.method !== "POST") return recorded ? [recorded] : [];
     if (path.endsWith("/issues/1/comments") && options.method === "POST") return recorded = { body: JSON.parse(options.body).body, user: { login: "github-actions[bot]" }, created_at: "2026-10-01T10:04:00Z" };
@@ -424,8 +424,19 @@ test("withdrawal controller records a server-timed fence before waking the actua
   assert.equal((await recordReviewWithdrawal({ ...options, request: async (t, r, path, mutation) => {
     const value = await request(t, r, path, mutation);
     return path.endsWith("/actions/runs/99") ? { ...value, event: "issue_comment", head_branch: "main", path: ".github/workflows/ai-review-rerun.yml@main",
-      display_title: "AI review evidence:issue_comment:deleted:1:chatgpt-codex-connector[bot]:false:true" } : value;
+      display_title: "AI review evidence:issue_comment:deleted:1:chatgpt-codex-connector[bot]:false:true:false" } : value;
   } })).action, "rerun");
+  for (const title of [
+    "AI review evidence:issue_comment:edited:1:chatgpt-codex-connector[bot]:false:true:false",
+    "AI review evidence:issue_comment:edited:1:chatgpt-codex-connector[bot]:false:false:true",
+    "AI review evidence:issue_comment:edited:1:github-actions[bot]:true:false:false"
+  ]) {
+    assert.equal((await recordReviewWithdrawal({ ...options, request: async (t, r, path, mutation) => {
+      const value = await request(t, r, path, mutation);
+      return path.endsWith("/actions/runs/99") ? { ...value, event: "issue_comment", head_branch: "main",
+        path: ".github/workflows/ai-review-rerun.yml@main", display_title: title } : value;
+    } })).action, "rerun");
+  }
   assert.match(recorded.body, /"source_created_at":"2026-10-01T10:03:00Z"/);
   assert.match(recorded.body, new RegExp(headSha));
   assert.ok(calls.findIndex((call) => call.method === "POST" && call.path.endsWith("/comments")) < calls.findIndex((call) => call.path.endsWith("/rerun")));
@@ -440,7 +451,7 @@ test("withdrawal controller records a server-timed fence before waking the actua
 });
 
 test("withdrawal controller ignores unrelated, forged, or cross-PR run metadata", async () => {
-  const base = { path: ".github/workflows/ai-review-rerun.yml@refs/pull/1/merge", head_branch: "feature/example", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]:false:false", created_at: "2026-10-01T10:03:00Z" };
+  const base = { path: ".github/workflows/ai-review-rerun.yml@refs/pull/1/merge", head_branch: "feature/example", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]:false:false:false", created_at: "2026-10-01T10:03:00Z" };
   for (const metadata of [
     { ...base, path: ".github/workflows/untrusted.yml" },
     { ...base, event: "issue_comment", head_branch: "main", display_title: base.display_title.replace("pull_request_review_comment", "issue_comment") },

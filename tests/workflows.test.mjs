@@ -114,15 +114,26 @@ test("deletion recording executes only in the default-branch controller with exi
 });
 
 
-test("deletion metadata distinguishes native verdict bodies from ordinary bot replies", () => {
+test("withdrawal metadata shares case-insensitive column-zero legacy grammar with runtime", () => {
   for (const prefix of ["", "templates/"]) {
     const workflow = readFileSync(join(root, prefix, ".github/workflows/ai-review-rerun.yml"), "utf8");
-    const expression = workflow.split("\n")[1].match(/:\$\{\{ (startsWith\(github\.event\.comment\.body, 'Codex Review:'[\s\S]*) \}\}$/)[1];
-    const signal = new Function("github", "startsWith", "contains", `return (${expression});`);
+    const expressions = [...workflow.split("\n")[1].matchAll(/\$\{\{ (.*?) \}\}/g)].map((match) => match[1]);
+    const withdrawal = new Function("github", "startsWith", "contains", `return (${expressions.at(-2)});`);
+    const structured = new Function("github", "contains", `return (${expressions.at(-1)});`);
+    const startsWith = (text = "", part) => text.toLowerCase().startsWith(part.toLowerCase());
+    const contains = (text = "", part) => text.toLowerCase().includes(part.toLowerCase());
     for (const [body, expected] of [["Command response", false], ["Example: Codex Review: reference", false],
-      ["Codex Review: Didn't find any major issues.", true], ["<!-- codex-review-state:v1 {} -->", true],
-      ["<!-- codex-review-receipt:v1 -->", true], ["<!-- codex-pull-request-review-summary -->", true]]) {
-      assert.equal(signal({ event: { comment: { body } } }, (text, part) => text.startsWith(part), (text, part) => text.includes(part)), expected, body);
+      ["Codex Review: Didn't find any major issues.", true], ["codex review: Didn't find any major issues.", true],
+      [" Codex Review: Didn't find any major issues.", false], ["\nCodex Review: Didn't find any major issues.", false],
+      ["<!-- codex-review-state:v1 {} -->", true], ["<!-- codex-review-receipt:v1 -->", true]]) {
+      assert.equal(withdrawal({ event: { action: "deleted", comment: { body }, changes: { body: {} } } }, startsWith, contains), expected, body);
     }
+    const github = { event: { action: "edited", comment: { body: "<!-- codex-review-receipt:v1 -->" },
+      changes: { body: { from: "<!-- codex-review-state:v1 {} -->" } } } };
+    assert.equal(structured(github, contains), true);
+    github.event.comment.body = "<!-- codex-review-state:v1 {} -->";
+    assert.equal(structured(github, contains), false, "normal summary updates must not fence their own completion");
+    github.event.comment.body = "Ordinary reply";
+    assert.equal(withdrawal(github, startsWith, contains), true);
   }
 });

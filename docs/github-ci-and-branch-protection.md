@@ -214,6 +214,19 @@ The default pull request behavior is therefore:
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 
+
+Whole-review state survives marker removal and deletion. The gate reads complete
+server edit histories for code-only receipts as well as ordinary replies, and
+retains structured-summary withdrawal state. Durable withdrawal records require a
+newer complete structured snapshot; a later code-only receipt or approval cannot
+clear them. Destructive native edits persist a record before a cleared comment
+can itself disappear. Normal structured-summary updates do not fence their own
+completion.
+
+Legacy top-level verdicts must start at column zero, case-insensitively, matching
+Actions `startsWith`. Leading whitespace is outside the accepted legacy grammar;
+explicit receipts and structured envelopes retain their own marker rules.
+
 ## Updating The Review Gate Itself
 
 Wakeup and administrative request scripts always use the default branch.

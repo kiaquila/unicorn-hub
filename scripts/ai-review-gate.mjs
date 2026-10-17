@@ -7,6 +7,8 @@ import {
   isAcceptableNativeReview,
   isCodexReviewSignal,
   hasCodexReviewSignalInEditDiff,
+  isCodexStructuredSummarySignal,
+  hasCodexStructuredSummaryInEditDiff,
   isTrustedReviewLogin,
   latestAiReviewRequestMarker
 } from "./ai-review-helpers.mjs";
@@ -140,6 +142,7 @@ async function fetchPriorReviewSignal(comment) {
   if (!comment.node_id) throw new Error("Missing native comment node ID.");
   let cursor = null;
   let snapshotTime = null;
+  const signals = { review: false, structured: false };
   do {
     const result = await request("/graphql", {
       method: "POST",
@@ -164,13 +167,14 @@ async function fetchPriorReviewSignal(comment) {
     snapshotTime = node.updatedAt;
     comment.body = node.body;
     comment.updated_at = node.updatedAt;
-    if (isCodexReviewSignal(node.body) || connection.nodes.some((edit) => hasCodexReviewSignalInEditDiff(edit.diff))) return true;
+    signals.review ||= isCodexReviewSignal(node.body) || connection.nodes.some((edit) => hasCodexReviewSignalInEditDiff(edit.diff));
+    signals.structured ||= isCodexStructuredSummarySignal(node.body) || connection.nodes.some((edit) => hasCodexStructuredSummaryInEditDiff(edit.diff));
     cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
     if (!cursor && node.lastEditedAt && !node.includesCreatedEdit) {
       throw new Error("Native comment creation history is unavailable.");
     }
   } while (cursor);
-  return false;
+  return signals;
 }
 
 async function createComment(body) {
@@ -246,8 +250,10 @@ async function fetchEvidence() {
 
   if (selectedAgent === "codex") {
     for (const comment of comments) {
-      if (isTrustedReviewLogin(comment.user?.login, "codex", config) && !isCodexReviewSignal(comment.body)) {
-        comment.prior_review_signal = await fetchPriorReviewSignal(comment);
+      if (isTrustedReviewLogin(comment.user?.login, "codex", config) && !isCodexStructuredSummarySignal(comment.body)) {
+        const signals = await fetchPriorReviewSignal(comment);
+        comment.prior_review_signal = signals.review;
+        comment.prior_structured_summary = signals.structured;
       }
     }
     const reviews = await fetchCodexReviews();

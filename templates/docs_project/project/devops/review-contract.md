@@ -101,6 +101,19 @@ reconstruct only the removed/prior side of unified or HTML diffs and retain the
 legacy start-of-body rule. Added markers and quoted legacy phrases cannot create
 withdrawal records or pending tombstones for unrelated bot replies.
 
+
+Whole-review state survives marker removal and deletion. The gate reads complete
+server edit histories for code-only receipts as well as ordinary replies, and
+retains structured-summary withdrawal state. Durable withdrawal records require a
+newer complete structured snapshot; a later code-only receipt or approval cannot
+clear them. Destructive native edits persist a record before a cleared comment
+can itself disappear. Normal structured-summary updates do not fence their own
+completion.
+
+Legacy top-level verdicts must start at column zero, case-insensitively, matching
+Actions `startsWith`. Leading whitespace is outside the accepted legacy grammar;
+explicit receipts and structured envelopes retain their own marker rules.
+
 ## Claude
 
 Top-level comment must start with:

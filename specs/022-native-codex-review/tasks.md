@@ -103,13 +103,20 @@
   Added markers and quoted legacy phrases stay unrelated; removed genuine
   markers and inline findings retain their blocking behavior.
 
+- Whole-review withdrawals now survive both marker-removing edits and deletion:
+  complete server histories identify prior structured state, and durable records
+  require a newer complete structured result. Destructive edits persist before
+  the cleared comment can disappear. Legacy routing and acceptance share a
+  case-insensitive column-zero grammar; whitespace-prefixed legacy bodies do not
+  establish a positive verdict.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 176 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 178 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

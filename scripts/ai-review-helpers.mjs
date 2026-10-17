@@ -135,14 +135,14 @@ export function extractCodexPriority(body) {
 // Routing is deliberately broader than acceptance: even a negative or malformed
 // edit must wake the gate so an earlier successful result cannot remain green.
 export function isCodexReviewSignal(body) {
-  const text = String(body || "").trim();
+  const text = String(body || "");
   return /^Codex Review:/i.test(text) ||
     text.includes("<!-- codex-review-receipt:") ||
     text.includes("<!-- codex-pull-request-review-summary") ||
     text.includes("<!-- codex-review-state:");
 }
 
-export function hasCodexReviewSignalInEditDiff(diff) {
+function priorBodyFromEditDiff(diff) {
   // Reconstruct only the prior side. Added or quoted review-like prose is not
   // evidence that a native verdict was withdrawn.
   const decoded = String(diff).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
@@ -153,16 +153,28 @@ export function hasCodexReviewSignalInEditDiff(diff) {
   if (/<(?:del|ins)\b/i.test(decoded)) {
     const prior = decoded.replace(/<ins\b[^>]*>[\s\S]*?<\/ins>/gi, "")
       .replace(/<\/?[a-z][^>]*>/gi, "");
-    return isCodexReviewSignal(prior);
+    return prior;
   }
   const lines = decoded.split("\n");
   if (lines.some((line) => /^@@ /.test(line)) ||
       (lines.some((line) => line.startsWith("-")) && lines.some((line) => line.startsWith("+")))) {
     const prior = lines.filter((line) => !/^(?:\+|---|@@|diff |index |\\ No newline)/.test(line))
       .map((line) => /^[ -]/.test(line) ? line.slice(1) : line).join("\n");
-    return isCodexReviewSignal(prior);
+    return prior;
   }
-  return isCodexReviewSignal(decoded);
+  return decoded;
+}
+
+export function hasCodexReviewSignalInEditDiff(diff) {
+  return isCodexReviewSignal(priorBodyFromEditDiff(diff).trimStart());
+}
+
+export function isCodexStructuredSummarySignal(body) {
+  return /codex-pull-request-review-summary|codex-review-state:/.test(String(body || ""));
+}
+
+export function hasCodexStructuredSummaryInEditDiff(diff) {
+  return isCodexStructuredSummarySignal(priorBodyFromEditDiff(diff));
 }
 
 export function isAiReviewControlComment(body) {
@@ -270,6 +282,9 @@ export function classifyCodexSummaryComment(comment, headSha, requestMarker = nu
     return parseStructuredCodexSummary(body, headSha);
   }
   const receipt = body.startsWith("<!-- codex-review-receipt:v1 -->");
+  // Legacy verdicts start at column zero, matching Actions startsWith exactly.
+  // Structured envelopes and receipts retain their explicit marker grammar.
+  if (!receipt && !/^Codex Review:/i.test(String(comment.body || ""))) return null;
   const text = receipt ? body.slice("<!-- codex-review-receipt:v1 -->".length).trim() : body;
   if ((body.match(/codex-review-receipt:/g) || []).length !== Number(receipt) ||
       !/^Codex Review:/i.test(text) || (text.match(/Codex Review:/gi) || []).length !== 1) return null;
@@ -316,11 +331,13 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   // The mutable native summary covers the whole review, including active
   // security work. A later code-only receipt/approval cannot erase that state.
   const summaries = comments.filter((comment) => isTrustedReviewLogin(comment.user?.login, "codex", config) &&
-    /codex-pull-request-review-summary|codex-review-state:/.test(String(comment.body || "")));
+    isCodexStructuredSummarySignal(comment.body));
+  let latestSummaryTime = -Infinity;
   if (summaries.length) {
     const times = summaries.map((comment) => Date.parse(reviewEvidenceTime(comment) || ""));
     if (times.some((time) => !Number.isFinite(time))) return "pending";
     const latestTime = Math.max(...times);
+    latestSummaryTime = latestTime;
     const results = summaries.filter((_comment, index) => times[index] === latestTime)
       .map((comment) => classifyCodexSummaryComment(comment, headSha, requestMarker, config)?.result || "pending");
     if (results.includes("fail")) return "fail";
@@ -342,6 +359,19 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
         Date.parse(record.source_created_at) > Date.parse(comment.created_at)) return "pending";
     if (record.head_sha === headSha) withdrawalTime = Math.max(withdrawalTime, Date.parse(record.source_created_at));
   }
+  // A removed whole-review snapshot cannot be replaced by code-only evidence.
+  // Deletion records cannot recover the vanished body, so conservatively require
+  // a newer complete structured snapshot for every durable withdrawal.
+  let structuredWithdrawalTime = withdrawalTime;
+  for (const comment of comments) {
+    if (isTrustedReviewLogin(comment.user?.login, "codex", config) && comment.prior_structured_summary === true &&
+        !isCodexStructuredSummarySignal(comment.body)) {
+      const time = Date.parse(reviewEvidenceTime(comment) || "");
+      if (!Number.isFinite(time)) return "pending";
+      structuredWithdrawalTime = Math.max(structuredWithdrawalTime, time);
+    }
+  }
+  if (Number.isFinite(structuredWithdrawalTime) && latestSummaryTime <= structuredWithdrawalTime) return "pending";
   const candidates = [];
   for (const review of reviews) {
     const result = classifyCodexNativeReview(review, reviewComments, headSha, config, requestMarker);

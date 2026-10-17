@@ -8,7 +8,8 @@ import {
   classifyCodexSummaryComment,
   createAiReviewRequestMarkerBody,
   evaluateCodexEvidence,
-  isAcceptableCodexSummaryComment
+  isAcceptableCodexSummaryComment,
+  isCodexReviewSignal
 } from "../scripts/ai-review-helpers.mjs";
 
 const headSha = "0123456789abcdef0123456789abcdef01234567";
@@ -174,7 +175,13 @@ function runGate({ body = receipt, heads = [headSha], threads = [], reviews = []
   const dir = mkdtempSync(join(tmpdir(), "native-review-gate-"));
   try {
     const markerBody = createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "1", sourceCommentId: "1", sourceCommentCreatedAt: triggerAt, requestedAt: triggerAt });
-    const fixture = { heads, threads, reviews, inlineComments, historyNodes, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), ...(deletedEvidence ? [] : [comment(body)]), ...extraComments] };
+    const fixture = structuredClone({ heads, threads, reviews, inlineComments, historyNodes, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), ...(deletedEvidence ? [] : [comment(body)]), ...extraComments] });
+    for (const [index, item] of fixture.comments.entries()) {
+      if (item.user?.login !== bot.login || item.node_id) continue;
+      item.node_id = `created-native-${index}`;
+      fixture.historyNodes[item.node_id] = { id: item.node_id, body: item.body, updatedAt: item.updated_at || item.created_at,
+        lastEditedAt: null, includesCreatedEdit: true, userContentEdits: { nodes: [{ diff: item.body }], pageInfo: { hasNextPage: false } } };
+    }
     const preload = join(dir, "fetch.mjs");
     writeFileSync(preload, `const fixture = ${JSON.stringify(fixture)}; let headRead = 0;
       globalThis.fetch = async (url, options = {}) => {
@@ -413,7 +420,8 @@ test("durable deletion tombstones invalidate every pre-deletion positive verdict
       for (const positive of [receipt, summary()]) {
         assert.notEqual(evaluate({ reviews: [review], comments: [comment(positive), withdrawal()] }), "pass");
         assert.equal(runGate({ body: positive, extraComments: [withdrawal()] }).status, 1);
-        assert.equal(evaluate({ reviews: [review], comments: [comment(positive, { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), "pass");
+        assert.equal(evaluate({ reviews: [review], comments: [comment(positive, { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), positive === receipt ? "pending" : "pass");
+        assert.equal(evaluate({ reviews: [review], comments: [comment(summary(), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), "pass");
       }
       assert.notEqual(evaluate({ reviews: [review], comments: [withdrawal()] }), "pass");
     }
@@ -484,4 +492,40 @@ test("edit-history additions and quoted legacy phrases do not withdraw ordinary 
     } } });
     assert.equal(result.status, 0, diff);
   }
+});
+
+
+test("removed structured state requires a newer complete structured snapshot", () => {
+  const later = comment(receipt, { created_at: "2026-10-01T10:04:00Z" });
+  for (const body of ["Ordinary text", receipt]) {
+    const removed = comment(body, { node_id: "removed-summary", prior_review_signal: true, prior_structured_summary: true,
+      created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+    for (const oldState of [summary(state({ status: "running" })), summary({ ...state(), security_review: {
+      commit_sha: headSha, status: "failed", has_any_findings: true, has_unresolved_findings: true
+    } })]) {
+      const history = { id: removed.node_id, body, updatedAt: removed.updated_at, lastEditedAt: removed.updated_at,
+        includesCreatedEdit: true, userContentEdits: { nodes: [{ diff: oldState }], pageInfo: { hasNextPage: false } } };
+      assert.notEqual(evaluate({ comments: [removed, later] }), "pass");
+      const blocked = runGate({ extraComments: [removed, later], historyNodes: { [removed.node_id]: history } });
+      assert.equal(blocked.status, 1, blocked.stdout);
+      assert.doesNotMatch(blocked.stderr, /Last API error/);
+      const recovered = comment(summary(), { created_at: "2026-10-01T10:05:00Z" });
+      assert.equal(evaluate({ comments: [removed, later, recovered] }), "pass");
+      const restored = runGate({ extraComments: [removed, later, recovered], historyNodes: { [removed.node_id]: history } });
+      assert.equal(restored.status, 0, restored.stderr);
+    }
+  }
+});
+
+
+test("legacy verdicts use the same case-insensitive column-zero grammar as deletion routing", () => {
+  const legacy = "codex review: Didn't find any major issues.";
+  assert.equal(isCodexReviewSignal(legacy), true);
+  assert.equal(isAcceptableCodexSummaryComment(comment(legacy), headSha, marker), true);
+  for (const prefix of [" ", "\n", "\t", "\u00a0"]) {
+    assert.equal(isCodexReviewSignal(prefix + legacy), false);
+    assert.equal(isAcceptableCodexSummaryComment(comment(prefix + legacy), headSha, marker), false);
+  }
+  assert.equal(runGate({ extraComments: [withdrawal(), comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }).status, 1);
+  assert.equal(runGate({ extraComments: [withdrawal(), comment(summary(), { created_at: "2026-10-01T10:04:00Z" })] }).status, 0);
 });
