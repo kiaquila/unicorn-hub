@@ -152,16 +152,16 @@ test("native failures and all unresolved threads survive a new request marker", 
   assert.equal(evaluate({ comments: [comment(receipt)], reviews: [{ ...reviews[0], submitted_at: resultAt }] }), "fail", "failure wins a timestamp tie");
 });
 
-function runGate({ body = receipt, heads = [headSha], threads = [], graphErrors = null }) {
+function runGate({ body = receipt, heads = [headSha], threads = [], reviews = [], reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
   const dir = mkdtempSync(join(tmpdir(), "native-review-gate-"));
   try {
     const markerBody = createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "1", sourceCommentId: "1", sourceCommentCreatedAt: triggerAt, requestedAt: triggerAt });
-    const fixture = { heads, threads, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), comment(body)] };
+    const fixture = { heads, threads, reviews, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), comment(body)] };
     const preload = join(dir, "fetch.mjs");
     writeFileSync(preload, `const fixture = ${JSON.stringify(fixture)}; let headRead = 0;
       globalThis.fetch = async (url, options = {}) => {
         let data;
-        if (url.endsWith('/graphql')) data = { errors: fixture.graphErrors, data: { repository: { pullRequest: { reviewThreads: { nodes: fixture.threads, pageInfo: { hasNextPage: false } } } } } };
+        if (url.endsWith('/graphql')) data = { errors: fixture.graphErrors, data: { repository: { pullRequest: { reviews: { nodes: fixture.reviews, pageInfo: fixture.reviewPageInfo }, reviewThreads: { nodes: fixture.threads, pageInfo: { hasNextPage: false } } } } } };
         else if (/\\/pulls\\/1$/.test(url)) data = { head: { sha: fixture.heads[Math.min(headRead++, fixture.heads.length - 1)] } };
         else if (url.includes('/issues/1/comments')) data = fixture.comments;
         else if (/\\/(reviews|comments|timeline)\\?/.test(url)) data = [];
@@ -184,4 +184,26 @@ test("actual gate publishes success only after native evidence and final live-he
   assert.match(raced.stderr, /stale result/);
   assert.equal(runGate({ graphErrors: [{ message: "Cannot verify threads" }] }).status, 1);
   assert.equal(runGate({ threads: [{ isResolved: false, comments: { nodes: [{ author: { login: bot.login } }], pageInfo: { hasNextPage: false } } }] }).status, 1);
+});
+
+
+test("native review mutations invalidate earlier receipts using server update time", () => {
+  for (const [reviewState, body] of [["DISMISSED", ""], ["COMMENTED", "P1 blocking issue"], ["CHANGES_REQUESTED", ""]]) {
+    const review = { id: 2, user: bot, commit_id: headSha, state: reviewState, body,
+      submitted_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" };
+    assert.equal(evaluate({ comments: [comment(receipt)], reviews: [review] }), "fail");
+    const node = { databaseId: 2, state: review.state, body, commit: { oid: headSha },
+      submittedAt: review.submitted_at, updatedAt: review.updated_at,
+      author: { login: "chatgpt-codex-connector", __typename: "Bot" } };
+    assert.equal(runGate({ reviews: [node] }).status, 1);
+    assert.equal(evaluate({ comments: [comment(receipt, { created_at: "2026-10-01T10:04:00Z" })], reviews: [review] }), "pass");
+  }
+  const oldApproval = { user: bot, commit_id: headSha, state: "APPROVED", submitted_at: "2026-10-01T09:59:00Z", updated_at: "2026-10-01T10:03:00Z" };
+  assert.equal(evaluate({ reviews: [oldApproval] }), "pending", "positive edits cannot renew request eligibility");
+  assert.equal(evaluate({ reviews: [{ ...oldApproval, submitted_at: "2026-10-01T10:01:00Z" }], comments: [comment(receipt.replace("Didn't find any major issues.", "Found a P1 issue."))] }), "fail");
+});
+
+test("native review metadata and incomplete pagination fail closed in the actual gate", () => {
+  assert.equal(runGate({ reviews: [{ databaseId: 2, state: "APPROVED" }] }).status, 1);
+  assert.equal(runGate({ reviewPageInfo: { hasNextPage: true, endCursor: null } }).status, 1);
 });

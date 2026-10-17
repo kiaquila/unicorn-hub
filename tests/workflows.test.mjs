@@ -60,6 +60,7 @@ test("OSV workflow is blocking and retains all activation triggers", () => {
 test("installed workflow filter routes created/edited native evidence to the trusted runtime", () => {
   for (const prefix of ["", "templates/"]) {
     const workflow = readFileSync(join(root, prefix, ".github/workflows/ai-review-rerun.yml"), "utf8");
+    assert.match(workflow, /pull_request_review:\n    types: \[submitted, edited, dismissed\]/);
     assert.match(workflow, /issue_comment:\n    types: \[created, edited\]/);
     assert.match(workflow, /run: node scripts\/ai-review-rerun.mjs/);
     assert.match(workflow, /ref: \$\{\{ github.event.repository.default_branch \}\}/);
@@ -67,6 +68,10 @@ test("installed workflow filter routes created/edited native evidence to the tru
     assert.match(workflow, /queue: max/, "pending command markers and evidence wakeups must not evict each other");
     const expression = workflow.match(/    if: \|\n([\s\S]*?)    runs-on:/)[1];
     const route = new Function("github", "startsWith", "contains", `return (${expression});`);
+    for (const action of ["submitted", "edited", "dismissed"]) {
+      const github = { event_name: "pull_request_review", event: { action, review: { user: { type: "Bot" } } } };
+      assert.equal(Boolean(route(github)), true);
+    }
     for (const action of ["created", "edited"]) {
       for (const body of ["Codex Review: Didn't find any major issues.", "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues.", "<!-- codex-pull-request-review-summary -->", "<!-- codex-review-state:v1 {} -->"]) {
         const github = { event_name: "issue_comment", event: { action, issue: { pull_request: {} }, comment: { body, user: { type: "Bot" } } } };

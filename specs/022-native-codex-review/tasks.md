@@ -34,13 +34,18 @@
   Underscores now remain separators; enum, compact/camel-case, dotted, hyphenated,
   and Markdown-styled compound failures have regression coverage.
 
+- Native review identified missing formal-review edit/dismissal subscriptions.
+  Both mutation events now wake validation using verified server update time;
+  the gate uses GraphQL review updates so negative edits and dismissals
+  supersede earlier receipts without renewing stale approvals.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 146 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 150 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

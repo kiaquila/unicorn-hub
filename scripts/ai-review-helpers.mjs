@@ -253,7 +253,8 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   for (const review of reviews) {
     const result = classifyCodexNativeReview(review, reviewComments, headSha, config);
     if (result && (result === "fail" || isAfterReviewRequest(review.submitted_at, requestMarker))) {
-      candidates.push({ result, time: Date.parse(review.submitted_at || "") });
+      const orderingTime = result === "fail" ? (review.updated_at || review.submitted_at) : review.submitted_at;
+      candidates.push({ result, time: Date.parse(orderingTime || "") });
     }
   }
   for (const comment of comments) {
@@ -300,7 +301,7 @@ export function classifyCodexNativeReview(review, reviewComments = [], headSha, 
   if (containsBlockingSeverity(review.body, "codex")) return "fail";
 
   if (review.state === "APPROVED") return "pass";
-  if (review.state === "CHANGES_REQUESTED") return "fail";
+  if (["CHANGES_REQUESTED", "DISMISSED"].includes(review.state)) return "fail";
   if (review.state !== "COMMENTED") return null;
 
   const commentsForReview = reviewComments.filter((comment) =>

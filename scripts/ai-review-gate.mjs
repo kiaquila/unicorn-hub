@@ -87,13 +87,50 @@ async function fetchReviewThreads() {
       })
     });
     const connection = result.data?.repository?.pullRequest?.reviewThreads;
-    if (result.errors || !connection || connection.nodes.some((thread) => thread.comments.pageInfo.hasNextPage)) {
+    if (result.errors || !connection || connection.nodes.some((thread) => thread.comments.pageInfo.hasNextPage) ||
+        (connection.pageInfo.hasNextPage && !connection.pageInfo.endCursor)) {
       throw new Error("Could not completely verify unresolved review threads.");
     }
     threads.push(...connection.nodes);
     cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
   } while (cursor);
   return threads;
+}
+
+async function fetchCodexReviews() {
+  const reviews = [];
+  let cursor = null;
+  do {
+    const result = await request("/graphql", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: `query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+          repository(owner: $owner, name: $repo) { pullRequest(number: $number) {
+            reviews(first: 100, after: $cursor) {
+              nodes { databaseId state body submittedAt updatedAt commit { oid } author { login __typename } }
+              pageInfo { hasNextPage endCursor }
+            }
+          } }
+        }`,
+        variables: { owner, repo, number: Number(prNumber), cursor }
+      })
+    });
+    const connection = result.data?.repository?.pullRequest?.reviews;
+    if (result.errors || !connection ||
+        connection.nodes.some((review) => !Number.isFinite(Date.parse(review.updatedAt || ""))) ||
+        (connection.pageInfo.hasNextPage && !connection.pageInfo.endCursor)) {
+      throw new Error("Could not completely verify native review updates.");
+    }
+    reviews.push(...connection.nodes.map((review) => ({
+      id: review.databaseId, state: review.state, body: review.body,
+      submitted_at: review.submittedAt, updated_at: review.updatedAt, commit_id: review.commit?.oid,
+      user: { login: review.author?.__typename === "Bot" && !review.author.login.endsWith("[bot]")
+        ? `${review.author.login}[bot]` : review.author?.login }
+    })));
+    cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
+  } while (cursor);
+  return reviews;
 }
 
 async function createComment(body) {
@@ -167,14 +204,15 @@ async function fetchEvidence() {
     ) ? "pass" : "pending";
   }
 
-  const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (selectedAgent === "codex") {
+    const reviews = await fetchCodexReviews();
     const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
     const timeline = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/timeline`);
     const threads = await fetchReviewThreads();
     return evaluateCodexEvidence({ comments, reviews, reviewComments, timeline, threads, headSha, requestMarker, config });
   }
 
+  const reviews = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews`);
   if (reviews.some((review) =>
     isAfterRequest(review.submitted_at, requestMarker) &&
     isAcceptableNativeReview(review, selectedAgent, headSha, config)

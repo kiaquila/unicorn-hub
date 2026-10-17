@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   rerunAiReviewForPrHead,
+  reviewEventEvidenceTime,
   selectAiReviewRun,
   shouldRouteAiReviewRerunEvent
 } from "../scripts/ai-review-rerun.mjs";
@@ -315,4 +316,29 @@ test("selector never resurrects an older failed run after a newer success", () =
   ];
   assert.equal(selectAiReviewRun(runs, "abc").action, "already_success");
   assert.equal(selectAiReviewRun(runs, "abc").run.id, 2);
+});
+
+
+test("formal review submissions, edits, and dismissals route only trusted selected reviewers", () => {
+  for (const action of ["submitted", "edited", "dismissed"]) {
+    const event = { action, review: { user: { login: "chatgpt-codex-connector[bot]" } } };
+    assert.equal(shouldRouteAiReviewRerunEvent(event), true);
+    assert.equal(shouldRouteAiReviewRerunEvent({ ...event, review: { user: { login: "untrusted[bot]" } } }), false);
+  }
+});
+
+test("native mutation wakeups use verified server update time and fail closed on missing metadata", async () => {
+  for (const action of ["edited", "dismissed"]) {
+    const event = { action, pull_request: { number: 1 }, review: { node_id: "review-id", submitted_at: "2026-10-01T10:00:00Z" } };
+    const node = { __typename: "PullRequestReview", id: "review-id", updatedAt: "2026-10-01T10:03:00Z", pullRequest: { number: 1, repository: { nameWithOwner: "example/project" } } };
+    const run = (result) => reviewEventEvidenceTime({ token: "synthetic", repository: "example/project", event, request: async (_token, _repo, path, options) => {
+      assert.equal(path, "/graphql");
+      assert.equal(JSON.parse(options.body).variables.id, "review-id");
+      return result;
+    } });
+    assert.equal(await run({ data: { node } }), node.updatedAt);
+    for (const result of [{ errors: [{ message: "denied" }], data: { node } }, { data: { node: null } }, { data: { node: { ...node, updatedAt: null } } }, { data: { node: { ...node, pullRequest: { ...node.pullRequest, number: 2 } } } }]) {
+      await assert.rejects(() => run(result), /Could not verify/);
+    }
+  }
 });

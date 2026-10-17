@@ -158,6 +158,11 @@ The default pull request behavior is therefore:
    Request wakeups use the server publication time of the marker for attempt
    deduplication, while review eligibility still uses the human source time.
    Missing publication timestamps and failed rerun requests fail command policy.
+   Native formal review submissions, edits, and dismissals also wake the gate.
+   Mutation wakeups use the review node's verified server `updatedAt`, because
+   the webhook retains the original submission time. The gate reads review
+   update times through GraphQL: a negative edit or dismissal invalidates an
+   earlier pass, while editing an old approval cannot renew its eligibility.
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 

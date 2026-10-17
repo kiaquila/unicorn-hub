@@ -19,7 +19,7 @@ function normalizeAgent(agent) {
 export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", config = {}) {
   const agent = normalizeAgent(selectedAgent);
 
-  if (event.action && !["created", "edited", "submitted"].includes(event.action)) return false;
+  if (event.action && !["created", "edited", "submitted", "dismissed"].includes(event.action)) return false;
 
   if (event?.review) {
     return ["codex", "gemini"].includes(agent) &&
@@ -70,6 +70,32 @@ async function defaultRequest(token, repository, path, options = {}) {
     throw new Error(`${response.status} ${response.statusText}: ${text}`);
   }
   return text ? JSON.parse(text) : null;
+}
+
+export async function reviewEventEvidenceTime({ token, repository, event, request = defaultRequest }) {
+  if (!event.review) return reviewEvidenceTime(event.comment);
+  if (!["edited", "dismissed"].includes(event.action)) return event.review.submitted_at;
+  // Review webhooks keep the original submitted_at after edits/dismissals.
+  // Use server state, not delivery time, so delayed events remain deduplicable.
+  if (!event.review.node_id) throw new Error("Missing native review node ID.");
+  const result = await request(token, repository, "/graphql", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      query: `query($id: ID!) { node(id: $id) { __typename ... on PullRequestReview {
+        id updatedAt pullRequest { number repository { nameWithOwner } }
+      } } }`,
+      variables: { id: event.review.node_id }
+    })
+  });
+  const review = result.data?.node;
+  if (result.errors || review?.__typename !== "PullRequestReview" || review.id !== event.review.node_id ||
+      review.pullRequest?.number !== event.pull_request?.number ||
+      review.pullRequest?.repository?.nameWithOwner?.toLowerCase() !== repository.toLowerCase() ||
+      !Number.isFinite(Date.parse(review.updatedAt || ""))) {
+    throw new Error("Could not verify native review mutation time.");
+  }
+  return review.updatedAt;
 }
 
 async function listPaginated(request, token, repository, path) {
@@ -176,12 +202,13 @@ async function main() {
   }
 
   const context = await resolvePullContext({ token, repository, event });
+  const evidenceUpdatedAt = await reviewEventEvidenceTime({ token, repository, event });
   const result = await rerunAiReviewForPrHead({
     token,
     repository,
     headSha: context.headSha,
     prNumber: context.prNumber,
-    evidenceUpdatedAt: event.review?.submitted_at || reviewEvidenceTime(event.comment)
+    evidenceUpdatedAt
   });
   console.log(result.message);
 }
