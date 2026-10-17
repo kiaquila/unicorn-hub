@@ -5,6 +5,8 @@ import {
   evaluateCodexEvidence,
   isAcceptableClaudeComment,
   isAcceptableNativeReview,
+  isCodexReviewSignal,
+  isTrustedReviewLogin,
   latestAiReviewRequestMarker
 } from "./ai-review-helpers.mjs";
 import { readConfig } from "./shared.mjs";
@@ -108,7 +110,7 @@ async function fetchCodexReviews() {
         query: `query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
           repository(owner: $owner, name: $repo) { pullRequest(number: $number) {
             reviews(first: 100, after: $cursor) {
-              nodes { databaseId state body submittedAt updatedAt commit { oid } author { login __typename } }
+              nodes { databaseId state body submittedAt updatedAt lastEditedAt commit { oid } author { login __typename } }
               pageInfo { hasNextPage endCursor }
             }
           } }
@@ -124,13 +126,50 @@ async function fetchCodexReviews() {
     }
     reviews.push(...connection.nodes.map((review) => ({
       id: review.databaseId, state: review.state, body: review.body,
-      submitted_at: review.submittedAt, updated_at: review.updatedAt, commit_id: review.commit?.oid,
+      submitted_at: review.submittedAt, updated_at: review.updatedAt, last_edited_at: review.lastEditedAt, commit_id: review.commit?.oid,
       user: { login: review.author?.__typename === "Bot" && !review.author.login.endsWith("[bot]")
         ? `${review.author.login}[bot]` : review.author?.login }
     })));
     cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
   } while (cursor);
   return reviews;
+}
+
+async function fetchPriorReviewSignal(comment) {
+  if (!comment.node_id) throw new Error("Missing native comment node ID.");
+  let cursor = null;
+  let snapshotTime = null;
+  do {
+    const result = await request("/graphql", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: `query($id: ID!, $cursor: String) { node(id: $id) { ... on IssueComment {
+          id body updatedAt lastEditedAt includesCreatedEdit userContentEdits(first: 100, after: $cursor) {
+            nodes { diff } pageInfo { hasNextPage endCursor }
+          }
+        } } }`,
+        variables: { id: comment.node_id, cursor }
+      })
+    });
+    const node = result.data?.node;
+    const connection = node?.userContentEdits;
+    if (result.errors || node?.id !== comment.node_id || !connection ||
+        !Number.isFinite(Date.parse(node.updatedAt || "")) || (snapshotTime && node.updatedAt !== snapshotTime) ||
+        connection.nodes.some((edit) => typeof edit.diff !== "string") ||
+        (connection.pageInfo.hasNextPage && !connection.pageInfo.endCursor)) {
+      throw new Error("Could not completely verify native comment edit history.");
+    }
+    snapshotTime = node.updatedAt;
+    comment.body = node.body;
+    comment.updated_at = node.updatedAt;
+    if (isCodexReviewSignal(node.body) || connection.nodes.some((edit) => isCodexReviewSignal(edit.diff))) return true;
+    cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
+    if (!cursor && node.lastEditedAt && !node.includesCreatedEdit) {
+      throw new Error("Native comment creation history is unavailable.");
+    }
+  } while (cursor);
+  return false;
 }
 
 async function createComment(body) {
@@ -205,6 +244,11 @@ async function fetchEvidence() {
   }
 
   if (selectedAgent === "codex") {
+    for (const comment of comments) {
+      if (isTrustedReviewLogin(comment.user?.login, "codex", config) && !isCodexReviewSignal(comment.body)) {
+        comment.prior_review_signal = await fetchPriorReviewSignal(comment);
+      }
+    }
     const reviews = await fetchCodexReviews();
     const reviewComments = await listPaginated(`/repos/${owner}/${repo}/pulls/${prNumber}/comments`);
     const timeline = await listPaginated(`/repos/${owner}/${repo}/issues/${prNumber}/timeline`);

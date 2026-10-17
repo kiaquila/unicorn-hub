@@ -40,9 +40,15 @@
   supersede earlier receipts without renewing stale approvals.
 
 - Native review identified destructive edits that remove all envelope markers.
-  Trusted Codex edits now always wake validation; unclassifiable trusted-bot
-  content invalidates older passes. Runtime, installed workflow, and evidence
+  Trusted Codex edits now always wake validation; withdrawn review content
+  invalidates older passes. Runtime, installed workflow, and evidence
   regressions first reproduced the stale-green behavior, then passed.
+
+- Native review caught withdrawn `COMMENTED` reviews and unrelated bot replies.
+  Formal edits now revoke implicit no-findings acceptance. Pending issue-comment
+  tombstones require a former review signal from server edit history; ordinary
+  replies remain unrelated. History pagination, redaction, and concurrent edits
+  have actual-entry-point regressions.
 
 ## Known Issues
 
@@ -50,7 +56,7 @@ Initial rollout requires independent native review of the promoted snapshot and 
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 152 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 154 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

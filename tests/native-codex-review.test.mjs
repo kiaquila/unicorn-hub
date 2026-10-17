@@ -152,16 +152,17 @@ test("native failures and all unresolved threads survive a new request marker", 
   assert.equal(evaluate({ comments: [comment(receipt)], reviews: [{ ...reviews[0], submitted_at: resultAt }] }), "fail", "failure wins a timestamp tie");
 });
 
-function runGate({ body = receipt, heads = [headSha], threads = [], reviews = [], extraComments = [], reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
+function runGate({ body = receipt, heads = [headSha], threads = [], reviews = [], extraComments = [], historyNodes = {}, reviewPageInfo = { hasNextPage: false }, graphErrors = null }) {
   const dir = mkdtempSync(join(tmpdir(), "native-review-gate-"));
   try {
     const markerBody = createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "1", sourceCommentId: "1", sourceCommentCreatedAt: triggerAt, requestedAt: triggerAt });
-    const fixture = { heads, threads, reviews, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), comment(body), ...extraComments] };
+    const fixture = { heads, threads, reviews, historyNodes, reviewPageInfo, graphErrors, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), comment(body), ...extraComments] };
     const preload = join(dir, "fetch.mjs");
     writeFileSync(preload, `const fixture = ${JSON.stringify(fixture)}; let headRead = 0;
       globalThis.fetch = async (url, options = {}) => {
         let data;
-        if (url.endsWith('/graphql')) data = { errors: fixture.graphErrors, data: { repository: { pullRequest: { reviews: { nodes: fixture.reviews, pageInfo: fixture.reviewPageInfo }, reviewThreads: { nodes: fixture.threads, pageInfo: { hasNextPage: false } } } } } };
+        if (url.endsWith('/graphql') && JSON.parse(options.body).query.includes('userContentEdits')) { const variables = JSON.parse(options.body).variables; const nodes = fixture.historyNodes[variables.id]; data = { data: { node: Array.isArray(nodes) ? nodes[variables.cursor ? 1 : 0] : nodes } }; }
+        else if (url.endsWith('/graphql')) data = { errors: fixture.graphErrors, data: { repository: { pullRequest: { reviews: { nodes: fixture.reviews, pageInfo: fixture.reviewPageInfo }, reviewThreads: { nodes: fixture.threads, pageInfo: { hasNextPage: false } } } } } };
         else if (/\\/pulls\\/1$/.test(url)) data = { head: { sha: fixture.heads[Math.min(headRead++, fixture.heads.length - 1)] } };
         else if (url.includes('/issues/1/comments')) data = fixture.comments;
         else if (/\\/(reviews|comments|timeline)\\?/.test(url)) data = [];
@@ -210,10 +211,43 @@ test("native review metadata and incomplete pagination fail closed in the actual
 
 
 test("destructive native edits invalidate earlier evidence even after all markers disappear", () => {
-  const cleared = comment("Review withdrawn", { created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+  const cleared = comment("Review withdrawn", { prior_review_signal: true, node_id: "withdrawn", created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
   assert.equal(evaluate({ comments: [comment(receipt), cleared] }), "pending");
-  assert.equal(runGate({ extraComments: [cleared] }).status, 1);
+  assert.equal(runGate({ extraComments: [cleared], historyNodes: { withdrawn: {
+    id: "withdrawn", body: cleared.body, updatedAt: cleared.updated_at, lastEditedAt: cleared.updated_at, includesCreatedEdit: true,
+    userContentEdits: { nodes: [{ diff: cleared.body }, { diff: receipt }], pageInfo: { hasNextPage: false } }
+  } } }).status, 1);
   assert.equal(evaluate({ comments: [comment(receipt), { ...cleared, body: "" }] }), "pending");
   assert.equal(evaluate({ comments: [comment(receipt), { ...cleared, user: { login: "untrusted[bot]" } }] }), "pass");
   assert.equal(evaluate({ comments: [cleared, comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }), "pass");
+});
+
+
+test("edited COMMENTED reviews cannot retain an implicit no-findings result", () => {
+  for (const body of ["", "Review withdrawn"]) {
+    const review = { id: 2, user: bot, commit_id: headSha, state: "COMMENTED", body,
+      submitted_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z", last_edited_at: "2026-10-01T10:03:00Z" };
+    assert.equal(evaluate({ reviews: [review] }), "pending");
+    assert.equal(evaluate({ comments: [comment(receipt)], reviews: [review] }), "pending");
+    const node = { databaseId: 2, state: review.state, body, commit: { oid: headSha }, submittedAt: review.submitted_at,
+      updatedAt: review.updated_at, lastEditedAt: review.last_edited_at, author: { login: "chatgpt-codex-connector", __typename: "Bot" } };
+    assert.equal(runGate({ reviews: [node] }).status, 1);
+  }
+});
+
+test("ordinary native bot replies remain unrelated while missing edit history fails closed", () => {
+  const ordinary = comment("Usage limit response", { node_id: "ordinary", created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+  assert.equal(evaluate({ comments: [comment(receipt), ordinary] }), "pass");
+  const node = { id: "ordinary", body: ordinary.body, updatedAt: ordinary.updated_at, lastEditedAt: ordinary.updated_at, includesCreatedEdit: true,
+    userContentEdits: { nodes: [{ diff: ordinary.body }, { diff: "Command response" }], pageInfo: { hasNextPage: false } } };
+  assert.equal(runGate({ extraComments: [ordinary], historyNodes: { ordinary: node } }).status, 0);
+  const firstPage = { ...node, userContentEdits: { nodes: [{ diff: ordinary.body }], pageInfo: { hasNextPage: true, endCursor: "next" } } };
+  assert.equal(runGate({ extraComments: [ordinary], historyNodes: { ordinary: [firstPage, node] } }).status, 0);
+  const formerReview = { ...node, userContentEdits: { ...node.userContentEdits, nodes: [{ diff: receipt }] } };
+  const withdrawn = runGate({ extraComments: [ordinary], historyNodes: { ordinary: [firstPage, formerReview] } });
+  assert.equal(withdrawn.status, 1);
+  assert.doesNotMatch(withdrawn.stderr, /Last API error/);
+  assert.equal(runGate({ extraComments: [ordinary], historyNodes: { ordinary: [firstPage, { ...node, updatedAt: "2026-10-01T10:04:00Z" }] } }).status, 1);
+  assert.equal(runGate({ extraComments: [ordinary], historyNodes: { ordinary: { ...node, includesCreatedEdit: false } } }).status, 1);
+  assert.equal(runGate({ extraComments: [ordinary], historyNodes: { ordinary: { ...node, userContentEdits: { ...node.userContentEdits, nodes: [{ diff: null }] } } } }).status, 1);
 });

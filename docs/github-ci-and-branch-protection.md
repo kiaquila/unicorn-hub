@@ -164,8 +164,11 @@ The default pull request behavior is therefore:
    update times through GraphQL: a negative edit or dismissal invalidates an
    earlier pass, while editing an old approval cannot renew its eligibility.
    All authenticated Codex issue-comment edits wake validation, including edits
-   that remove every review marker. Unclassifiable trusted-bot content leaves
-   the gate pending and cannot resurrect an older positive result.
+   that remove every review marker. The gate checks server edit history for
+   unknown native comments: only former review signals leave a pending tombstone;
+   ordinary bot replies remain unrelated. Missing/redacted history or a mutation
+   during pagination fails closed. An edited `COMMENTED` formal review loses its
+   implicit no-findings verdict; a fresh native result must re-establish it.
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 

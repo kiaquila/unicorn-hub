@@ -252,17 +252,18 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   const candidates = [];
   for (const review of reviews) {
     const result = classifyCodexNativeReview(review, reviewComments, headSha, config);
-    if (result && (result === "fail" || isAfterReviewRequest(review.submitted_at, requestMarker))) {
-      const orderingTime = result === "fail" ? (review.updated_at || review.submitted_at) : review.submitted_at;
+    if (result && (result !== "pass" || isAfterReviewRequest(review.submitted_at, requestMarker))) {
+      const orderingTime = result !== "pass" ? (review.updated_at || review.submitted_at) : review.submitted_at;
       candidates.push({ result, time: Date.parse(orderingTime || "") });
     }
   }
   for (const comment of comments) {
     const parsed = classifyCodexSummaryComment(comment, headSha, requestMarker, config);
     if (!parsed) {
-      // An edited native result can lose every marker. Unknown trusted-bot
-      // content must not resurrect an older pass after destructive edits.
-      if (isTrustedReviewLogin(comment.user?.login, "codex", config)) {
+      // The gate verifies prior signal membership from server edit history.
+      // Ordinary bot replies cannot invalidate an unrelated completed review.
+      if (isTrustedReviewLogin(comment.user?.login, "codex", config) &&
+          (isCodexReviewSignal(comment.body) || comment.prior_review_signal === true)) {
         candidates.push({ result: "pending", time: Date.parse(reviewEvidenceTime(comment) || "") });
       }
       continue;
@@ -305,6 +306,9 @@ export function classifyCodexNativeReview(review, reviewComments = [], headSha, 
   if (review.state === "APPROVED") return "pass";
   if (["CHANGES_REQUESTED", "DISMISSED"].includes(review.state)) return "fail";
   if (review.state !== "COMMENTED") return null;
+  // COMMENTED is only an implicit no-findings verdict at submission. Body
+  // edits can withdraw that verdict without changing GitHub's review state.
+  if (review.last_edited_at) return "pending";
 
   const commentsForReview = reviewComments.filter((comment) =>
     comment.pull_request_review_id === review.id &&
