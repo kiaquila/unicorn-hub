@@ -56,6 +56,21 @@ test("native receipt and legacy no-findings preserve explicit head binding", () 
   assert.equal(evaluate({ comments: [comment("Codex Review: Didn't find any major issues.")], timeline: [{ event: "committed", created_at: "2026-10-01T10:01:00Z" }] }), "pending");
 });
 
+test("observed native receipt closings remain exact and cannot hide findings", () => {
+  const omittedFlags = summary(state({ has_any_findings: null, has_unresolved_findings: null }));
+  for (const closing of ["Can't wait for the next one!", "Already looking forward to the next diff."]) {
+    const body = receipt.replace(":rocket:", closing) + "\n" + helpFooter;
+    assert.equal(evaluate({ comments: [comment(body), comment(omittedFlags)] }), "pass");
+    assert.equal(runGate({ body, extraComments: [comment(omittedFlags)] }).status, 0);
+    for (const invalid of [body.replace(closing, closing + " Found a P1 issue."),
+      body.replace(closing, closing + " There is a bug."), body.replace(closing, "An unknown closing."),
+      body.replace(headSha.slice(0, 10), oldSha.slice(0, 10))]) {
+      assert.notEqual(evaluate({ comments: [comment(invalid), comment(omittedFlags)] }), "pass");
+    }
+    assert.notEqual(evaluate({ comments: [comment(body, { user: { login: "untrusted[bot]" } }), comment(omittedFlags)] }), "pass");
+  }
+});
+
 test("receipt rejects forged, missing, stale, malformed, duplicated, and conflicting bindings", () => {
   const invalid = [
     receipt.replace(headSha.slice(0, 10), oldSha.slice(0, 10)),

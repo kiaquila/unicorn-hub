@@ -342,7 +342,7 @@ export function classifyCodexSummaryComment(comment, headSha, requestMarker = nu
   if (visibleHashes.some((sha) => !String(headSha).startsWith(sha))) return null;
   if (containsBlockingSeverity(text, "codex")) return { result: "fail", explicitSha };
   const positiveText = withoutCodexHelpFooter(text).replace(/^\*\*Reviewed commit:\*\* `[a-f0-9]{10,40}`\s*$/gm, "").trim();
-  const positive = /^Codex Review:\s*did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues(?: for [a-f0-9]{10,40})?\.(?: (?:Nice work!|:rocket:|🚀|:\+1:))?$/i.test(positiveText);
+  const positive = /^Codex Review:\s*did(?:\s+not|\s*n['’]?t)\s+find\s+any\s+major\s+issues(?: for [a-f0-9]{10,40})?\.(?: (?:Nice work!|Can't wait for the next one!|Already looking forward to the next diff\.|:rocket:|🚀|:\+1:))?$/i.test(positiveText);
   // Only the observed no-findings sentence is a positive verdict. Contradictory
   // prose (outside the optional standard help section) must fail closed.
   const verdictText = withoutCodexHelpFooter(text);

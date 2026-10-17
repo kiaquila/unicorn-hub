@@ -157,13 +157,18 @@
   are covered through the actual gate; escaped genuine prior receipts still
   retain their evidence markers.
 
+- Exact observed native no-findings closings include the two textual celebrations
+  alongside existing emoji/short variants. Regression coverage exercises genuine
+  omitted-flag corroboration and rejects appended findings, unknown prose, stale
+  heads, and untrusted identities.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 188 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 189 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.
