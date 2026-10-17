@@ -114,7 +114,9 @@ completion.
 
 Legacy top-level verdicts must start at column zero, case-insensitively, matching
 Actions `startsWith`. Leading whitespace is outside the accepted legacy grammar;
-edit history preserves that whitespace after removing only diff prefixes.
+edit history preserves that whitespace and Markdown content after removing only
+diff prefixes and paired file headers before the first hunk. Partial hunks below
+line one cannot establish a start-of-body legacy verdict.
 Explicit receipts and structured envelopes retain their own marker rules.
 
 Destructive native events and machine review-control mutations defer in the

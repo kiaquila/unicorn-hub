@@ -156,11 +156,19 @@ function priorBodyFromEditDiff(diff) {
     return prior;
   }
   const lines = decoded.split("\n");
-  if (lines.some((line) => /^@@ /.test(line)) ||
+  const firstHunk = lines.findIndex((line) => /^@@ /.test(line));
+  if (firstHunk >= 0 ||
       (lines.some((line) => line.startsWith("-")) && lines.some((line) => line.startsWith("+")))) {
-    const prior = lines.filter((line) => !/^(?:\+|---|@@|diff |index |\\ No newline)/.test(line))
+    const prior = lines.filter((line, index) => {
+      if (/^(?:\+|@@|\\ No newline)/.test(line)) return false;
+      if (index < firstHunk && (/^(?:diff |index )/.test(line) ||
+          (/^---[\t ]/.test(line) && /^\+\+\+[\t ]/.test(lines[index + 1] || "")))) return false;
+      return true;
+    })
       .map((line) => /^[ -]/.test(line) ? line.slice(1) : line).join("\n");
-    return prior;
+    // A partial hunk below line one cannot establish a start-of-body legacy
+    // verdict. Explicit envelopes still retain their anywhere-in-body grammar.
+    return firstHunk >= 0 && !/^@@ -[01](?:[ ,])/.test(lines[firstHunk]) ? `\n${prior}` : prior;
   }
   return decoded;
 }

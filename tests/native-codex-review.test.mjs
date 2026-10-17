@@ -555,6 +555,29 @@ test("edit history preserves the prior body's own leading whitespace", () => {
   }
 });
 
+test("unified edit history preserves content boundaries and removes only file metadata", () => {
+  const legacy = "Codex Review: Didn't find any major issues.";
+  const ordinary = comment("Ordinary reply", { node_id: "content-history",
+    created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+  for (const [diff, signal] of [
+    [`@@ -1,2 +1,2 @@\n----\n+***\n ${legacy}`, false],
+    [`@@ -1,2 +1,2 @@\n--- title\n+++ title\n ${legacy}`, false],
+    [`--- title\n+++ title\n ${legacy}`, false],
+    [`@@ -8 +8 @@\n-${legacy}\n+Ordinary reply`, false],
+    [`diff --git a/comment b/comment\nindex 123..456 100644\n--- a/comment\n+++ b/comment\n@@ -1 +1 @@\n-${legacy}\n+Ordinary reply`, true],
+    [`--- a/comment\n+++ b/comment\n@@ -8 +8 @@\n-${legacy}\n+Ordinary reply`, false]
+  ]) {
+    assert.equal(hasCodexReviewSignalInEditDiff(diff), signal, diff);
+    const result = runGate({ extraComments: [ordinary], historyNodes: { [ordinary.node_id]: {
+      id: ordinary.node_id, body: ordinary.body, updatedAt: ordinary.updated_at,
+      lastEditedAt: ordinary.updated_at, includesCreatedEdit: true,
+      userContentEdits: { nodes: [{ diff }], pageInfo: { hasNextPage: false } }
+    } } });
+    assert.equal(result.status, signal ? 1 : 0, diff);
+    assert.doesNotMatch(result.stderr, /Last API error/);
+  }
+});
+
 
 test("zero-wait validation always takes its initial snapshot despite advancing time", () => {
   const positive = runGate({ clockStep: 1 });
