@@ -142,6 +142,24 @@ export function isCodexReviewSignal(body) {
     text.includes("<!-- codex-review-state:");
 }
 
+export function hasCodexReviewSignalInEditDiff(diff) {
+  // UserContentEdit.diff is an edit summary, not necessarily a raw prior body.
+  // Broader history recognition only withdraws evidence; it never grants pass.
+  const decoded = String(diff).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
+    .replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (_match, code) => {
+      const value = code[0].toLowerCase() === "x" ? Number.parseInt(code.slice(1), 16) : Number(code);
+      return value <= 0x10ffff ? String.fromCodePoint(value) : "";
+    });
+  const plain = decoded.replace(/<[^>]*>/g, "");
+  return isCodexReviewSignal(decoded) || isCodexReviewSignal(plain) || /\bCodex\s+Review:/i.test(plain);
+}
+
+export function isAiReviewControlComment(body) {
+  const text = String(body || "");
+  return (text.startsWith("AI review request recorded for ") && Boolean(extractAiReviewRequestMarker(text))) ||
+    text.startsWith("<!-- unicorn-hub:ai-review-withdrawal:");
+}
+
 export function reviewEvidenceTime(comment) {
   return comment?.updated_at || comment?.created_at;
 }

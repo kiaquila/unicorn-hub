@@ -85,13 +85,19 @@
   remains under observation through terminal state and a fresh rerun, including
   successful and slow/force-cancel races. Bootstrap verifies the recorder too.
 
+- Native review identified ref-qualified workflow API paths, legacy markers inside
+  rendered edit diffs, and overly broad machine-comment withdrawal. Source refs
+  are bound to server branch/SHA/default/PR metadata; edit-summary recognition is
+  negative-only. Machine withdrawals require review-control membership encoded
+  from current or pre-edit webhook content; ordinary diagnostics are unrelated.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 172 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 173 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

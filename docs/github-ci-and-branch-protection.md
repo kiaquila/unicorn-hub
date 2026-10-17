@@ -170,7 +170,8 @@ The default pull request behavior is therefore:
    that remove every review marker. The gate checks server edit history for
    unknown native comments: only former review signals leave a pending tombstone;
    ordinary bot replies remain unrelated. Missing/redacted history or a mutation
-   during pagination fails closed. Empty formal reviews never establish no-findings evidence, including after
+   during pagination fails closed. Legacy signals are also recognized inside
+   prefixed or HTML-rendered server edit summaries; diff text never grants pass. Empty formal reviews never establish no-findings evidence, including after
    the last inline finding is deleted; a fresh explicit native verdict is required.
    Edited `COMMENTED` formal reviews also remain pending.
    Fresh formal approvals and comments also reject visible failed/incomplete
@@ -192,11 +193,13 @@ The default pull request behavior is therefore:
    deletion deliveries may rerun twice, preserving validation over deduplication.
    Deletions also receive a durable negative-only withdrawal record from the
    default-branch `workflow_run` controller in AI Command Policy. It checks the
-   source run path, event, repository, and API-associated PR (or default branch
+   source run path (including a server-bound ref suffix), event, repository, and API-associated PR (or default branch
    for issue comments), then records the server event time and live full head.
    No positive verdict at or before that time can pass. Publication precedes the
    fresh gate wakeup; delayed/duplicate delivery cannot renew old evidence.
-   Edited/deleted machine records also receive repair records. This controller
+   Edited/deleted machine review-control records also receive repair records;
+   ordinary Actions diagnostics are unrelated. Control membership is encoded from
+   the current or pre-edit webhook body and checked by both runtime paths. This controller
    reuses existing administrative write scope, executes only default scripts,
    and never downloads artifacts or executes source-run code. The gate and
    native-event router gain no write permissions.

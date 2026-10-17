@@ -108,6 +108,7 @@ test("deletion recording executes only in the default-branch controller with exi
   assert.doesNotMatch(recorder, /artifact|AI_REVIEW_GATE_PIN/);
   const router = readFileSync(join(root, ".github/workflows/ai-review-rerun.yml"), "utf8");
   assert.match(router, /run-name: AI review evidence:/);
+  assert.match(router, /startsWith\(github.event.changes.body.from, '<!-- unicorn-hub:ai-review-withdrawal:'/);
   assert.doesNotMatch(router, /issues: write/);
   assert.match(readFileSync(join(root, ".github/workflows/ai-review.yml"), "utf8"), /timeout-minutes: 10/);
 });

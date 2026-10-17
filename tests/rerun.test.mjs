@@ -410,7 +410,7 @@ test("withdrawal controller records a server-timed fence before waking the actua
   let recorded;
   const request = async (_token, _repository, path, options = {}) => {
     calls.push({ path, method: options.method || "GET", body: options.body });
-    if (path.endsWith("/actions/runs/99")) return { path: ".github/workflows/ai-review-rerun.yml", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]", created_at: "2026-10-01T10:03:00Z" };
+    if (path.endsWith("/actions/runs/99")) return { path: ".github/workflows/ai-review-rerun.yml@refs/pull/1/merge", head_branch: "feature/example", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]:false", created_at: "2026-10-01T10:03:00Z" };
     if (path.endsWith("/pulls/1")) return { state: "open", head: { sha: headSha } };
     if (path.includes("/issues/1/comments") && options.method !== "POST") return recorded ? [recorded] : [];
     if (path.endsWith("/issues/1/comments") && options.method === "POST") return recorded = { body: JSON.parse(options.body).body, user: { login: "github-actions[bot]" }, created_at: "2026-10-01T10:04:00Z" };
@@ -419,19 +419,27 @@ test("withdrawal controller records a server-timed fence before waking the actua
     if (path.endsWith("/rerun")) return null;
     throw new Error(`Unexpected request ${path}`);
   };
-  const options = { token: "synthetic", repository: "example/project", runId: 99, request };
+  const options = { token: "synthetic", repository: "example/project", runId: 99, defaultBranch: "main", request };
   assert.equal((await recordReviewWithdrawal(options)).action, "rerun");
   assert.match(recorded.body, /"source_created_at":"2026-10-01T10:03:00Z"/);
   assert.match(recorded.body, new RegExp(headSha));
   assert.ok(calls.findIndex((call) => call.method === "POST" && call.path.endsWith("/comments")) < calls.findIndex((call) => call.path.endsWith("/rerun")));
+  for (const qualifiedPath of [".github/workflows/ai-review-rerun.yml", ".github/workflows/ai-review-rerun.yml@feature/example", ".github/workflows/ai-review-rerun.yml@refs/heads/feature/example", ".github/workflows/ai-review-rerun.yml@main", ".github/workflows/ai-review-rerun.yml@refs/heads/main"]) {
+    assert.equal((await recordReviewWithdrawal({ ...options, request: async (t, r, path, mutation) => {
+      const value = await request(t, r, path, mutation);
+      return path.endsWith("/actions/runs/99") ? { ...value, path: qualifiedPath } : value;
+    } })).action, "rerun");
+  }
   assert.equal((await recordReviewWithdrawal(options)).action, "rerun");
   assert.equal(calls.filter((call) => call.method === "POST" && call.path.endsWith("/comments")).length, 1, "duplicate deliveries preserve one durable record");
 });
 
 test("withdrawal controller ignores unrelated, forged, or cross-PR run metadata", async () => {
-  const base = { path: ".github/workflows/ai-review-rerun.yml", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]", created_at: "2026-10-01T10:03:00Z" };
+  const base = { path: ".github/workflows/ai-review-rerun.yml@refs/pull/1/merge", head_branch: "feature/example", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]:false", created_at: "2026-10-01T10:03:00Z" };
   for (const metadata of [
-    { ...base, path: ".github/workflows/untrusted.yml" }, { ...base, repository: { full_name: "other/project" } },
+    { ...base, path: ".github/workflows/untrusted.yml" }, { ...base, path: ".github/workflows/ai-review-rerun.yml@wrong-ref" },
+    { ...base, path: ".github/workflows/ai-review-rerun.yml@refs/pull/2/merge" },
+    { ...base, display_title: base.display_title.replace("chatgpt-codex-connector[bot]", "github-actions[bot]") }, { ...base, repository: { full_name: "other/project" } },
     { ...base, display_title: base.display_title.replace(":deleted:", ":created:") },
     { ...base, display_title: base.display_title.replace("chatgpt-codex-connector[bot]", "untrusted[bot]") },
     { ...base, pull_requests: [{ number: 2 }] }, { ...base, created_at: "invalid" },
@@ -468,6 +476,8 @@ test("slow cancellation is force-cancelled and polled before scheduling a fresh 
 
 test("machine withdrawal mutations wake repair while newly created records cannot recurse", () => {
   for (const action of ["edited", "deleted", "created"]) {
-    assert.equal(shouldRouteAiReviewRerunEvent({ action, issue: { pull_request: {}, number: 1 }, comment: { body: "withdrawal record", user: { login: "github-actions[bot]" } } }), action !== "created");
+    assert.equal(shouldRouteAiReviewRerunEvent({ action, issue: { pull_request: {}, number: 1 }, comment: { body: '<!-- unicorn-hub:ai-review-withdrawal:v1 {} -->', user: { login: "github-actions[bot]" } } }), action !== "created");
+    assert.equal(shouldRouteAiReviewRerunEvent({ action, issue: { pull_request: {}, number: 1 }, comment: { body: "AI Review gate failed", user: { login: "github-actions[bot]" } } }), false);
+    assert.equal(shouldRouteAiReviewRerunEvent({ action, issue: { pull_request: {}, number: 1 }, comment: { body: "cleared", user: { login: "github-actions[bot]" } }, changes: { body: { from: '<!-- unicorn-hub:ai-review-withdrawal:v1 {} -->' } } }), action !== "created");
   }
 });

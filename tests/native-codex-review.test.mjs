@@ -423,3 +423,22 @@ test("durable deletion tombstones invalidate every pre-deletion positive verdict
   for (const body of [withdrawal().body.replace(":v1", ":v2"), withdrawal().body.replace('"agent":"codex"', '"agent":"other","agent":"codex"')])
     assert.equal(evaluate({ comments: [comment(receipt), withdrawal({ body })] }), "pending");
 });
+
+
+test("legacy review markers survive prefixed and HTML-rendered edit histories", () => {
+  const cleared = comment("Ordinary text", { node_id: "diff-review", created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+  for (const diff of [
+    "- Codex Review: Found a P1 bug.\n+ Ordinary text",
+    "<div><del>Codex Review: Found a P1 bug.</del><ins>Ordinary text</ins></div>",
+    "&lt;del&gt;Codex Review: Review withdrawn&lt;/del&gt;",
+    "<del>Codex</del> Review: Found a bug.",
+    "&#67;odex Review: Found a bug."
+  ]) {
+    const result = runGate({ extraComments: [cleared], historyNodes: { "diff-review": {
+      id: "diff-review", body: cleared.body, updatedAt: cleared.updated_at, lastEditedAt: cleared.updated_at, includesCreatedEdit: true,
+      userContentEdits: { nodes: [{ diff }], pageInfo: { hasNextPage: false } }
+    } } });
+    assert.equal(result.status, 1, diff);
+    assert.doesNotMatch(result.stderr, /Last API error/);
+  }
+});

@@ -6,6 +6,7 @@ import {
   isAcceptableClaudeComment,
   isAcceptableNativeReview,
   isCodexReviewSignal,
+  hasCodexReviewSignalInEditDiff,
   isTrustedReviewLogin,
   latestAiReviewRequestMarker
 } from "./ai-review-helpers.mjs";
@@ -163,7 +164,7 @@ async function fetchPriorReviewSignal(comment) {
     snapshotTime = node.updatedAt;
     comment.body = node.body;
     comment.updated_at = node.updatedAt;
-    if (isCodexReviewSignal(node.body) || connection.nodes.some((edit) => isCodexReviewSignal(edit.diff))) return true;
+    if (isCodexReviewSignal(node.body) || connection.nodes.some((edit) => hasCodexReviewSignalInEditDiff(edit.diff))) return true;
     cursor = connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null;
     if (!cursor && node.lastEditedAt && !node.includesCreatedEdit) {
       throw new Error("Native comment creation history is unavailable.");

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   extractClaudeOutcome,
   isCodexReviewSignal,
+  isAiReviewControlComment,
   reviewEvidenceTime,
   isTrustedReviewLogin
 } from "./ai-review-helpers.mjs";
@@ -35,7 +36,8 @@ export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", co
   const login = event.comment.user?.login;
 
   if (agent === "codex") {
-    return (["edited", "deleted"].includes(event.action) && String(login).toLowerCase() === "github-actions[bot]") ||
+    return (["edited", "deleted"].includes(event.action) && String(login).toLowerCase() === "github-actions[bot]" &&
+      (isAiReviewControlComment(body) || isAiReviewControlComment(event.changes?.body?.from))) ||
       ((["edited", "deleted"].includes(event.action) || isCodexReviewSignal(body)) && isTrustedReviewLogin(login, "codex", config));
   }
 
@@ -212,14 +214,22 @@ export async function recordReviewWithdrawal({ token, repository, runId, default
   // Treat workflow-run metadata as data only. The writer executes solely in the
   // default-branch workflow_run controller; it never downloads PR artifacts.
   const run = await request(token, repository, `${prefix}/actions/runs/${runId}`);
-  const title = String(run.display_title || "").match(/^AI review evidence:(issue_comment|pull_request_review_comment):(deleted|edited):([1-9][0-9]*):([^:]+)$/);
-  if (run.path !== ".github/workflows/ai-review-rerun.yml" || run.repository?.full_name?.toLowerCase() !== repository.toLowerCase() ||
+  const title = String(run.display_title || "").match(/^AI review evidence:(issue_comment|pull_request_review_comment):(deleted|edited):([1-9][0-9]*):([^:]+):(true|false)$/);
+  if (typeof run.path !== "string" || run.repository?.full_name?.toLowerCase() !== repository.toLowerCase() ||
       !title || title[1] !== run.event || !Number.isFinite(Date.parse(run.created_at || ""))) return { action: "ignored" };
   const nativeDeletion = title[2] === "deleted" && isTrustedReviewLogin(title[4], "codex", config);
-  const machineMutation = title[4].toLowerCase() === "github-actions[bot]";
+  const machineMutation = title[4].toLowerCase() === "github-actions[bot]" && title[5] === "true";
   if (!nativeDeletion && !machineMutation) return { action: "ignored" };
   const prNumber = Number(title[3]);
   if (!Number.isSafeInteger(prNumber)) throw new Error("Invalid withdrawal PR number.");
+  const workflowPath = ".github/workflows/ai-review-rerun.yml";
+  const workflowRef = run.path.startsWith(`${workflowPath}@`) ? run.path.slice(workflowPath.length + 1) : null;
+  if (run.path !== workflowPath && (!workflowRef || ![
+    run.head_branch, run.head_sha, run.head_branch && `refs/heads/${run.head_branch}`,
+    defaultBranch, defaultBranch && `refs/heads/${defaultBranch}`,
+    ...(run.event === "pull_request_review_comment" ? [`refs/pull/${prNumber}/merge`, `refs/pull/${prNumber}/head`] : [])
+  ].filter(Boolean).includes(workflowRef))) return { action: "ignored" };
+
   // issue_comment definitions come from the default branch. For PR-context
   // runs, constrain this negative-only record to the API-associated PR, so a
   // contributor cannot use a forged run title to write on another PR.

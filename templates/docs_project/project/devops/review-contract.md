@@ -57,12 +57,14 @@ replies remain unrelated: pending withdrawal tombstones require a former review
 signal verified from complete server edit history.
 
 The default-branch workflow-run controller persists negative-only deletion
-records using the existing administrative write scope. Source path, event,
+records using the existing administrative write scope. Source path and its server-bound ref suffix, event,
 repository, and PR association/default branch are checked from server run
 metadata. Each record binds the live full head and server event time; positives
 at or before that time cannot pass. The record is published before waking the
 real gate. Delayed or duplicate events retain their original event time, and
-machine-record edits/deletions are repaired. The controller executes only default
+machine review-control edits/deletions are repaired. Ordinary Actions diagnostics
+remain unrelated. Control membership uses the current or pre-edit webhook body
+and is checked by both runtime paths. The controller executes only default
 scripts, downloads no artifacts, and never executes source-run code. Validation
 and the native-event router gain no write scope.
 
