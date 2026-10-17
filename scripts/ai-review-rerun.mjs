@@ -35,7 +35,8 @@ export function shouldRouteAiReviewRerunEvent(event, selectedAgent = "codex", co
   const login = event.comment.user?.login;
 
   if (agent === "codex") {
-    return (["edited", "deleted"].includes(event.action) || isCodexReviewSignal(body)) && isTrustedReviewLogin(login, "codex", config);
+    return (["edited", "deleted"].includes(event.action) && String(login).toLowerCase() === "github-actions[bot]") ||
+      ((["edited", "deleted"].includes(event.action) || isCodexReviewSignal(body)) && isTrustedReviewLogin(login, "codex", config));
   }
 
   if (agent === "claude") {
@@ -134,6 +135,9 @@ export async function rerunAiReviewForPrHead({
   const [owner, repo] = repository.split("/");
   const started = now();
   let delay = 2000;
+  let cancellationRequested = false;
+  let cancellationStarted;
+  let forceCancellationRequested = false;
   while (true) {
     if (prNumber) {
       const pull = await request(token, repository, `/repos/${owner}/${repo}/pulls/${prNumber}`);
@@ -148,25 +152,35 @@ export async function rerunAiReviewForPrHead({
       // A running gate may have read evidence just before this event. Wait for
       // completion, then schedule exactly one fresh attempt if needed.
       const remaining = maxWaitMs - (now() - started);
-      if (remaining <= 0) {
-        // Do not discard the event while an old evaluation can still turn green.
-        // Cancelling uses the existing Actions permission and leaves the required
-        // check non-successful until a fresh evaluation is explicitly rerun.
+      if (remaining <= 0 && !cancellationRequested) {
+        cancellationRequested = true;
+        cancellationStarted = now();
         try {
           await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}/cancel`, { method: "POST" });
         } catch (error) {
           const current = await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}`);
-          if (current.status === "completed") continue; // Completion raced cancellation: reevaluate and rerun.
-          throw error;
+          if (current.status !== "completed") throw error;
         }
-        throw new Error(`Cancelled stale active AI Review run ${selected.run.id} for ${headSha}; rerun it to evaluate the pending evidence.`);
+        // 202 only acknowledges cancellation. Keep the wakeup until terminal
+        // state is observed, then rerun even when stale success won the race.
+        continue;
       }
-      await sleep(Math.min(delay, remaining));
+      if (cancellationRequested && !forceCancellationRequested && now() - cancellationStarted >= 30000) {
+        forceCancellationRequested = true;
+        try {
+          await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}/force-cancel`, { method: "POST" });
+        } catch (error) {
+          const current = await request(token, repository, `/repos/${owner}/${repo}/actions/runs/${selected.run.id}`);
+          if (current.status !== "completed") throw error;
+        }
+        continue;
+      }
+      await sleep(cancellationRequested ? delay : Math.min(delay, remaining));
       delay = Math.min(delay * 2, 10000);
       continue;
     }
     let alreadyEvaluated = false;
-    if (!forceRerun && evidenceUpdatedAt && selected.run) {
+    if (!forceRerun && !cancellationRequested && evidenceUpdatedAt && selected.run) {
       // The attempt endpoint records the latest rerun start rather than the
       // original run creation time. This suppresses duplicate/delayed events.
       const attempt = await request(token, repository,
@@ -175,7 +189,7 @@ export async function rerunAiReviewForPrHead({
       const evidenceTime = Date.parse(evidenceUpdatedAt);
       alreadyEvaluated = Number.isFinite(attemptStart) && Number.isFinite(evidenceTime) && attemptStart > evidenceTime;
     }
-    if (selected.run && !alreadyEvaluated && (selected.action === "rerun" || evidenceUpdatedAt || forceRerun)) {
+    if (selected.run && !alreadyEvaluated && (selected.action === "rerun" || evidenceUpdatedAt || forceRerun || cancellationRequested)) {
       // Close the list-runs/new-push race immediately before mutation.
       if (prNumber) {
         const pull = await request(token, repository, `/repos/${owner}/${repo}/pulls/${prNumber}`);
@@ -189,6 +203,41 @@ export async function rerunAiReviewForPrHead({
     const action = alreadyEvaluated ? "already_evaluated" : selected.action;
     return { ...selected, action, message: `AI Review wakeup ${action} for ${headSha}.` };
   }
+}
+
+export async function recordReviewWithdrawal({ token, repository, runId, defaultBranch, selectedAgent = "codex", config = {}, request = defaultRequest }) {
+  if (normalizeAgent(selectedAgent) !== "codex") return { action: "ignored" };
+  if (!Number.isSafeInteger(runId) || runId <= 0) throw new Error("Invalid withdrawal source run ID.");
+  const prefix = `/repos/${repository}`;
+  // Treat workflow-run metadata as data only. The writer executes solely in the
+  // default-branch workflow_run controller; it never downloads PR artifacts.
+  const run = await request(token, repository, `${prefix}/actions/runs/${runId}`);
+  const title = String(run.display_title || "").match(/^AI review evidence:(issue_comment|pull_request_review_comment):(deleted|edited):([1-9][0-9]*):([^:]+)$/);
+  if (run.path !== ".github/workflows/ai-review-rerun.yml" || run.repository?.full_name?.toLowerCase() !== repository.toLowerCase() ||
+      !title || title[1] !== run.event || !Number.isFinite(Date.parse(run.created_at || ""))) return { action: "ignored" };
+  const nativeDeletion = title[2] === "deleted" && isTrustedReviewLogin(title[4], "codex", config);
+  const machineMutation = title[4].toLowerCase() === "github-actions[bot]";
+  if (!nativeDeletion && !machineMutation) return { action: "ignored" };
+  const prNumber = Number(title[3]);
+  if (!Number.isSafeInteger(prNumber)) throw new Error("Invalid withdrawal PR number.");
+  // issue_comment definitions come from the default branch. For PR-context
+  // runs, constrain this negative-only record to the API-associated PR, so a
+  // contributor cannot use a forged run title to write on another PR.
+  if (run.event === "issue_comment" ? !defaultBranch || run.head_branch !== defaultBranch
+    : !run.pull_requests?.some((pull) => pull.number === prNumber)) return { action: "ignored" };
+  const pull = await request(token, repository, `${prefix}/pulls/${prNumber}`);
+  if (pull.state !== "open") return { action: "closed" };
+  const headSha = pull.head?.sha;
+  if (!/^[a-f0-9]{40}$/.test(headSha || "")) throw new Error("Invalid withdrawal PR head.");
+  const record = { agent: "codex", head_sha: headSha, pr_number: prNumber, source_created_at: run.created_at, source_run_id: runId };
+  const body = `<!-- unicorn-hub:ai-review-withdrawal:v1 ${JSON.stringify(record)} -->`;
+  const comments = await listPaginated(request, token, repository, `${prefix}/issues/${prNumber}/comments`);
+  let marker = comments.find((comment) => comment.user?.login?.toLowerCase() === "github-actions[bot]" && comment.body === body);
+  if (!marker) marker = await request(token, repository, `${prefix}/issues/${prNumber}/comments`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body })
+  });
+  if (!Number.isFinite(Date.parse(marker?.created_at || ""))) throw new Error("Missing withdrawal publication time.");
+  return rerunAiReviewForPrHead({ token, repository, headSha, prNumber, evidenceUpdatedAt: marker.created_at, request });
 }
 
 async function resolvePullContext({ token, repository, event, request = defaultRequest }) {
@@ -216,6 +265,11 @@ async function main() {
   }
 
   const event = JSON.parse(readFileSync(eventPath, "utf8"));
+  if (process.env.GITHUB_EVENT_NAME === "workflow_run") {
+    const result = await recordReviewWithdrawal({ token, repository, runId: event.workflow_run?.id, defaultBranch: event.repository?.default_branch, selectedAgent, config });
+    console.log(result.message || `Review withdrawal ${result.action}.`);
+    return;
+  }
   if (!shouldRouteAiReviewRerunEvent(event, selectedAgent, config)) {
     console.log("AI Review rerun skipped: event is not trusted review evidence for the selected agent.");
     return;

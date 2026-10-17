@@ -95,3 +95,19 @@ test("installed workflow filter routes created/edited native evidence to the tru
   assert.match(policy, /cancel-in-progress: false/);
   assert.match(policy, /queue: max/);
 });
+
+
+test("deletion recording executes only in the default-branch controller with existing write scope", () => {
+  const policy = readFileSync(join(root, ".github/workflows/ai-command-policy.yml"), "utf8");
+  assert.match(policy, /workflow_run:\n    workflows: \[AI Review Rerun\]\n    types: \[requested\]/);
+  const recorder = policy.slice(policy.indexOf("  record-review-withdrawal:"));
+  assert.match(recorder, /if: github.event_name == 'workflow_run'/);
+  assert.match(recorder, /ref: \$\{\{ github.event.repository.default_branch \}\}/);
+  assert.match(recorder, /persist-credentials: false/);
+  assert.match(recorder, /run: node scripts\/ai-review-rerun.mjs/);
+  assert.doesNotMatch(recorder, /artifact|AI_REVIEW_GATE_PIN/);
+  const router = readFileSync(join(root, ".github/workflows/ai-review-rerun.yml"), "utf8");
+  assert.match(router, /run-name: AI review evidence:/);
+  assert.doesNotMatch(router, /issues: write/);
+  assert.match(readFileSync(join(root, ".github/workflows/ai-review.yml"), "utf8"), /timeout-minutes: 10/);
+});

@@ -3,9 +3,12 @@ name: AI Command Policy
 on:
   issue_comment:
     types: [created]
+  workflow_run:
+    workflows: [AI Review Rerun]
+    types: [requested]
 
 concurrency:
-  group: ai-review-wakeup-${{ github.event.issue.number }}
+  group: ai-review-wakeup-${{ github.event.issue.number || github.event.workflow_run.id }}
   cancel-in-progress: false
   queue: max
 
@@ -38,4 +41,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           AI_IMPLEMENTATION_AGENT: ${{ vars.AI_IMPLEMENTATION_AGENT }}
+          AI_REVIEW_AGENT: ${{ vars.AI_REVIEW_AGENT }}
+
+  record-review-withdrawal:
+    name: record-review-withdrawal
+    if: github.event_name == 'workflow_run'
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+      pull-requests: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted withdrawal recorder
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Record withdrawal and wake read-only validation
+        run: node scripts/ai-review-rerun.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
           AI_REVIEW_AGENT: ${{ vars.AI_REVIEW_AGENT }}

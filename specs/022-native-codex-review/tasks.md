@@ -76,13 +76,22 @@
   stale evaluation, with completion/cancellation races covered by a real rerun.
   Regressions exercise classifiers, the actual gate, and the Actions API boundary.
 
+- Native review caught the minimal Completed shortcut, unverified help-footer
+  contents, deletion tombstones ordered at original submission time, and treating
+  accepted cancellation as terminal. Full native tables and complete known
+  footers are required. A default-branch workflow-run controller persists
+  negative-only server-timed withdrawal records using existing administrative
+  scope. The read-only gate rejects positives preceding those records. Cancellation
+  remains under observation through terminal state and a fresh rerun, including
+  successful and slow/force-cancel races. Bootstrap verifies the recorder too.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 164 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 172 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

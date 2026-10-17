@@ -153,10 +153,23 @@ function containsNegativeReviewState(text) {
   return negativeState.test(plain) || negatedSuccess.test(plain);
 }
 
+const codexHelpIntroduction = `[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you
+- Open a pull request for review
+- Mark a draft as ready
+- Comment "@codex review"`;
+const codexHelpFooters = [
+  codexHelpIntroduction + ` or "@codex security review".
+Codex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.`,
+  codexHelpIntroduction + `.
+If Codex has suggestions, it will comment; otherwise it will react with 👍.
+Codex can also answer questions or update the PR. Try commenting "@codex address that feedback".`
+].map((text) => text.replace(/\s+/g, " ").trim());
+
 function withoutCodexHelpFooter(text) {
-  // Only the labelled standard help footer is excluded. Folded review results
-  // remain evidence and must not hide a negative status or stale binding.
-  return String(text).replace(/\s*<details>\s*<summary>[^<]*?About Codex(?: in GitHub)?\s*<\/summary>(?:(?!<\/?details\b)[\s\S])*<\/details>\s*$/i, "");
+  const body = String(text);
+  const footer = body.match(/\s*<details>\s*<summary>ℹ️ About Codex in GitHub<\/summary>\s*<br\/>\s*((?:(?!<\/?details\b)[\s\S])*)<\/details>\s*$/);
+  if (!footer || !codexHelpFooters.includes(footer[1].replace(/\s+/g, " ").trim())) return body;
+  return body.slice(0, footer.index);
 }
 
 export function isAfterReviewRequest(value, marker) {
@@ -167,7 +180,6 @@ export function isAfterReviewRequest(value, marker) {
 
 function isPositiveSummaryRendering(text, headSha, securityActive) {
   const visible = withoutCodexHelpFooter(text).trim();
-  if (visible === "Completed") return true;
   const lines = visible.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.shift() !== "This comment shows the latest Codex review activity on this pull request." ||
       lines.shift() !== "| Review | Status | Commit | Review trigger |" ||
@@ -272,6 +284,22 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   if (threads.some((thread) => !thread.isResolved && thread.comments?.nodes?.some((comment) =>
     isTrustedReviewLogin(comment.author?.__typename === "Bot" && !comment.author.login.endsWith("[bot]")
       ? `${comment.author.login}[bot]` : comment.author?.login, "codex", config)))) return "fail";
+  let withdrawalTime = -Infinity;
+  for (const comment of comments) {
+    if (normalizeLogin(comment.user?.login) !== "github-actions[bot]" ||
+        !String(comment.body || "").includes("unicorn-hub:ai-review-withdrawal:")) continue;
+    const match = String(comment.body).match(/^<!-- unicorn-hub:ai-review-withdrawal:v1 (.+) -->$/);
+    let record;
+    try { record = match && JSON.parse(match[1]); } catch { return "pending"; }
+    if (!record || JSON.stringify(record) !== match[1] || Object.keys(record).sort().join(",") !== "agent,head_sha,pr_number,source_created_at,source_run_id" ||
+        record.agent !== "codex" || !/^[a-f0-9]{40}$/.test(record.head_sha) ||
+        !Number.isSafeInteger(record.pr_number) || record.pr_number <= 0 ||
+        !Number.isSafeInteger(record.source_run_id) || record.source_run_id <= 0 ||
+        !Number.isFinite(Date.parse(record.source_created_at || "")) ||
+        !Number.isFinite(Date.parse(comment.created_at || "")) ||
+        Date.parse(record.source_created_at) > Date.parse(comment.created_at)) return "pending";
+    if (record.head_sha === headSha) withdrawalTime = Math.max(withdrawalTime, Date.parse(record.source_created_at));
+  }
   const candidates = [];
   for (const review of reviews) {
     const result = classifyCodexNativeReview(review, reviewComments, headSha, config, requestMarker);
@@ -299,7 +327,8 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
     const orderingTime = parsed.result === "fail" ? reviewEvidenceTime(comment) : eligibilityTime;
     candidates.push({ result: parsed.result, time: Date.parse(orderingTime || "") });
   }
-  const valid = candidates.filter((entry) => Number.isFinite(entry.time));
+  const valid = candidates.filter((entry) => Number.isFinite(entry.time) &&
+    (entry.result !== "pass" || entry.time > withdrawalTime));
   const newest = Math.max(...valid.map((entry) => entry.time));
   const latest = valid.filter((entry) => entry.time === newest);
   if (latest.some((entry) => entry.result === "fail")) return "fail";

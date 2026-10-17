@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   rerunAiReviewForPrHead,
+  recordReviewWithdrawal,
   reviewEventEvidenceTime,
   selectAiReviewRun,
   shouldRouteAiReviewRerunEvent
@@ -304,10 +305,12 @@ test("wakeup refuses stale heads both before listing and immediately before reru
 });
 
 test("active gate timeout cancels stale evaluation instead of losing the event", async () => {
-  const harness = wakeupHarness({ statuses: ["in_progress"] });
-  await assert.rejects(harness.run, /Cancelled stale active AI Review/);
-  assert.ok(harness.calls.length <= 5);
-  assert.deepEqual(harness.calls.filter((call) => call.method === "POST").map((call) => call.path), ["/repos/example/project/actions/runs/42/cancel"]);
+  const harness = wakeupHarness({ statuses: ["in_progress", "in_progress", "in_progress", "completed"], maxWaitMs: 0, conclusion: "success" });
+  assert.equal((await harness.run()).action, "rerun");
+  assert.deepEqual(harness.calls.filter((call) => call.method === "POST").map((call) => call.path), ["/repos/example/project/actions/runs/42/cancel", "/repos/example/project/actions/runs/42/rerun"]);
+  const cancelIndex = harness.calls.findIndex((call) => call.path.endsWith("/cancel"));
+  assert.ok(harness.calls.slice(cancelIndex + 1).some((call) => call.path.includes("/workflows/ai-review.yml/runs")), "202 must be followed by terminal-state polling");
+  assert.equal((await wakeupHarness({ statuses: ["in_progress", "completed"], maxWaitMs: 0, conclusion: "success", evidenceUpdatedAt: null }).run()).action, "rerun", "confirmed cancellation also requires freshness without an event timestamp");
 });
 
 test("selector never resurrects an older failed run after a newer success", () => {
@@ -398,4 +401,73 @@ test("completion racing stale-run cancellation still receives a fresh rerun", as
   });
   assert.equal(result.action, "rerun");
   assert.deepEqual(mutations, ["/repos/example/project/actions/runs/42/cancel", "/repos/example/project/actions/runs/42/rerun"]);
+});
+
+
+test("withdrawal controller records a server-timed fence before waking the actual gate", async () => {
+  const headSha = "0123456789abcdef0123456789abcdef01234567";
+  const calls = [];
+  let recorded;
+  const request = async (_token, _repository, path, options = {}) => {
+    calls.push({ path, method: options.method || "GET", body: options.body });
+    if (path.endsWith("/actions/runs/99")) return { path: ".github/workflows/ai-review-rerun.yml", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]", created_at: "2026-10-01T10:03:00Z" };
+    if (path.endsWith("/pulls/1")) return { state: "open", head: { sha: headSha } };
+    if (path.includes("/issues/1/comments") && options.method !== "POST") return recorded ? [recorded] : [];
+    if (path.endsWith("/issues/1/comments") && options.method === "POST") return recorded = { body: JSON.parse(options.body).body, user: { login: "github-actions[bot]" }, created_at: "2026-10-01T10:04:00Z" };
+    if (path.includes("/workflows/ai-review.yml/runs")) return { workflow_runs: [{ id: 42, event: "pull_request", head_sha: headSha, status: "completed", conclusion: "success" }] };
+    if (path.endsWith("/attempts/1")) return { run_started_at: "2026-10-01T10:03:30Z" };
+    if (path.endsWith("/rerun")) return null;
+    throw new Error(`Unexpected request ${path}`);
+  };
+  const options = { token: "synthetic", repository: "example/project", runId: 99, request };
+  assert.equal((await recordReviewWithdrawal(options)).action, "rerun");
+  assert.match(recorded.body, /"source_created_at":"2026-10-01T10:03:00Z"/);
+  assert.match(recorded.body, new RegExp(headSha));
+  assert.ok(calls.findIndex((call) => call.method === "POST" && call.path.endsWith("/comments")) < calls.findIndex((call) => call.path.endsWith("/rerun")));
+  assert.equal((await recordReviewWithdrawal(options)).action, "rerun");
+  assert.equal(calls.filter((call) => call.method === "POST" && call.path.endsWith("/comments")).length, 1, "duplicate deliveries preserve one durable record");
+});
+
+test("withdrawal controller ignores unrelated, forged, or cross-PR run metadata", async () => {
+  const base = { path: ".github/workflows/ai-review-rerun.yml", repository: { full_name: "example/project" }, event: "pull_request_review_comment", pull_requests: [{ number: 1 }], display_title: "AI review evidence:pull_request_review_comment:deleted:1:chatgpt-codex-connector[bot]", created_at: "2026-10-01T10:03:00Z" };
+  for (const metadata of [
+    { ...base, path: ".github/workflows/untrusted.yml" }, { ...base, repository: { full_name: "other/project" } },
+    { ...base, display_title: base.display_title.replace(":deleted:", ":created:") },
+    { ...base, display_title: base.display_title.replace("chatgpt-codex-connector[bot]", "untrusted[bot]") },
+    { ...base, pull_requests: [{ number: 2 }] }, { ...base, created_at: "invalid" },
+    { ...base, event: "issue_comment", head_branch: "untrusted", display_title: base.display_title.replace("pull_request_review_comment", "issue_comment") }
+  ]) {
+    const calls = [];
+    const result = await recordReviewWithdrawal({ token: "synthetic", repository: "example/project", runId: 99, defaultBranch: "main", request: async (_t, _r, path) => { calls.push(path); return metadata; } });
+    assert.equal(result.action, "ignored");
+    assert.equal(calls.length, 1);
+  }
+});
+
+
+test("slow cancellation is force-cancelled and polled before scheduling a fresh attempt", async () => {
+  let clock = 0, forced = false;
+  const mutations = [];
+  const result = await rerunAiReviewForPrHead({ token: "synthetic", repository: "example/project", headSha: "abc", prNumber: 1,
+    evidenceUpdatedAt: "2026-10-01T10:01:00Z", maxWaitMs: 0, now: () => clock, sleep: async (ms) => { clock += ms; },
+    request: async (_t, _r, path, options = {}) => {
+      if (path.endsWith("/pulls/1")) return { state: "open", head: { sha: "abc" } };
+      if (path.includes("/workflows/ai-review.yml/runs")) return { workflow_runs: [{ id: 42, event: "pull_request", head_sha: "abc", status: forced ? "completed" : "in_progress", conclusion: forced ? "cancelled" : null }] };
+      if (options.method === "POST") {
+        mutations.push(path);
+        if (path.endsWith("/force-cancel")) forced = true;
+        return null;
+      }
+      throw new Error(`Unexpected request ${path}`);
+    }
+  });
+  assert.equal(result.action, "rerun");
+  assert.ok(clock >= 30000);
+  assert.deepEqual(mutations, ["/repos/example/project/actions/runs/42/cancel", "/repos/example/project/actions/runs/42/force-cancel", "/repos/example/project/actions/runs/42/rerun"]);
+});
+
+test("machine withdrawal mutations wake repair while newly created records cannot recurse", () => {
+  for (const action of ["edited", "deleted", "created"]) {
+    assert.equal(shouldRouteAiReviewRerunEvent({ action, issue: { pull_request: {}, number: 1 }, comment: { body: "withdrawal record", user: { login: "github-actions[bot]" } } }), action !== "created");
+  }
 });

@@ -26,7 +26,9 @@ Visible failure or incomplete statuses cannot be hidden by completed JSON;
 compound enum-style negative statuses remain blocking after normalization.
 Positive summaries and receipts allow only recognized positive renderings;
 arbitrary additional prose remains non-successful even without a severity tag.
-Standard help inside the optional labelled details section is not a verdict.
+Structured results require the full native table; bare completed text is not
+a supported rendering. Only the complete known standard help footer is excluded;
+a matching details label cannot hide arbitrary review prose.
 The inactive security-review state has null fields; active security state must
 be well formed, completed, finding-free, and bound to the exact current head. Bare headings, reactions,
 and visible "Completed" text do not prove review success.
@@ -53,11 +55,24 @@ review-comment mutations, wake the gate. Deletions always force a fresh check;
 the deleted comment's old update time cannot suppress this rerun. Ordinary bot
 replies remain unrelated: pending withdrawal tombstones require a former review
 signal verified from complete server edit history.
- Wakeup routing never
+
+The default-branch workflow-run controller persists negative-only deletion
+records using the existing administrative write scope. Source path, event,
+repository, and PR association/default branch are checked from server run
+metadata. Each record binds the live full head and server event time; positives
+at or before that time cannot pass. The record is published before waking the
+real gate. Delayed or duplicate events retain their original event time, and
+machine-record edits/deletions are repaired. The controller executes only default
+scripts, downloads no artifacts, and never executes source-run code. Validation
+and the native-event router gain no write scope.
+
+Wakeup routing never
 constitutes an acceptable verdict. Per-PR serialization with `queue: max`, a bounded active-run
 wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A wait
-timeout cancels the stale active gate before reporting failure and requiring a
-fresh rerun; completion racing cancellation still receives that rerun. A newer
+timeout requests cancellation, confirms terminal state by polling, escalates
+to force-cancel when needed, and schedules a fresh rerun even if stale success
+won the cancellation race. The gate has a ten-minute job limit; controllers
+have fifteen minutes. A newer
 negative or incomplete edit re-evaluates a previously successful gate.
 Request wakeup deduplication uses the marker's server publication time, while
 native-review eligibility retains the human source request time. Missing marker

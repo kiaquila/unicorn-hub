@@ -86,7 +86,7 @@ jobs:
       always() && (github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Verify request job
         env:

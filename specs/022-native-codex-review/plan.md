@@ -4,7 +4,7 @@
 
 Parse native envelopes strictly, retain temporal binding for SHA-less legacy comments, evaluate the latest evidence with failure winning ties, and query all unresolved Codex threads independently of request boundaries. Recheck the live head immediately before success.
 
-Serialize evidence wakeups per PR and wait briefly for active runs before deciding whether a newer attempt has already evaluated the event. Revalidate the PR head before rerunning. Keep privileged automation on default-branch scripts.
+Serialize evidence wakeups per PR and wait briefly for active runs before deciding whether a newer attempt has already evaluated the event. Revalidate the PR head before rerunning. Persist negative-only deletion records through a default-branch workflow-run controller using existing administrative scope; never consume source-run code or artifacts. Confirm active-run cancellation to terminal state, then rerun. Keep privileged automation on default-branch scripts.
 
 ## Verification
 

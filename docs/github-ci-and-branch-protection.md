@@ -154,9 +154,10 @@ The default pull request behavior is therefore:
    active, the router waits with bounded backoff, then checks the latest attempt
    start against the evidence update. It reruns only when that event has not yet
    been evaluated, and checks the live PR head again before the rerun request.
-   A timeout cancels the stale active gate before failing with an actionable
-   rerun instruction, so that attempt cannot later publish stale success. If
-   completion races cancellation, the completed run still receives a fresh rerun.
+   A timeout requests cancellation and polls until terminal state; a 202 response
+   alone is never confirmation. Slow cancellation escalates to force-cancel.
+   A cancelled attempt or success racing cancellation receives a fresh rerun.
+   The gate has a ten-minute job limit; wakeup controllers have fifteen minutes.
    Request wakeups use the server publication time of the marker for attempt
    deduplication, while review eligibility still uses the human source time.
    Missing publication timestamps and failed rerun requests fail command policy.
@@ -177,7 +178,9 @@ The default pull request behavior is therefore:
    Withdrawal, revocation, stopped/unavailable states, and standard non-success
    workflow conclusions are also negative across every accepted review format.
    Positive summaries/receipts accept only recognized rendering, so arbitrary
-   additional finding prose cannot hide behind positive machine state.
+   additional finding prose cannot hide behind positive machine state. The full
+   structured table is required. Only the complete known help footer is excluded;
+   a matching details label cannot hide finding text.
    Nonempty formal-review bodies need a recognized no-findings/approval verdict
    or explicit advisory priority; unknown finding prose never inherits success
    from the formal state. Inline comments are checked even on formal approvals.
@@ -187,6 +190,16 @@ The default pull request behavior is therefore:
    deletions always force a fresh evaluation after active runs complete: their
    old content timestamp cannot safely deduplicate deletion events. Duplicate
    deletion deliveries may rerun twice, preserving validation over deduplication.
+   Deletions also receive a durable negative-only withdrawal record from the
+   default-branch `workflow_run` controller in AI Command Policy. It checks the
+   source run path, event, repository, and API-associated PR (or default branch
+   for issue comments), then records the server event time and live full head.
+   No positive verdict at or before that time can pass. Publication precedes the
+   fresh gate wakeup; delayed/duplicate delivery cannot renew old evidence.
+   Edited/deleted machine records also receive repair records. This controller
+   reuses existing administrative write scope, executes only default scripts,
+   and never downloads artifacts or executes source-run code. The gate and
+   native-event router gain no write permissions.
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 

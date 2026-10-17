@@ -140,7 +140,12 @@ test("bootstrap installs generic blueprint into a synthetic target", async () =>
   assert.match(reviewRouter, /issue_comment:\n    types: \[created, edited, deleted\]/);
   assert.match(reviewRouter, /pull_request_review_comment:\n    types: \[created, edited, deleted\]/);
   assert.equal(reviewRouter, readFileSync(join(root, ".github/workflows/ai-review-rerun.yml"), "utf8"));
+  const installedPolicy = readFileSync(join(target, ".github/workflows/ai-command-policy.yml"), "utf8");
+  assert.equal(installedPolicy, readFileSync(join(root, ".github/workflows/ai-command-policy.yml"), "utf8"));
+  assert.match(installedPolicy, /record-review-withdrawal:/);
+  assert.match(installedPolicy, /workflow_run:/);
   const installedRouter = await import(join(target, "scripts/ai-review-rerun.mjs"));
+  assert.equal(typeof installedRouter.recordReviewWithdrawal, "function");
   assert.equal(installedRouter.shouldRouteAiReviewRerunEvent({ action: "deleted", issue: { pull_request: {}, number: 1 }, comment: { body: "", user: { login: "chatgpt-codex-connector[bot]" } } }), true);
   assert.equal(installedRouter.shouldRouteAiReviewRerunEvent({ action: "edited", pull_request: { number: 1 }, comment: { pull_request_review_id: 2, body: "P1 blocker", user: { login: "chatgpt-codex-connector[bot]" } } }), true);
   assert.match(reviewRouter, /contains\(github.event.comment.body, '<!-- codex-review-receipt:'/);

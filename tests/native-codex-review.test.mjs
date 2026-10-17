@@ -23,11 +23,29 @@ const state = (overrides = {}) => ({
   code_review: { commit_sha: headSha, has_any_findings: false, has_unresolved_findings: false, status: "completed", ...overrides },
   security_review: { commit_sha: null, has_any_findings: null, has_unresolved_findings: null, status: null }
 });
-const summary = (value = state()) => `<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 ${JSON.stringify(value)} -->\n\n## Codex Review Summary\n\nCompleted`;
+const helpFooter = `<details> <summary>ℹ️ About Codex in GitHub</summary>
+<br/>
+[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you
+- Open a pull request for review
+- Mark a draft as ready
+- Comment "@codex review" or "@codex security review".
+Codex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.
+</details>`;
+const summary = (value = state()) => `<!-- codex-pull-request-review-summary -->
+<!-- codex-review-state:v1 ${JSON.stringify(value)} -->
+
+## Codex Review Summary
+
+This comment shows the latest Codex review activity on this pull request.
+
+| Review | Status | Commit | Review trigger |
+| --- | --- | --- | --- |
+| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-01T10:02:00Z">2026-10-01T10:02:00Z</relative-time> | \`${headSha.slice(0, 7)}\` | Manual request |${value.security_review.status !== null ? `\n| 🛡️ **Security Review** | ✅ **Completed** | \`${headSha.slice(0, 7)}\` | Manual request |` : ""}`;
+
 const evaluate = (extra) => evaluateCodexEvidence({ headSha, requestMarker: marker, ...extra });
 
 test("native receipt and legacy no-findings preserve explicit head binding", () => {
-  for (const body of [receipt, receipt + "\n<details><summary>About Codex in GitHub</summary>Help</details>", receipt.split("\n\n").slice(1).join("\n\n")]) {
+  for (const body of [receipt, receipt + "\n" + helpFooter, receipt.split("\n\n").slice(1).join("\n\n")]) {
     assert.equal(isAcceptableCodexSummaryComment(comment(body), headSha, marker), true);
   }
   assert.equal(evaluate({ comments: [comment(receipt)] }), "pass");
@@ -101,7 +119,7 @@ test("structured completed state rejects contradictory visible failure or incomp
     "<details><summary>Review status</summary>Review failed</details>"]) {
     assert.notEqual(evaluate({ comments: [comment(summary() + `\n${text}`)] }), "pass", text);
   }
-  const help = "<details><summary>About Codex</summary>Codex reacts while a review is running.</details>";
+  const help = helpFooter;
   assert.equal(evaluate({ comments: [comment(summary() + `\n${help}`)] }), "pass");
   const foldedFailure = "<details><summary>Review status</summary>Review failed</details>";
   for (const body of [`${summary()}\n${help}\n${foldedFailure}`, `${summary()}\n${foldedFailure}\n${help}`]) {
@@ -264,7 +282,7 @@ test("fresh formal approvals and implicit COMMENTED verdicts reject negative and
       assert.equal(runGate({ reviews: [node] }).status, 1, `${reviewState}: ${body}`);
     }
     const help = { user: bot, commit_id: headSha, state: reviewState, submitted_at: resultAt,
-      body: "Approved.\n<details><summary>About Codex in GitHub</summary>Help: the app reacts while reviews are running.</details>" };
+      body: "Approved.\n" + helpFooter };
     assert.equal(evaluate({ reviews: [help] }), "pass");
   }
 });
@@ -336,10 +354,7 @@ test("positive native envelopes reject arbitrary finding prose and unknown rende
       assert.equal(runGate({ body }).status, 1, prose);
     }
   }
-  const table = "This comment shows the latest Codex review activity on this pull request.\n\n" +
-    "| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n" +
-    `| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-01T10:02:00Z">2026-10-01T10:02:00Z</relative-time> | \`${headSha.slice(0, 7)}\` | Manual request |`;
-  const rendered = summary().replace(/Completed$/, table);
+  const rendered = summary();
   assert.equal(evaluate({ comments: [comment(rendered)] }), "pass");
   assert.equal(runGate({ body: rendered }).status, 0);
   for (const body of [rendered + "\nA major bug remains.", rendered.replace("Manual request", "A major bug remains."), rendered.replace(headSha.slice(0, 7) + "`", oldSha.slice(0, 7) + "`")]) {
@@ -358,4 +373,53 @@ test("deleting the last inline finding cannot create an implicit positive formal
     assert.equal(runGate({ deletedEvidence: true, reviews: [node] }).status, 1);
     assert.equal(evaluate({ reviews: [review], comments: [comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }), "pass", "a fresh explicit native verdict can establish success");
   }
+});
+
+
+test("structured positive state requires the complete native table", () => {
+  const truncated = summary().replace(/This comment shows[\s\S]*/, "Completed");
+  assert.equal(evaluate({ comments: [comment(truncated)] }), "pending");
+  assert.equal(runGate({ body: truncated }).status, 1);
+  for (const body of [summary().replace(/\| 📝[^\n]+/, ""), summary().replace("Code Review", "Security Review"), summary() + "\n| 📝 **Code Review** | ✅ **Completed** | `0123456` | Manual request |"])
+    assert.notEqual(evaluate({ comments: [comment(body)] }), "pass");
+});
+
+test("only the complete standard help footer is excluded from every verdict", () => {
+  for (const text of ["A major bug remains.", "Review failed.", "Review pending.", "Approved. A security issue remains."]) {
+    for (const label of ["About Codex", "ℹ️ About Codex in GitHub"]) {
+      const footer = `<details><summary>${label}</summary><br/>${text}</details>`;
+      for (const body of [receipt, summary()]) {
+        assert.notEqual(evaluate({ comments: [comment(body + "\n" + footer)] }), "pass", text);
+        assert.equal(runGate({ body: body + "\n" + footer }).status, 1);
+      }
+      for (const reviewState of ["APPROVED", "COMMENTED"]) {
+        assert.notEqual(evaluate({ reviews: [{ user: bot, state: reviewState, commit_id: headSha, submitted_at: resultAt, body: "Approved.\n" + footer }] }), "pass");
+      }
+    }
+  }
+  const modifiedHelp = helpFooter.replace("this repo", "this repo. A major bug remains");
+  assert.notEqual(evaluate({ comments: [comment(summary() + "\n" + modifiedHelp)] }), "pass");
+  assert.equal(evaluate({ comments: [comment(summary() + "\n" + helpFooter)] }), "pass");
+});
+
+const withdrawal = (extra = {}) => comment(`<!-- unicorn-hub:ai-review-withdrawal:v1 ${JSON.stringify({ agent: "codex", head_sha: headSha, pr_number: 1, source_created_at: "2026-10-01T10:03:00Z", source_run_id: 42 })} -->`, {
+  user: { login: "github-actions[bot]" }, created_at: "2026-10-01T10:03:10Z", ...extra
+});
+
+test("durable deletion tombstones invalidate every pre-deletion positive verdict", () => {
+  for (const reviewState of ["COMMENTED", "APPROVED"]) {
+    for (const body of ["", "Approved."]) {
+      const review = { id: 2, user: bot, state: reviewState, commit_id: headSha, body, submitted_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:01:00Z" };
+      for (const positive of [receipt, summary()]) {
+        assert.notEqual(evaluate({ reviews: [review], comments: [comment(positive), withdrawal()] }), "pass");
+        assert.equal(runGate({ body: positive, extraComments: [withdrawal()] }).status, 1);
+        assert.equal(evaluate({ reviews: [review], comments: [comment(positive, { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), "pass");
+      }
+      assert.notEqual(evaluate({ reviews: [review], comments: [withdrawal()] }), "pass");
+    }
+  }
+  assert.equal(evaluate({ comments: [comment(receipt), withdrawal({ user: { login: "untrusted-user" } })] }), "pass");
+  assert.equal(evaluate({ comments: [comment(receipt), withdrawal({ body: withdrawal().body.replace(headSha, oldSha) })] }), "pass");
+  for (const body of [withdrawal().body.replace(":v1", ":v2"), withdrawal().body.replace('"agent":"codex"', '"agent":"other","agent":"codex"')])
+    assert.equal(evaluate({ comments: [comment(receipt), withdrawal({ body })] }), "pending");
 });
