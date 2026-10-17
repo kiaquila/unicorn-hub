@@ -301,7 +301,8 @@ export function classifyCodexNativeReview(review, reviewComments = [], headSha, 
   if (!headSha || review.commit_id !== headSha) return null;
   const login = normalizeLogin(review.user?.login);
   if (!isTrustedReviewLogin(login, "codex", config)) return null;
-  if (containsBlockingSeverity(review.body, "codex")) return "fail";
+  if (containsBlockingSeverity(review.body, "codex") ||
+      containsNegativeReviewState(withoutCodexHelpFooter(review.body))) return "fail";
 
   if (review.state === "APPROVED") return "pass";
   if (["CHANGES_REQUESTED", "DISMISSED"].includes(review.state)) return "fail";

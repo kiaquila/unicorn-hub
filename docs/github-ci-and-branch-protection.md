@@ -169,6 +169,8 @@ The default pull request behavior is therefore:
    ordinary bot replies remain unrelated. Missing/redacted history or a mutation
    during pagination fails closed. An edited `COMMENTED` formal review loses its
    implicit no-findings verdict; a fresh native result must re-establish it.
+   Fresh formal approvals and comments also reject visible failed/incomplete
+   states using the same negative-state classifier as native summaries.
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 

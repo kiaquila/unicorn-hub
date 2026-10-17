@@ -251,3 +251,19 @@ test("ordinary native bot replies remain unrelated while missing edit history fa
   assert.equal(runGate({ extraComments: [ordinary], historyNodes: { ordinary: { ...node, includesCreatedEdit: false } } }).status, 1);
   assert.equal(runGate({ extraComments: [ordinary], historyNodes: { ordinary: { ...node, userContentEdits: { ...node.userContentEdits, nodes: [{ diff: null }] } } } }).status, 1);
 });
+
+test("fresh formal approvals and implicit COMMENTED verdicts reject negative and incomplete text", () => {
+  for (const reviewState of ["APPROVED", "COMMENTED"]) {
+    for (const body of ["Review failed", "Review pending", "Review in_progress", "Review changes_requested", "Review notCompleted", "Review cancelled", "Review blocked", "Review unknown", "Review error", "<details><summary>Review state</summary>Review running</details>"]) {
+      const review = { id: 2, user: bot, commit_id: headSha, state: reviewState, body,
+        submitted_at: "2026-10-01T10:03:00Z", updated_at: "2026-10-01T10:03:00Z", last_edited_at: null };
+      assert.equal(evaluate({ reviews: [review], comments: [comment(receipt)] }), "fail", `${reviewState}: ${body}`);
+      const node = { databaseId: 2, state: reviewState, body, submittedAt: review.submitted_at, updatedAt: review.updated_at,
+        lastEditedAt: null, commit: { oid: headSha }, author: { login: "chatgpt-codex-connector", __typename: "Bot" } };
+      assert.equal(runGate({ reviews: [node] }).status, 1, `${reviewState}: ${body}`);
+    }
+    const help = { user: bot, commit_id: headSha, state: reviewState, submitted_at: resultAt,
+      body: "Completed\n<details><summary>About Codex in GitHub</summary>Help: the app reacts while reviews are running.</details>" };
+    assert.equal(evaluate({ reviews: [help] }), "pass");
+  }
+});

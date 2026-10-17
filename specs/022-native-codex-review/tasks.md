@@ -50,13 +50,18 @@
   replies remain unrelated. History pagination, redaction, and concurrent edits
   have actual-entry-point regressions.
 
+- Native review caught fresh formal reviews accepting contradictory failed or
+  pending text. Formal review classification now shares the summary negative-state
+  check before accepting either APPROVED or implicit COMMENTED evidence. Fresh
+  and folded negative states have actual-entry-point regression coverage.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 154 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 155 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.
