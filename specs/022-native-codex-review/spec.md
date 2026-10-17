@@ -16,6 +16,8 @@ Update evidence parsing, selection, final head validation, event routing, bounde
 - AC-004: Bootstrap installs the corrected scripts and workflows; template parity and full preflight pass.
 - AC-005: Initial rollout retains default-branch privileged automation and real required checks; an independently reviewed immutable gate can be explicitly promoted for read-only validation, bound to the current default SHA.
 
+- AC-006: A completed summary with both code findings flags omitted is pending alone. A separate trusted, exact-head, current-request v1 no-findings receipt can corroborate only its code verdict; active security remains strict. Both artifacts must follow any withdrawal they clear.
+
 ## Negative Scenarios
 
 Wrong or missing receipt SHA, duplicated markers, malformed state, negative or incomplete verdicts, stale edited summaries, unresolved findings from an earlier request/head, and a push during evaluation must never produce success for the latest head.

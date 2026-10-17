@@ -46,7 +46,7 @@ This comment shows the latest Codex review activity on this pull request.
 const evaluate = (extra) => evaluateCodexEvidence({ headSha, requestMarker: marker, ...extra });
 
 test("native receipt and legacy no-findings preserve explicit head binding", () => {
-  for (const body of [receipt, receipt + "\n" + helpFooter, receipt.split("\n\n").slice(1).join("\n\n")]) {
+  for (const body of [receipt, receipt.replace(":rocket:", ":+1:"), receipt + "\n" + helpFooter, receipt.split("\n\n").slice(1).join("\n\n")]) {
     assert.equal(isAcceptableCodexSummaryComment(comment(body), headSha, marker), true);
   }
   assert.equal(evaluate({ comments: [comment(receipt)] }), "pass");
@@ -540,4 +540,57 @@ test("zero-wait validation always takes its initial snapshot despite advancing t
   assert.equal(negative.status, 1);
   assert.doesNotMatch(negative.stderr, /Last API error/);
   assert.equal(runGate({ clockStep: 1, heads: [headSha, oldSha] }).status, 1);
+});
+
+
+test("completed summaries with omitted code flags require an independent current-request receipt", () => {
+  const body = summary(state({ has_any_findings: null, has_unresolved_findings: null }));
+  const thumbReceipt = receipt.replace(":rocket:", ":+1:") + "\n" + helpFooter;
+  assert.equal(classifyCodexSummaryComment(comment(body), headSha, marker).result, "pending");
+  assert.equal(isAcceptableCodexSummaryComment(comment(body), headSha, marker), false);
+  assert.equal(evaluate({ comments: [comment(body)] }), "pending");
+  assert.equal(evaluate({ comments: [comment(body), comment(thumbReceipt)] }), "pass");
+  const actual = runGate({ body, extraComments: [comment(thumbReceipt)] });
+  assert.equal(actual.status, 0, actual.stderr);
+  for (const invalid of [
+    comment(thumbReceipt, { user: { login: "untrusted[bot]" } }),
+    comment(thumbReceipt.replace(headSha.slice(0, 10), oldSha.slice(0, 10))),
+    comment(thumbReceipt, { created_at: "2026-10-01T09:59:00Z", updated_at: "2026-10-01T10:03:00Z" }),
+    comment("Codex Review: Didn't find any major issues."), comment(thumbReceipt.replace(":v1", ":v2")),
+    comment(thumbReceipt.replace("Didn't find any major issues.", "Found a P1 issue."))
+  ]) assert.notEqual(evaluate({ comments: [comment(body), invalid] }), "pass");
+  assert.notEqual(evaluate({ comments: [comment(body)], reviews: [{ user: bot, state: "APPROVED", body: "Approved.", commit_id: headSha, submitted_at: resultAt }] }), "pass");
+  const laterSummary = comment(body, { created_at: "2026-10-01T10:04:00Z" });
+  for (const intervening of [
+    { comments: [comment(receipt.replace("Didn't find any major issues.", "Found a P1 issue."), { created_at: "2026-10-01T10:03:00Z" })] },
+    { comments: [comment("<!-- codex-review-receipt:v2 -->", { created_at: "2026-10-01T10:03:00Z" })] },
+    { reviews: [{ user: bot, state: "CHANGES_REQUESTED", commit_id: headSha, submitted_at: "2026-10-01T10:03:00Z" }] }
+  ]) {
+    const items = [comment(thumbReceipt), laterSummary, ...(intervening.comments || [])];
+    assert.notEqual(evaluate({ ...intervening, comments: items }), "pass", "the summary cannot renew an older receipt over intervening evidence");
+    assert.equal(evaluate({ ...intervening, comments: [...items, comment(thumbReceipt, { created_at: "2026-10-01T10:05:00Z" })] }), "pass");
+  }
+  const security = { commit_sha: headSha, status: "running", has_any_findings: false, has_unresolved_findings: false };
+  for (const invalidBody of [
+    summary(state({ has_any_findings: null })), summary(state({ has_any_findings: null, has_unresolved_findings: null, status: "running" })),
+    summary(state({ has_any_findings: null, has_unresolved_findings: null, commit_sha: oldSha })),
+    summary({ ...state({ has_any_findings: null, has_unresolved_findings: null }), security_review: security }),
+    summary({ ...state({ has_any_findings: null, has_unresolved_findings: null }), security_review: { ...security, status: "completed", has_any_findings: null, has_unresolved_findings: null } }),
+    body + "\nReview failed", body.replace(':v1 {', ':v1 {bad')
+  ]) assert.notEqual(evaluate({ comments: [comment(invalidBody), comment(thumbReceipt)] }), "pass", invalidBody);
+  assert.equal(evaluate({ comments: [comment(body), comment(thumbReceipt)], threads: [{ isResolved: false, comments: { nodes: [{ author: { login: bot.login } }] } }] }), "fail");
+});
+
+test("corroborated structured recovery requires both artifacts after withdrawal", () => {
+  const body = summary(state({ has_any_findings: null, has_unresolved_findings: null }));
+  const freshReceipt = comment(receipt, { created_at: "2026-10-01T10:05:00Z" });
+  const freshSummary = comment(body, { created_at: "2026-10-01T10:04:00Z" });
+  assert.equal(evaluate({ comments: [comment(body), freshReceipt, withdrawal()] }), "pending");
+  assert.equal(evaluate({ comments: [freshSummary, comment(receipt), withdrawal()] }), "pending");
+  assert.equal(evaluate({ comments: [freshSummary, freshReceipt, withdrawal()] }), "pass");
+  const removed = comment("Ordinary text", { prior_review_signal: true, prior_structured_summary: true,
+    created_at: resultAt, updated_at: "2026-10-01T10:03:00Z" });
+  assert.equal(evaluate({ comments: [removed, freshReceipt] }), "pending");
+  assert.equal(evaluate({ comments: [removed, freshSummary, comment(receipt)] }), "pending");
+  assert.equal(evaluate({ comments: [removed, freshSummary, freshReceipt] }), "pass");
 });

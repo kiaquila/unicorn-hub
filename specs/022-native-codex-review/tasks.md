@@ -119,13 +119,20 @@
   synthetic clock reproduces the skipped-first-poll race without timing sleeps;
   positive, negative, and moved-head outcomes remain enforced.
 
+- A genuine clean native run exposed completed code summaries with null findings
+  flags plus a separate SHA-bound v1 no-findings receipt. The summary alone stays
+  pending; both artifacts are validated without rewriting null state. The
+  corroborating receipt must follow the current request and any withdrawal;
+  active security state still requires explicit complete finding-free fields.
+  The observed thumbs-up receipt suffix has narrow positive-rendering coverage.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 180 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 182 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

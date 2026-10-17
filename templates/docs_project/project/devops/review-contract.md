@@ -20,7 +20,9 @@ head-changing timeline event.
 Mutable `<!-- codex-pull-request-review-summary -->` comments can supply evidence
 only with one valid `codex-review-state:v1` object. The object must contain the
 exact current full `code_review.commit_sha`, `status: "completed"`, and explicit
-boolean `has_any_findings: false` and `has_unresolved_findings: false`. Schema,
+boolean `has_any_findings: false` and `has_unresolved_findings: false` for a
+standalone verdict. Omitted code flags require a separate current-request receipt
+as described below; null fields alone never establish success. Schema,
 types, duplicate markers/fields, and conflicting visible verdicts are validated.
 Visible failure or incomplete statuses cannot be hidden by completed JSON;
 compound enum-style negative statuses remain blocking after normalization.
@@ -118,6 +120,17 @@ Destructive native events and machine review-control mutations defer in the
 ordinary rerun router. Only the default-branch withdrawal controller wakes their
 validation, after the durable negative record has been published. A direct rerun
 cannot race the independent writer and briefly restore an older positive result.
+
+When the native backend omits both code findings flags in a completed summary,
+that summary remains pending by itself. The gate can corroborate it only with a
+separate trusted v1 no-findings receipt bound to the exact head and created after
+the current request. The observed `:+1:` receipt suffix is accepted. Both artifacts
+must be newer than any withdrawal they clear. Mixed null/boolean flags, missing
+receipts, formal approvals, stale or edited older receipts, and unknown active
+security flags cannot fill the missing code verdict. Security and visible status
+must still be fully complete and consistent. The paired verdict uses the older
+of the summary update and receipt publication times, so it cannot renew an older
+receipt over intervening negative evidence. Source state is never rewritten.
 
 ## Claude
 
