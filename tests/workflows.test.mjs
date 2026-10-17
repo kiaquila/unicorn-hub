@@ -112,3 +112,17 @@ test("deletion recording executes only in the default-branch controller with exi
   assert.doesNotMatch(router, /issues: write/);
   assert.match(readFileSync(join(root, ".github/workflows/ai-review.yml"), "utf8"), /timeout-minutes: 10/);
 });
+
+
+test("deletion metadata distinguishes native verdict bodies from ordinary bot replies", () => {
+  for (const prefix of ["", "templates/"]) {
+    const workflow = readFileSync(join(root, prefix, ".github/workflows/ai-review-rerun.yml"), "utf8");
+    const expression = workflow.split("\n")[1].match(/:\$\{\{ (startsWith\(github\.event\.comment\.body, 'Codex Review:'[\s\S]*) \}\}$/)[1];
+    const signal = new Function("github", "startsWith", "contains", `return (${expression});`);
+    for (const [body, expected] of [["Command response", false], ["Example: Codex Review: reference", false],
+      ["Codex Review: Didn't find any major issues.", true], ["<!-- codex-review-state:v1 {} -->", true],
+      ["<!-- codex-review-receipt:v1 -->", true], ["<!-- codex-pull-request-review-summary -->", true]]) {
+      assert.equal(signal({ event: { comment: { body } } }, (text, part) => text.startsWith(part), (text, part) => text.includes(part)), expected, body);
+    }
+  }
+});

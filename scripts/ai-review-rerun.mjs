@@ -214,10 +214,11 @@ export async function recordReviewWithdrawal({ token, repository, runId, default
   // Treat workflow-run metadata as data only. The writer executes solely in the
   // default-branch workflow_run controller; it never downloads PR artifacts.
   const run = await request(token, repository, `${prefix}/actions/runs/${runId}`);
-  const title = String(run.display_title || "").match(/^AI review evidence:(issue_comment|pull_request_review_comment):(deleted|edited):([1-9][0-9]*):([^:]+):(true|false)$/);
+  const title = String(run.display_title || "").match(/^AI review evidence:(issue_comment|pull_request_review_comment):(deleted|edited):([1-9][0-9]*):([^:]+):(true|false):(true|false)$/);
   if (typeof run.path !== "string" || run.repository?.full_name?.toLowerCase() !== repository.toLowerCase() ||
       !title || title[1] !== run.event || !Number.isFinite(Date.parse(run.created_at || ""))) return { action: "ignored" };
-  const nativeDeletion = title[2] === "deleted" && isTrustedReviewLogin(title[4], "codex", config);
+  const nativeDeletion = title[2] === "deleted" && isTrustedReviewLogin(title[4], "codex", config) &&
+    (title[1] === "pull_request_review_comment" || title[6] === "true");
   const machineMutation = title[4].toLowerCase() === "github-actions[bot]" && title[5] === "true";
   if (!nativeDeletion && !machineMutation) return { action: "ignored" };
   const prNumber = Number(title[3]);

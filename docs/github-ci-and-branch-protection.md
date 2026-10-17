@@ -180,7 +180,10 @@ The default pull request behavior is therefore:
    workflow conclusions are also negative across every accepted review format.
    Positive summaries/receipts accept only recognized rendering, so arbitrary
    additional finding prose cannot hide behind positive machine state. The full
-   structured table is required. Only the complete known help footer is excluded;
+   structured table is required. The latest trusted structured snapshot covers
+   the whole review and must be valid, current, complete, and finding-free; a
+   later code-only receipt or approval cannot override pending/negative security
+   state, malformed state, or a stale snapshot. A newer complete snapshot can. Only the complete known help footer is excluded;
    a matching details label cannot hide finding text.
    Nonempty formal-review bodies need a recognized no-findings/approval verdict
    or explicit advisory priority; unknown finding prose never inherits success
@@ -203,6 +206,11 @@ The default pull request behavior is therefore:
    reuses existing administrative write scope, executes only default scripts,
    and never downloads artifacts or executes source-run code. The gate and
    native-event router gain no write permissions.
+   Deletion metadata distinguishes native issue-comment review signals from ordinary
+   command replies; inline native findings remain review evidence. Edit histories
+   reconstruct only the removed/prior side of unified or HTML diffs and retain the
+   legacy start-of-body rule. Added markers and quoted legacy phrases cannot create
+   withdrawal records or pending tombstones for unrelated bot replies.
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 

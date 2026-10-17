@@ -91,13 +91,25 @@
   negative-only. Machine withdrawals require review-control membership encoded
   from current or pre-edit webhook content; ordinary diagnostics are unrelated.
 
+- Additional cross-format verification reproduced a code-only receipt overriding
+  active security review in an earlier structured snapshot. The latest trusted
+  structured snapshot is now authoritative for the whole review: pending,
+  negative, malformed, and stale state cannot be erased by a later receipt or
+  approval. A newer complete structured result restores success. Classifier and
+  actual-entry-point regressions cover code and active security state together.
+
+- Native findings on ordinary-comment deletion and edit-summary false positives
+  are covered by body-membership metadata and prior-side diff reconstruction.
+  Added markers and quoted legacy phrases stay unrelated; removed genuine
+  markers and inline findings retain their blocking behavior.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 173 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 176 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

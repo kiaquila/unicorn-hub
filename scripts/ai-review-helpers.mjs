@@ -143,15 +143,26 @@ export function isCodexReviewSignal(body) {
 }
 
 export function hasCodexReviewSignalInEditDiff(diff) {
-  // UserContentEdit.diff is an edit summary, not necessarily a raw prior body.
-  // Broader history recognition only withdraws evidence; it never grants pass.
+  // Reconstruct only the prior side. Added or quoted review-like prose is not
+  // evidence that a native verdict was withdrawn.
   const decoded = String(diff).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
     .replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (_match, code) => {
       const value = code[0].toLowerCase() === "x" ? Number.parseInt(code.slice(1), 16) : Number(code);
       return value <= 0x10ffff ? String.fromCodePoint(value) : "";
     });
-  const plain = decoded.replace(/<[^>]*>/g, "");
-  return isCodexReviewSignal(decoded) || isCodexReviewSignal(plain) || /\bCodex\s+Review:/i.test(plain);
+  if (/<(?:del|ins)\b/i.test(decoded)) {
+    const prior = decoded.replace(/<ins\b[^>]*>[\s\S]*?<\/ins>/gi, "")
+      .replace(/<\/?[a-z][^>]*>/gi, "");
+    return isCodexReviewSignal(prior);
+  }
+  const lines = decoded.split("\n");
+  if (lines.some((line) => /^@@ /.test(line)) ||
+      (lines.some((line) => line.startsWith("-")) && lines.some((line) => line.startsWith("+")))) {
+    const prior = lines.filter((line) => !/^(?:\+|---|@@|diff |index |\\ No newline)/.test(line))
+      .map((line) => /^[ -]/.test(line) ? line.slice(1) : line).join("\n");
+    return isCodexReviewSignal(prior);
+  }
+  return isCodexReviewSignal(decoded);
 }
 
 export function isAiReviewControlComment(body) {
@@ -302,6 +313,19 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   if (threads.some((thread) => !thread.isResolved && thread.comments?.nodes?.some((comment) =>
     isTrustedReviewLogin(comment.author?.__typename === "Bot" && !comment.author.login.endsWith("[bot]")
       ? `${comment.author.login}[bot]` : comment.author?.login, "codex", config)))) return "fail";
+  // The mutable native summary covers the whole review, including active
+  // security work. A later code-only receipt/approval cannot erase that state.
+  const summaries = comments.filter((comment) => isTrustedReviewLogin(comment.user?.login, "codex", config) &&
+    /codex-pull-request-review-summary|codex-review-state:/.test(String(comment.body || "")));
+  if (summaries.length) {
+    const times = summaries.map((comment) => Date.parse(reviewEvidenceTime(comment) || ""));
+    if (times.some((time) => !Number.isFinite(time))) return "pending";
+    const latestTime = Math.max(...times);
+    const results = summaries.filter((_comment, index) => times[index] === latestTime)
+      .map((comment) => classifyCodexSummaryComment(comment, headSha, requestMarker, config)?.result || "pending");
+    if (results.includes("fail")) return "fail";
+    if (results.includes("pending")) return "pending";
+  }
   let withdrawalTime = -Infinity;
   for (const comment of comments) {
     if (normalizeLogin(comment.user?.login) !== "github-actions[bot]" ||

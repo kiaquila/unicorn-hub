@@ -27,7 +27,10 @@ compound enum-style negative statuses remain blocking after normalization.
 Positive summaries and receipts allow only recognized positive renderings;
 arbitrary additional prose remains non-successful even without a severity tag.
 Structured results require the full native table; bare completed text is not
-a supported rendering. Only the complete known standard help footer is excluded;
+a supported rendering. If structured state exists, its latest trusted snapshot
+must be valid, current, complete, and finding-free. Later code-only receipts or
+approvals cannot override pending/negative security work, malformed state, or a
+stale snapshot; a newer complete structured result is required. Only the complete known standard help footer is excluded;
 a matching details label cannot hide arbitrary review prose.
 The inactive security-review state has null fields; active security state must
 be well formed, completed, finding-free, and bound to the exact current head. Bare headings, reactions,
@@ -91,6 +94,12 @@ gate snapshot. The pin is not a PR input or an automatic fallback, and expires
 when the default SHA changes. The final PR head still needs real current-head
 native evidence, resolved threads, and all real required checks. Remove the pin
 after merge; never use a synthetic status or relax protection.
+
+Deletion metadata distinguishes native issue-comment review signals from ordinary
+command replies; inline native findings remain review evidence. Edit histories
+reconstruct only the removed/prior side of unified or HTML diffs and retain the
+legacy start-of-body rule. Added markers and quoted legacy phrases cannot create
+withdrawal records or pending tombstones for unrelated bot replies.
 
 ## Claude
 

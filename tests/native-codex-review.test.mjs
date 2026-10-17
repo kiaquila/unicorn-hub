@@ -442,3 +442,46 @@ test("legacy review markers survive prefixed and HTML-rendered edit histories", 
     assert.doesNotMatch(result.stderr, /Last API error/);
   }
 });
+
+
+test("later code-only evidence cannot override the latest native summary's whole-review state", () => {
+  const positive = comment(receipt, { created_at: "2026-10-01T10:03:00Z" });
+  const approval = { user: bot, state: "APPROVED", body: "Approved.", commit_id: headSha, submitted_at: "2026-10-01T10:03:00Z" };
+  const security = { commit_sha: headSha, status: "running", has_any_findings: false, has_unresolved_findings: false };
+  const bodies = [
+    summary({ ...state(), security_review: security }),
+    summary({ ...state(), security_review: { ...security, status: "completed", has_any_findings: true } }),
+    summary({ ...state(), security_review: { ...security, status: "completed", commit_sha: oldSha } }),
+    summary(state({ status: "running" })), summary(state({ has_any_findings: true })),
+    summary().replace(':v1 {', ':v1 {bad'), summary(state({ commit_sha: oldSha }))
+  ];
+  for (const body of bodies) {
+    const snapshot = comment(body);
+    for (const extra of [{ comments: [snapshot, positive] }, { comments: [snapshot], reviews: [approval] }]) {
+      assert.notEqual(evaluate(extra), "pass", body);
+    }
+    assert.equal(runGate({ body: positive.body, extraComments: [snapshot] }).status, 1);
+    assert.equal(evaluate({ comments: [snapshot, positive, comment(summary(), { created_at: "2026-10-01T10:04:00Z" })] }), "pass", "a newer complete authoritative snapshot restores success");
+  }
+  assert.equal(evaluate({ comments: [positive, comment(bodies[0], { user: { login: "untrusted[bot]" } })] }), "pass");
+});
+
+
+test("edit-history additions and quoted legacy phrases do not withdraw ordinary replies", () => {
+  const ordinary = comment("Command response", { node_id: "ordinary-diff", created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+  for (const diff of [
+    "- Command response\n+ Codex Review: reference only",
+    "<del>Command response</del><ins>Codex Review: reference only</ins>",
+    "<div>Example: <del>Codex Review: reference</del><ins>updated</ins></div>",
+    "- Example: Codex Review: reference\n+ Command response",
+    "Example: Codex Review: reference", "> Codex Review: quoted reference",
+    "- Codex Review: a markdown list item",
+    "<ins>&lt;!-- codex-review-receipt:v1 --&gt;</ins>Command response"
+  ]) {
+    const result = runGate({ extraComments: [ordinary], historyNodes: { "ordinary-diff": {
+      id: "ordinary-diff", body: ordinary.body, updatedAt: ordinary.updated_at, lastEditedAt: ordinary.updated_at, includesCreatedEdit: true,
+      userContentEdits: { nodes: [{ diff }], pageInfo: { hasNextPage: false } }
+    } } });
+    assert.equal(result.status, 0, diff);
+  }
+});
