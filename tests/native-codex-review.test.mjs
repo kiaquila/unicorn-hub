@@ -104,6 +104,23 @@ test("edited summary uses update time and its new exact-head verdict supersedes 
   assert.equal(classifyCodexSummaryComment(edited, headSha, marker).explicitSha, true);
 });
 
+test("accepted negative legacy edits supersede newer passes without refreshing eligibility", () => {
+  const edited = comment("Codex Review: Found a P1 issue.", {
+    created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z"
+  });
+  assert.equal(evaluate({ comments: [edited, comment(receipt)] }), "fail");
+  assert.equal(evaluate({ comments: [edited], reviews: [{
+    id: 1, user: bot, commit_id: headSha, state: "APPROVED", submitted_at: resultAt
+  }] }), "fail");
+  assert.equal(evaluate({ comments: [{ ...edited, updated_at: resultAt }, comment(receipt)] }), "fail");
+  const beforeRequest = { ...edited, created_at: "2026-10-01T09:59:00Z" };
+  assert.equal(classifyCodexSummaryComment(beforeRequest, headSha, marker), null);
+  assert.notEqual(evaluate({ comments: [beforeRequest, comment(receipt)] }), "pass");
+  assert.equal(evaluate({ comments: [edited, comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }), "pass");
+  const editedPositive = { ...edited, body: "Codex Review: Didn't find any major issues." };
+  assert.equal(evaluate({ comments: [editedPositive, comment(receipt.replace("Didn't find any major issues.", "Found a P1 issue."))] }), "fail");
+});
+
 test("native failures and all unresolved threads survive a new request marker", () => {
   const reviews = [{ id: 1, user: bot, commit_id: headSha, state: "CHANGES_REQUESTED", submitted_at: "2026-10-01T09:59:00Z" }];
   assert.equal(evaluate({ reviews }), "fail");

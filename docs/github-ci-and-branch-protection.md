@@ -38,6 +38,9 @@ For existing repositories, `requiredChecks` comes from `.unicorn-hub/config.json
 - The latest evidence is evaluated; negative or incomplete edits invalidate an
   earlier success. Every unresolved Codex thread blocks independently of the
   latest request, including advisory and earlier-head findings.
+- Accepted negative SHA-less legacy edits are ordered by update time, while
+  their request/head eligibility still uses creation time. Editing old positive
+  prose cannot refresh its eligibility or outrank newer negative evidence.
 - The `AI Review` gate debounces briefly and re-checks GitHub's current PR head before accepting evidence and immediately before success; stale runs fail closed.
 - Privileged automation always uses the trusted default branch. Validation uses
   a read-only token and the default branch, or an independently reviewed,

@@ -251,11 +251,14 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
       }
       continue;
     }
-    const timestamp = parsed.explicitSha ? reviewEvidenceTime(comment) : comment.created_at;
-    if (!isAfterReviewRequest(timestamp, requestMarker) && parsed.result !== "fail") continue;
+    const eligibilityTime = parsed.explicitSha ? reviewEvidenceTime(comment) : comment.created_at;
+    if (!isAfterReviewRequest(eligibilityTime, requestMarker) && parsed.result !== "fail") continue;
     if (!parsed.explicitSha && hasHeadUpdateBetweenTimestamps(timeline,
-      requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt, timestamp)) continue;
-    candidates.push({ result: parsed.result, time: Date.parse(timestamp || "") });
+      requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt, eligibilityTime)) continue;
+    // An edit cannot refresh SHA-less request/head eligibility, but an accepted
+    // negative edit must invalidate a positive verdict posted before the edit.
+    const orderingTime = parsed.result === "fail" ? reviewEvidenceTime(comment) : eligibilityTime;
+    candidates.push({ result: parsed.result, time: Date.parse(orderingTime || "") });
   }
   const valid = candidates.filter((entry) => Number.isFinite(entry.time));
   const newest = Math.max(...valid.map((entry) => entry.time));

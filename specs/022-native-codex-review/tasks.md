@@ -23,6 +23,9 @@
 - Native review identified dispatch workflow provenance: checking out default
   scripts alone does not make a branch's workflow definition trusted. The write
   job now requires the default workflow ref; a non-default comment request fails.
+- Native review identified a negative legacy-edit ordering gap. Accepted
+  negative edits now use update time for ordering while keeping creation-time
+  eligibility; regression tests first reproduced the false green, then passed.
 
 ## Known Issues
 
@@ -30,7 +33,7 @@ Initial rollout requires independent native review of the promoted snapshot and 
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 143 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 144 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.
