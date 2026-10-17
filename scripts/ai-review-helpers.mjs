@@ -166,7 +166,7 @@ function priorBodyFromEditDiff(diff) {
 }
 
 export function hasCodexReviewSignalInEditDiff(diff) {
-  return isCodexReviewSignal(priorBodyFromEditDiff(diff).trimStart());
+  return isCodexReviewSignal(priorBodyFromEditDiff(diff));
 }
 
 export function isCodexStructuredSummarySignal(body) {

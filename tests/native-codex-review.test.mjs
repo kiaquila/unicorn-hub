@@ -8,6 +8,7 @@ import {
   classifyCodexSummaryComment,
   createAiReviewRequestMarkerBody,
   evaluateCodexEvidence,
+  hasCodexReviewSignalInEditDiff,
   isAcceptableCodexSummaryComment,
   isCodexReviewSignal
 } from "../scripts/ai-review-helpers.mjs";
@@ -437,7 +438,7 @@ test("durable deletion tombstones invalidate every pre-deletion positive verdict
 test("legacy review markers survive prefixed and HTML-rendered edit histories", () => {
   const cleared = comment("Ordinary text", { node_id: "diff-review", created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
   for (const diff of [
-    "- Codex Review: Found a P1 bug.\n+ Ordinary text",
+    "-Codex Review: Found a P1 bug.\n+Ordinary text",
     "<div><del>Codex Review: Found a P1 bug.</del><ins>Ordinary text</ins></div>",
     "&lt;del&gt;Codex Review: Review withdrawn&lt;/del&gt;",
     "<del>Codex</del> Review: Found a bug.",
@@ -529,6 +530,29 @@ test("legacy verdicts use the same case-insensitive column-zero grammar as delet
   }
   assert.equal(runGate({ extraComments: [withdrawal(), comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }).status, 1);
   assert.equal(runGate({ extraComments: [withdrawal(), comment(summary(), { created_at: "2026-10-01T10:04:00Z" })] }).status, 0);
+});
+
+test("edit history preserves the prior body's own leading whitespace", () => {
+  const legacy = "Codex Review: Didn't find any major issues.";
+  const ordinary = comment("Ordinary reply", { node_id: "whitespace-history",
+    created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+  for (const prefix of ["", " ", "\t", "\n", "\u00a0"]) {
+    const prior = prefix + legacy;
+    const removedLines = prior.split("\n").map((line) => `-${line}`).join("\n");
+    const diffs = [prior, `${removedLines}\n+Ordinary reply`,
+      `@@ -1 +1 @@\n${removedLines}\n+Ordinary reply`,
+      `<del>${prior}</del><ins>Ordinary reply</ins>`];
+    for (const diff of diffs) {
+      assert.equal(hasCodexReviewSignalInEditDiff(diff), prefix === "", diff);
+      const result = runGate({ extraComments: [ordinary], historyNodes: { [ordinary.node_id]: {
+        id: ordinary.node_id, body: ordinary.body, updatedAt: ordinary.updated_at,
+        lastEditedAt: ordinary.updated_at, includesCreatedEdit: true,
+        userContentEdits: { nodes: [{ diff }], pageInfo: { hasNextPage: false } }
+      } } });
+      assert.equal(result.status, prefix === "" ? 1 : 0, diff);
+      assert.doesNotMatch(result.stderr, /Last API error/);
+    }
+  }
 });
 
 

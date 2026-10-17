@@ -131,13 +131,18 @@
   masking an intervening failure, including omitted-flag corroboration, and
   verify that a genuinely new native receipt can restore a positive result.
 
+- Prior-side edit reconstruction preserves the original body's leading whitespace.
+  Raw, unified, and HTML diff regressions verify that ordinary whitespace-prefixed
+  legacy-like text cannot invalidate a later valid receipt, while column-zero
+  verdict withdrawals still block the actual gate.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 183 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 184 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

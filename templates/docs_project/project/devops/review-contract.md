@@ -114,7 +114,8 @@ completion.
 
 Legacy top-level verdicts must start at column zero, case-insensitively, matching
 Actions `startsWith`. Leading whitespace is outside the accepted legacy grammar;
-explicit receipts and structured envelopes retain their own marker rules.
+edit history preserves that whitespace after removing only diff prefixes.
+Explicit receipts and structured envelopes retain their own marker rules.
 
 Destructive native events and machine review-control mutations defer in the
 ordinary rerun router. Only the default-branch withdrawal controller wakes their
