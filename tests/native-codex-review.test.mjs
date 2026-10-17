@@ -227,8 +227,8 @@ test("edited COMMENTED reviews cannot retain an implicit no-findings result", ()
   for (const body of ["", "Review withdrawn"]) {
     const review = { id: 2, user: bot, commit_id: headSha, state: "COMMENTED", body,
       submitted_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z", last_edited_at: "2026-10-01T10:03:00Z" };
-    assert.equal(evaluate({ reviews: [review] }), "pending");
-    assert.equal(evaluate({ comments: [comment(receipt)], reviews: [review] }), "pending");
+    assert.equal(evaluate({ reviews: [review] }), body ? "fail" : "pending");
+    assert.equal(evaluate({ comments: [comment(receipt)], reviews: [review] }), body ? "fail" : "pending");
     const node = { databaseId: 2, state: review.state, body, commit: { oid: headSha }, submittedAt: review.submitted_at,
       updatedAt: review.updated_at, lastEditedAt: review.last_edited_at, author: { login: "chatgpt-codex-connector", __typename: "Bot" } };
     assert.equal(runGate({ reviews: [node] }).status, 1);
@@ -266,4 +266,24 @@ test("fresh formal approvals and implicit COMMENTED verdicts reject negative and
       body: "Completed\n<details><summary>About Codex in GitHub</summary>Help: the app reacts while reviews are running.</details>" };
     assert.equal(evaluate({ reviews: [help] }), "pass");
   }
+});
+
+test("withdrawn, revoked, stopped and unavailable review states invalidate every accepted format", () => {
+  const states = ["withdrawn", "withdrawal", "revoked", "revocation", "retracted", "rescinded", "rejected", "declined", "denied", "aborted", "abandoned", "paused", "suspended", "skipped", "stopped", "terminated", "expired", "invalid", "unavailable", "inconclusive", "deferred", "unsuccessful", "stale", "outdated", "superseded", "waiting", "timed_out", "action_required", "not_approved", "not_started", "not_reviewed", "not_passed", "not_validated", "not_ready", "not_done", "not successful", "not yet completed", "notFullyCompleted", "never approved", "no_longer_approved", "didn't complete", "hasn’t finished", "cannot be completed", "unable to finish", "can't complete", "withdrawing", "revoking"];
+  for (const status of states) {
+    const text = `Review ${status}`;
+    assert.notEqual(evaluate({ comments: [comment(summary() + "\n" + text)] }), "pass", status);
+    assert.notEqual(evaluate({ comments: [comment(receipt + "\n" + text)] }), "pass", status);
+    for (const reviewState of ["APPROVED", "COMMENTED"]) {
+      const review = { id: 2, user: bot, commit_id: headSha, state: reviewState, body: text,
+        submitted_at: "2026-10-01T10:03:00Z", updated_at: "2026-10-01T10:03:00Z", last_edited_at: null };
+      assert.equal(evaluate({ comments: [comment(receipt)], reviews: [review] }), "fail", `${reviewState}: ${status}`);
+      if (["withdrawn", "revoked"].includes(status)) {
+        const node = { databaseId: 2, state: reviewState, body: text, submittedAt: review.submitted_at,
+          updatedAt: review.updated_at, lastEditedAt: null, commit: { oid: headSha }, author: { login: "chatgpt-codex-connector", __typename: "Bot" } };
+        assert.equal(runGate({ reviews: [node] }).status, 1);
+      }
+    }
+  }
+  assert.equal(runGate({ body: summary() + "\nReview withdrawn" }).status, 1);
 });

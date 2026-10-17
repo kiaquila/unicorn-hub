@@ -55,13 +55,19 @@
   check before accepting either APPROVED or implicit COMMENTED evidence. Fresh
   and folded negative states have actual-entry-point regression coverage.
 
+- Native review identified omitted withdrawal/revocation wording. The shared
+  classifier now rejects withdrawn, revoked, stopped/unavailable states and
+  standard non-success workflow conclusions and negated completion across receipts, structured
+  summaries, and both formal review states. The matrix regression reproduced
+  the withdrawal false green before the fix, then passed.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 155 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 156 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.

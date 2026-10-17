@@ -171,6 +171,8 @@ The default pull request behavior is therefore:
    implicit no-findings verdict; a fresh native result must re-establish it.
    Fresh formal approvals and comments also reject visible failed/incomplete
    states using the same negative-state classifier as native summaries.
+   Withdrawal, revocation, stopped/unavailable states, and standard non-success
+   workflow conclusions are also negative across every accepted review format.
 7. The gate passes only if the configured backend returns an acceptable result
    for the latest PR head.
 
