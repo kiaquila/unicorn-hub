@@ -9,6 +9,7 @@ import {
   createAiReviewRequestMarkerBody,
   evaluateCodexEvidence,
   hasCodexReviewSignalInEditDiff,
+  hasCodexStructuredSummaryInEditDiff,
   isAcceptableCodexSummaryComment,
   isCodexReviewSignal
 } from "../scripts/ai-review-helpers.mjs";
@@ -596,6 +597,31 @@ test("HTML edit history preserves structural containers around legacy-like text"
       assert.doesNotMatch(result.stderr, /Last API error/);
     }
   }
+});
+
+test("HTML history excludes tag names and quoted attributes from prior evidence", () => {
+  const ordinary = comment("New reply", { node_id: "html-attribute-history",
+    created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:03:00Z" });
+  for (const diff of [
+    '<div class="codex-pull-request-review-summary"><del>Ordinary reply</del></div><ins>New reply</ins>',
+    '<div title="codex-review-state: > <!-- codex-review-receipt:v1 -->"><del>Ordinary reply</del></div>',
+    "<div title='codex-review-state: < > <!-- codex-review-receipt:v1 -->'><del>Ordinary reply</del></div>",
+    '<div title="&#34;>codex-review-state:"><del>Ordinary reply</del></div><ins>New reply</ins>',
+    '<codex-pull-request-review-summary><del>Ordinary reply</del></codex-pull-request-review-summary>',
+    '<del data-state="codex-review-state:">Ordinary reply</del><ins>New reply</ins>',
+    '<ins title="<!-- codex-review-receipt:v1 -->">Added reference</ins><del>Ordinary reply</del>',
+    '<ins>Added <ins>nested</ins> <!-- codex-review-receipt:v1 --> codex-review-state:</ins><del>Ordinary reply</del>'
+  ]) {
+    assert.equal(hasCodexReviewSignalInEditDiff(diff), false, diff);
+    assert.equal(hasCodexStructuredSummaryInEditDiff(diff), false, diff);
+    const result = runGate({ extraComments: [ordinary], historyNodes: { [ordinary.node_id]: {
+      id: ordinary.node_id, body: ordinary.body, updatedAt: ordinary.updated_at,
+      lastEditedAt: ordinary.updated_at, includesCreatedEdit: true,
+      userContentEdits: { nodes: [{ diff }], pageInfo: { hasNextPage: false } }
+    } } });
+    assert.equal(result.status, 0, diff);
+  }
+  assert.equal(hasCodexStructuredSummaryInEditDiff(`<div title="unrelated"><del>${summary()}</del></div>`), true);
 });
 
 

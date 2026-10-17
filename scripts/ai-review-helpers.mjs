@@ -145,16 +145,34 @@ export function isCodexReviewSignal(body) {
 function priorBodyFromEditDiff(diff) {
   // Reconstruct only the prior side. Added or quoted review-like prose is not
   // evidence that a native verdict was withdrawn.
-  const decoded = String(diff).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
+  const markup = String(diff).replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  const decodeText = (text) => text.replace(/&amp;/g, "&")
     .replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (_match, code) => {
       const value = code[0].toLowerCase() === "x" ? Number.parseInt(code.slice(1), 16) : Number(code);
       return value <= 0x10ffff ? String.fromCodePoint(value) : "";
     });
-  if (/<(?:del|ins)\b/i.test(decoded)) {
-    const prior = decoded.replace(/<ins\b[^>]*>[\s\S]*?<\/ins>/gi, "")
-      .replace(/<\/?del\b[^>]*>/gi, "");
-    return prior;
+  if (/<(?:del|ins)\b/i.test(markup)) {
+    // Keep text and evidence-bearing HTML comments, not tag names/attributes.
+    // Structural tags leave a boundary so quoted text cannot move to column zero.
+    const tokens = /<!--[\s\S]*?-->|<(\/?)([a-z][\w:-]*)(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi;
+    const prior = [];
+    let cursor = 0;
+    let insertionDepth = 0;
+    for (const token of markup.matchAll(tokens)) {
+      if (insertionDepth === 0) prior.push(decodeText(markup.slice(cursor, token.index)));
+      const tag = token[2]?.toLowerCase();
+      if (tag === "ins") {
+        if (token[1]) insertionDepth = Math.max(0, insertionDepth - 1);
+        else if (!/\/>$/.test(token[0])) insertionDepth++;
+      } else if (insertionDepth === 0 && tag !== "del") {
+        prior.push(tag ? "\n" : decodeText(token[0]));
+      }
+      cursor = token.index + token[0].length;
+    }
+    if (insertionDepth === 0) prior.push(decodeText(markup.slice(cursor)));
+    return prior.join("");
   }
+  const decoded = decodeText(markup);
   const lines = decoded.split("\n");
   const firstHunk = lines.findIndex((line) => /^@@ /.test(line));
   if (firstHunk >= 0 ||

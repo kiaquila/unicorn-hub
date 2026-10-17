@@ -146,13 +146,18 @@
   ordinary text cannot create a tombstone while explicit receipt markers remain
   recognizable throughout the original body.
 
+- HTML history preserves container boundaries while excluding tag names and
+  quoted attributes from signal text. Regressions cover marker-like attributes,
+  quoted angle brackets, custom tag names, and nested insertions; genuine prior
+  structured HTML-comment markers remain recognized.
+
 ## Known Issues
 
 Initial rollout requires independent native review of the promoted snapshot and final head, with unchanged protection and the real PR workflow. The temporary repository source pin must be removed after merge.
 
 ## Verification Evidence
 
-- Full `pnpm run preflight` passed: 186 tests, sanitizer, baseline, syntax,
+- Full `pnpm run preflight` passed: 187 tests, sanitizer, baseline, syntax,
   feature memory, context budget, and generated workflow parity.
 - Gate integration tests execute the actual workflow entry point with a
   synthetic GitHub API, including GraphQL failures and a push before success.
