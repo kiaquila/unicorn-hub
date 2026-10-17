@@ -30,6 +30,9 @@
   status conflicts. Request wakeups now use marker publication time, and a
   visible failed/incomplete verdict blocks completed JSON. Both regressions
   reproduced the original false behavior before their fixes.
+- Native review caught underscore normalization joining compound negative states.
+  Underscores now remain separators; enum, compact/camel-case, dotted, hyphenated,
+  and Markdown-styled compound failures have regression coverage.
 
 ## Known Issues
 

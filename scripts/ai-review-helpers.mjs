@@ -147,8 +147,8 @@ export function reviewEvidenceTime(comment) {
 }
 
 function containsNegativeReviewState(text) {
-  const plain = String(text).replace(/[*_`~]/g, "");
-  return /\b(?:unresolved|incomplete|pending|in[\s-]+progress|changes[\s-]+requested|fail(?:ed|ure)?|running|queued|cancel(?:led|ed)|error(?:ed)?|blocked|unknown|not\s+(?:completed|finished))\b/i.test(plain);
+  const plain = String(text).replace(/_/g, " ").replace(/[*`~]/g, "");
+  return /\b(?:unresolved|incomplete|pending|in[\s./:-]*progress|changes[\s./:-]*requested|fail(?:ed|ure)?|running|queued|cancel(?:led|ed)|error(?:ed)?|blocked|unknown|not[\s./:-]*(?:completed|finished))\b/i.test(plain);
 }
 
 function withoutCodexHelpFooter(text) {

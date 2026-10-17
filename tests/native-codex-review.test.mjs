@@ -96,7 +96,9 @@ test("active security review must be completed and finding-free on the exact cur
 test("structured completed state rejects contradictory visible failure or incomplete status", () => {
   for (const text of ["Review failed", "Review failure", "pending", "in progress", "unresolved",
     "Review incomplete", "Review running", "Review queued", "Review cancelled", "Review blocked", "Review not completed", "Review error",
-    "Review in  progress", "Review not **completed**", "<details><summary>Review status</summary>Review failed</details>"]) {
+    "Review in  progress", "Review not **completed**", "in_progress", "changes_requested", "not_completed",
+    "inProgress", "changesRequested", "notCompleted", "in-progress", "not-completed", "changes.requested",
+    "<details><summary>Review status</summary>Review failed</details>"]) {
     assert.notEqual(evaluate({ comments: [comment(summary() + `\n${text}`)] }), "pass", text);
   }
   const help = "<details><summary>About Codex</summary>Codex reacts while a review is running.</details>";
