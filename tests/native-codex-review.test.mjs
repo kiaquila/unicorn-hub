@@ -780,3 +780,33 @@ test("edited code-only positives cannot renew their age over intervening failure
     assert.equal(evaluate({ comments: [edited, negative, fresh] }), "pass");
   }
 });
+
+
+test("unseen receipt presentation is neutral only under independent affirmative machine proof", () => {
+  for (const closing of ["You're on a roll.", "Another round soon, please!", "Chef's kiss.", "Swish!", "A sparkling little triumph!", "No worries!"]) {
+    const body = receipt.replace(":rocket:", closing);
+    assert.notEqual(evaluate({ comments: [comment(body)] }), "pass");
+    for (const time of ["2026-10-01T10:01:00Z", "2026-10-01T10:03:00Z"]) {
+      const comments = [comment(body, { created_at: time }), comment(summary())];
+      assert.equal(evaluate({ comments }), "pass", closing);
+    }
+    assert.notEqual(evaluate({ comments: [comment(body), comment(summary(state({ has_any_findings: null, has_unresolved_findings: null })))] }), "pass");
+  }
+  for (const suffix of ["Authentication leaks credentials.", "The deployment deletes all customer data.", "Found a P0 issue.", "Found a P1 issue.", "Found a P2 issue.", "Review incomplete.", "<!-- unknown -->", "Status: completed", "\nExtra line", "Codex Review: Approved."]) {
+    assert.notEqual(evaluate({ comments: [comment(summary()), comment(receipt.replace(":rocket:", suffix), { created_at: "2026-10-01T10:03:00Z" })] }), "pass", suffix);
+  }
+  assert.notEqual(evaluate({ comments: [comment(receipt.replace(":rocket:", "Swish!")), comment(summary(), { created_at: triggerAt })] }), "pass");
+});
+
+
+test("equal-time invalid machine signals outrank clean proof around opaque receipts", () => {
+  const opaque = comment(receipt.replace(":rocket:", "Swish!"));
+  for (const body of [summary(state({ commit_sha: oldSha })), summary().replace(':v1', ':v2'), summary().replace(':v1 {', ':v1 {bad'), summary(state({ status: "running" }))]) {
+    for (const snapshots of [[comment(summary()), comment(body)], [comment(body), comment(summary())]])
+      assert.notEqual(evaluate({ comments: [...snapshots, opaque] }), "pass", body);
+  }
+  const good = receipt.replace(":rocket:", "Swish!");
+  assert.equal(runGate({ body: good, extraComments: [comment(summary())] }).status, 0);
+  for (const body of [good + "\n<!-- codex-review-receipt:v1 -->", good + "\n<!-- unknown -->", good + "\nP0: issue", good + "\n**Reviewed commit:** `0123456789`", good + "\n<details> <summary>ℹ️ About Codex in GitHub</summary> P0: issue </details>"])
+    assert.notEqual(evaluate({ comments: [comment(summary()), comment(body, { created_at: "2026-10-01T10:03:00Z" })] }), "pass", body);
+});

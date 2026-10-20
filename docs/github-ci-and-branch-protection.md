@@ -254,9 +254,12 @@ controller; later reviews or replacement records cannot silently erase its sourc
 When the native backend omits both code findings flags in a completed summary,
 that summary remains pending by itself. The gate can corroborate it only with a
 separate trusted v1 no-findings receipt bound to the exact head and created after
-the current request. Only exact observed celebratory receipt closings are accepted, including `:+1:`, "Delightful!",
-"Can't wait for the next one!", and "Already looking forward to the next diff.".
-Unknown closings or appended findings remain non-passing. Both artifacts
+the current request. Legacy receipt closings remain strict: unseen presentation text alone never
+approves. A current-request complete structured snapshot with explicit
+false findings flags independently establishes the verdict; arbitrary English
+never determines machine success. An exact clean receipt with opaque presentation is neutral in either arrival
+order; malformed receipts and known contrary findings still block. Structured success must follow the current request.
+Both artifacts
 must be newer than any withdrawal they clear. Mixed null/boolean flags, missing
 receipts, formal approvals, stale or edited older receipts, and unknown active
 security flags cannot fill the missing code verdict. Security and visible status
