@@ -14,3 +14,5 @@ Avoid presentation-only native receipt endings blocking independently proven cle
 ## Negative scenarios
 
 Contrary findings, additional verdicts, hashes, lines, unknown markers, and null code findings flags cannot independently supply approval or conceal newer incomplete machine state.
+
+Structured withdrawal recovery requires code completion in a strictly later whole-second bucket than the withdrawal; refreshing the summary alone cannot restore approval.

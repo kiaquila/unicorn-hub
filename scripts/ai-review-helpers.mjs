@@ -470,7 +470,8 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   const effectiveCommentResult = (comment) => {
     const parsed = classifyCodexSummaryComment(comment, headSha, requestMarker, config);
     if (isCodexStructuredSummarySignal(comment.body) && parsed && parsed.result !== "fail" &&
-        !hasFreshCodeReviewCompletion(comment.body, requestMarker, reviewEvidenceTime(comment))) return { ...parsed, result: "pending", requiresCodeReceipt: false };
+        (!hasFreshCodeReviewCompletion(comment.body, requestMarker, reviewEvidenceTime(comment)) ||
+         Math.floor(codeReviewCompletionTime(comment.body) / 1000) <= Math.floor(structuredWithdrawalTime / 1000))) return { ...parsed, result: "pending", requiresCodeReceipt: false };
     if (!parsed?.requiresCodeReceipt) return parsed;
     const receiptTimes = comments.flatMap((receipt) => {
       if (!String(receipt.body || "").trim().startsWith("<!-- codex-review-receipt:v1 -->") ||

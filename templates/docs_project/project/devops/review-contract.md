@@ -185,3 +185,5 @@ summary cannot renew an old code verdict; a missing completion time stays pendin
 Positive machine evidence is ordered by code completion time in whole-second
 buckets, matching GitHub comment precision. Same-second request or pending
 evidence remains blocking; security-only edits cannot advance that order.
+
+Structured withdrawal recovery requires code completion in a strictly later whole-second bucket than the withdrawal; refreshing the summary alone cannot restore approval.

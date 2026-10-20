@@ -566,7 +566,7 @@ test("removed structured state requires a newer complete structured snapshot", (
       const blocked = runGate({ extraComments: [removed, later], historyNodes: { [removed.node_id]: history } });
       assert.equal(blocked.status, 1, blocked.stdout);
       assert.doesNotMatch(blocked.stderr, /Last API error/);
-      const recovered = comment(summary(), { created_at: "2026-10-01T10:05:00Z" });
+      const recovered = comment(summary().replaceAll(resultAt, "2026-10-01T10:05:00Z"), { created_at: "2026-10-01T10:05:00Z" });
       assert.equal(evaluate({ comments: [removed, later, recovered] }), "pass");
       const restored = runGate({ extraComments: [removed, later, recovered], historyNodes: { [removed.node_id]: history } });
       assert.equal(restored.status, 0, restored.stderr);
@@ -749,7 +749,7 @@ test("completed summaries with omitted code flags require an independent current
 test("corroborated structured recovery requires both artifacts after withdrawal", () => {
   const body = summary(state({ has_any_findings: null, has_unresolved_findings: null }));
   const freshReceipt = comment(receipt, { created_at: "2026-10-01T10:05:00Z" });
-  const freshSummary = comment(body, { created_at: "2026-10-01T10:04:00Z" });
+  const freshSummary = comment(body.replaceAll(resultAt, "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" });
   assert.equal(evaluate({ comments: [comment(body), freshReceipt, withdrawal()] }), "pending");
   assert.equal(evaluate({ comments: [freshSummary, comment(receipt), withdrawal()] }), "pending");
   assert.equal(evaluate({ comments: [freshSummary, freshReceipt, withdrawal()] }), "pass");
@@ -839,4 +839,25 @@ test("fractional completion times cannot outrun same-second receipts or requests
   const fractional = summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:02:00.500Z");
   assert.equal(evaluate({ comments: [comment(fractional), comment(receipt.replace(":rocket:", "Swish!"))] }), "pending");
   assert.equal(evaluateCodexEvidence({ headSha, requestMarker: { ...marker, sourceCommentCreatedAt: resultAt }, comments: [comment(fractional)] }), "pending");
+});
+
+
+test("structured withdrawal recovery requires a new code completion, not a summary edit", () => {
+  const removed = comment("Ordinary text", { prior_review_signal: true, prior_structured_summary: true,
+    created_at: resultAt, updated_at: "2026-10-01T10:03:00Z" });
+  const laterReceipt = comment(receipt, { created_at: "2026-10-01T10:04:00Z" });
+  for (const fence of [withdrawal(), removed]) {
+    for (const flags of [{}, { has_any_findings: null, has_unresolved_findings: null }]) {
+      for (const completion of [resultAt, "2026-10-01T10:03:00.999Z"]) {
+        const stale = comment(summary(state(flags)).replaceAll(resultAt, completion), {
+          created_at: "2026-10-01T10:05:00Z", updated_at: "2026-10-01T10:05:00Z"
+        });
+        assert.equal(evaluate({ comments: [fence, laterReceipt, stale] }), "pending");
+      }
+      const fresh = comment(summary(state(flags)).replaceAll(resultAt, "2026-10-01T10:05:00Z"), {
+        created_at: "2026-10-01T10:05:00Z", updated_at: "2026-10-01T10:05:00Z"
+      });
+      assert.equal(evaluate({ comments: [fence, laterReceipt, fresh] }), "pass");
+    }
+  }
 });
