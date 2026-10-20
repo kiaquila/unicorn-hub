@@ -262,7 +262,7 @@ function isPositiveSummaryRendering(text, headSha, securityActive) {
     (!securityActive || seen.has("Security Review"));
 }
 
-function parseStructuredCodexSummary(body, headSha) {
+function parseStructuredCodexSummary(body, headSha, stateOnly = false) {
   const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
   if (!envelope || (body.match(/codex-pull-request-review-summary/g) || []).length !== 1 ||
       (body.match(/codex-review-state:/g) || []).length !== 1 || body.includes("codex-review-receipt:")) return null;
@@ -289,6 +289,7 @@ function parseStructuredCodexSummary(body, headSha) {
   const code = state.code_review;
   if (!/^[a-f0-9]{40}$/.test(String(headSha))) return null;
   if (code.commit_sha !== headSha) return null;
+  if (stateOnly) return state;
   // Conflicting visible severity or a second verdict cannot be hidden by JSON.
   const visibleVerdict = withoutCodexHelpFooter(body.slice(envelope[0].length));
   if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visibleVerdict) ||
@@ -407,10 +408,59 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
 
 // The shared summary can be edited by security activity. Its server update
 // time alone cannot prove that code review ran for this particular request.
-function codeReviewCompletionTime(body) {
-  const rows = [...withoutCodexHelpFooter(String(body)).matchAll(/^\| 📝 \*\*Code Review\*\* \| ✅ \*\*Completed\*\* <relative-time datetime="([^"<>]+)">([^<>]+)<\/relative-time> \|/gm)];
-  return rows.length === 1 && rows[0][1] === rows[0][2] ? Date.parse(rows[0][1]) : NaN;
+function codeReviewCompletionTime(body, section = "Code Review") {
+  const label = section === "Code Review" ? "📝 \\*\\*Code Review\\*\\*" : "🛡️ \\*\\*Security Review\\*\\*";
+  const rowPattern = new RegExp('^\\| ' + label + ' \\| ✅ \\*\\*Completed\\*\\* <relative-time datetime="([^"<>]+)">([^<>]+)</relative-time> \\|', "gm");
+  const rows = [...withoutCodexHelpFooter(String(body)).matchAll(rowPattern)];
+  if (rows.length !== 1 || rows[0][1] !== rows[0][2] ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(rows[0][1])) return NaN;
+  const time = Date.parse(rows[0][1]);
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 19) === rows[0][1].slice(0, 19) ? time : NaN;
 }
+
+
+// A request or code-only receipt cannot clear a typed finding from another
+// section. Only a newer independently clean snapshot with that section's own
+// canonical completion clock can retire the valid current-head finding.
+function structuredNegativeTime(comment, headSha) {
+  const observed = Date.parse(comment.updated_at || comment.created_at || "");
+  const state = parseStructuredCodexSummary(String(comment.body || "").trim(), headSha, true);
+  if (!state) return observed;
+  const times = [];
+  for (const [section, label] of [["code_review", "Code Review"], ["security_review", "Security Review"]]) {
+    const value = state[section];
+    if (value.commit_sha !== headSha || !(value.has_any_findings === true || value.has_unresolved_findings === true)) continue;
+    const completed = codeReviewCompletionTime(comment.body, label);
+    times.push(value.status === "completed" && Number.isFinite(completed) && completed <= observed + 999 ? Math.floor(completed / 1000) * 1000 : observed);
+  }
+  return times.length ? Math.max(...times) : observed;
+}
+
+function hasUnclearedStructuredFindings(snapshots, headSha) {
+  const states = snapshots.map(({ comment, result }) => ({ comment, result,
+    state: parseStructuredCodexSummary(String(comment.body || "").trim(), headSha, true),
+    time: Date.parse(comment.updated_at || comment.created_at || "")
+  })).filter((entry) => entry.state && Number.isFinite(entry.time));
+  for (const [section, label] of [["code_review", "Code Review"], ["security_review", "Security Review"]]) {
+    const findings = states.filter(({ state }) => state[section].commit_sha === headSha &&
+      (state[section].has_any_findings === true || state[section].has_unresolved_findings === true));
+    if (!findings.length) continue;
+    const fence = Math.max(...findings.map(({ comment, state, time }) => {
+      const completed = codeReviewCompletionTime(comment.body, label);
+      return Math.floor((state[section].status === "completed" && Number.isFinite(completed) && completed <= time + 999 ? completed : time) / 1000);
+    }));
+    const cleared = states.some(({ comment, state, result, time }) => {
+      const value = state[section];
+      const completed = codeReviewCompletionTime(comment.body, label);
+      return result === "pass" && value.commit_sha === headSha && value.status === "completed" &&
+        value.has_any_findings === false && value.has_unresolved_findings === false &&
+        Number.isFinite(completed) && completed <= time + 999 && Math.floor(completed / 1000) > fence;
+    });
+    if (!cleared) return true;
+  }
+  return false;
+}
+
 
 function hasFreshCodeReviewCompletion(body, requestMarker, updatedAt) {
   const time = codeReviewCompletionTime(body);
@@ -434,7 +484,7 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   let latestSummaryTime = -Infinity;
   let latestSummaries = [];
   if (summaries.length) {
-    const times = summaries.map((comment) => Date.parse(reviewEvidenceTime(comment) || ""));
+    const times = summaries.map((comment) => structuredNegativeTime(comment, headSha));
     if (times.some((time) => !Number.isFinite(time))) return "pending";
     latestSummaryTime = Math.max(...times);
     latestSummaries = summaries.filter((_comment, index) => times[index] === latestSummaryTime);
@@ -482,6 +532,7 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
     });
     return { ...parsed, result: receiptTimes.length ? "pass" : "pending", corroborationTime: Math.max(...receiptTimes) };
   };
+  if (hasUnclearedStructuredFindings(summaries.map((comment) => ({ comment, result: effectiveCommentResult(comment)?.result })), headSha)) return "pending";
   const summaryResults = latestSummaries.map((comment) => effectiveCommentResult(comment)?.result || "pending");
   if (summaryResults.includes("fail")) return "fail";
   if (summaryResults.includes("pending")) return "pending";
@@ -518,7 +569,7 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
     // negative edit must invalidate a positive verdict posted before the edit.
     const orderingTime = parsed.result === "pass" && isCodexStructuredSummarySignal(comment.body)
       ? new Date(Math.floor(codeReviewCompletionTime(comment.body) / 1000) * 1000).toISOString()
-      : parsed.result === "fail" ? reviewEvidenceTime(comment) : eligibilityTime;
+      : parsed.result === "fail" && isCodexStructuredSummarySignal(comment.body) ? new Date(structuredNegativeTime(comment, headSha)).toISOString() : parsed.result === "fail" ? reviewEvidenceTime(comment) : eligibilityTime;
     const evidenceTime = Date.parse(orderingTime || "");
     // A summary cannot renew its receipt's older verdict and erase intervening
     // negative or incomplete evidence. The pair is only as new as both parts.

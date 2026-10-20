@@ -440,7 +440,7 @@ test("later wakeups cannot pass while the independent withdrawal writer is pendi
   const source = { id: 42, repository: { full_name: "example/project" }, event: "issue_comment",
     path: ".github/workflows/ai-review-rerun.yml@main", head_branch: "main", created_at: "2026-10-01T10:03:00Z",
     display_title: "AI review evidence:issue_comment:deleted:1:chatgpt-codex-connector[bot]:false:true:false" };
-  const fresh = comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" });
+  const fresh = comment(summary({ ...state(), security_review: { ...state().code_review } }).replace("✅ **Completed** |", '✅ **Completed** <relative-time datetime="2026-10-01T10:02:00Z">2026-10-01T10:02:00Z</relative-time> |').replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" });
   const pages = (runs) => [{ total_count: runs.length, workflow_runs: runs }];
   for (const status of ["queued", "in_progress", "completed"]) {
     const runs = [{ ...source, status, conclusion: status === "completed" ? "failure" : null }];
@@ -478,7 +478,7 @@ test("durable deletion tombstones invalidate every pre-deletion positive verdict
         assert.notEqual(evaluate({ reviews: [review], comments: [comment(positive), withdrawal()] }), "pass");
         assert.equal(runGate({ body: positive, extraComments: [withdrawal()] }).status, 1);
         assert.equal(evaluate({ reviews: [review], comments: [comment(positive.replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), positive === receipt ? "pending" : "pass");
-        assert.equal(evaluate({ reviews: [review], comments: [comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), "pass");
+        assert.equal(evaluate({ reviews: [review], comments: [comment(summary({ ...state(), security_review: { ...state().code_review } }).replace("✅ **Completed** |", '✅ **Completed** <relative-time datetime="2026-10-01T10:02:00Z">2026-10-01T10:02:00Z</relative-time> |').replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), "pass");
       }
       assert.notEqual(evaluate({ reviews: [review], comments: [withdrawal()] }), "pass");
     }
@@ -526,7 +526,7 @@ test("later code-only evidence cannot override the latest native summary's whole
       assert.notEqual(evaluate(extra), "pass", body);
     }
     assert.equal(runGate({ body: positive.body, extraComments: [snapshot] }).status, 1);
-    assert.equal(evaluate({ comments: [snapshot, positive, comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" })] }), "pass", "a newer complete authoritative snapshot restores success");
+    assert.equal(evaluate({ comments: [snapshot, positive, comment(summary({ ...state(), security_review: { ...state().code_review } }).replace("✅ **Completed** |", '✅ **Completed** <relative-time datetime="2026-10-01T10:02:00Z">2026-10-01T10:02:00Z</relative-time> |').replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" })] }), "pass", "a newer complete authoritative snapshot restores success");
   }
   assert.equal(evaluate({ comments: [positive, comment(bodies[0], { user: { login: "untrusted[bot]" } })] }), "pass");
 });
@@ -584,7 +584,7 @@ test("legacy verdicts use the same case-insensitive column-zero grammar as delet
     assert.equal(isAcceptableCodexSummaryComment(comment(prefix + legacy), headSha, marker), false);
   }
   assert.equal(runGate({ extraComments: [withdrawal(), comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }).status, 1);
-  assert.equal(runGate({ extraComments: [withdrawal(), comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" })] }).status, 0);
+  assert.equal(runGate({ extraComments: [withdrawal(), comment(summary({ ...state(), security_review: { ...state().code_review } }).replace("✅ **Completed** |", '✅ **Completed** <relative-time datetime="2026-10-01T10:02:00Z">2026-10-01T10:02:00Z</relative-time> |').replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" })] }).status, 0);
 });
 
 test("edit history preserves the prior body's own leading whitespace", () => {
@@ -874,4 +874,33 @@ test("actual gate dates unknown receipt edits by server observation", () => {
   const oldPositive = comment(receipt, { created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:05:00Z" });
   assert.equal(runGate({ deletedEvidence: true, extraComments: [request, oldPositive] }).status, 1);
   assert.equal(runGate({ deletedEvidence: true, extraComments: [request, oldPositive, clean] }).status, 0);
+});
+
+
+test("actual gate requires section completion to retire historical typed findings", () => {
+  const time = minute => `2026-10-01T10:0${minute}:00Z`;
+  const marker = comment(createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "repeat", sourceCommentId: "20", requestedAt: time(3) }), { user: { login: "github-actions[bot]" }, created_at: time(3) });
+  const render = (value, securityTime = null) => summary(value).replaceAll(resultAt, time(4)).replace("| 🛡️ **Security Review** | ✅ **Completed** |", `| 🛡️ **Security Review** | ✅ **Completed**${securityTime ? ` <relative-time datetime="${securityTime}">${securityTime}</relative-time>` : ""} |`);
+  const negativeState = { ...state(), security_review: { ...state().code_review, has_any_findings: true, has_unresolved_findings: true } };
+  const negative = comment(render(negativeState, time(2)), { created_at: time(2), updated_at: time(2) });
+  const positive = comment(receipt, { created_at: time(5), updated_at: time(5) });
+  const native = { databaseId: 90, author: { login: bot.login, __typename: "Bot" }, commit: { oid: headSha }, state: "APPROVED", body: "Approved.", submittedAt: time(5), updatedAt: time(5), lastEditedAt: null };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, negative, positive], reviews: [native] }).status, 1);
+  const cleanState = { ...state(), security_review: { ...state().code_review } };
+  for (const [value, securityTime, expected] of [[state(), null, 1], [cleanState, null, 1], [cleanState, time(2), 1], [cleanState, time(2).replace("00Z", "00.999Z"), 1], [cleanState, "2026-02-30T12:04:00Z", 1], [cleanState, "October 15, 2026 12:04:00 GMT", 1], [cleanState, time(4), 0]]) {
+    const clean = comment(render(value, securityTime), { created_at: time(4), updated_at: time(4) });
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, negative, clean, positive], reviews: [native] }).status, expected);
+  }
+  const clean = comment(render(state()), { created_at: time(4), updated_at: time(4) });
+  for (const body of [negative.body.replace(headSha, "b".repeat(40)), negative.body.replace('"has_any_findings":true', '"has_any_findings":true,"has_any_findings":true'), negative.body.replace(":v1", ":v2")])
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, { ...negative, body }, clean] }).status, 0);
+  for (const section of ["code_review", "security_review"]) {
+    const value = { ...state(), [section]: { ...state().code_review, has_any_findings: true, has_unresolved_findings: true } };
+    const editedNegative = { ...negative, body: render(value, time(1)).replaceAll(time(4), time(1)), updated_at: time(5) };
+    const fullClean = { ...negative, body: render(cleanState, time(4)), created_at: time(4), updated_at: time(4) };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, editedNegative, fullClean] }).status, 0, section + " other-section edit cannot renew old finding");
+  }
+  const codeNegative = { ...negative, body: render(state({ has_any_findings: true, has_unresolved_findings: true })) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, positive], reviews: [native] }).status, 1);
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, clean] }).status, 0);
 });
