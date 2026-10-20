@@ -41,7 +41,7 @@ test("dependency policy remains inside the existing PR Guard context", () => {
   assert.match(workflow, /check-dependency-policy\.mjs --sync-python/);
   assert.match(workflow, /pnpm\/action-setup@ea17c68df8912ef543352723c149a84f56e3d413/);
   assert.match(workflow, /version: 10\.34\.5/);
-  assert.match(workflow, /astral-sh\/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7/);
+  assert.match(workflow, /astral-sh\/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884/);
   assert.doesNotMatch(workflow, /^  dependency-policy:/m);
 });
 
@@ -53,8 +53,8 @@ test("OSV workflow is blocking and retains all activation triggers", () => {
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /name: osv-scan/);
   assert.match(workflow, /--fail-on-vuln=true/);
-  assert.match(workflow, /osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc/);
-  assert.match(workflow, /osv-reporter-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc/);
+  assert.match(workflow, /osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36/);
+  assert.match(workflow, /osv-reporter-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36/);
 });
 
 test("installed workflow filter routes created/edited native evidence to the trusted runtime", () => {
