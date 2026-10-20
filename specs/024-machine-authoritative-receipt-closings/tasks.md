@@ -12,3 +12,7 @@ Rejected an unrestricted presentation blacklist as a source of approval: arbitra
 ## Known issues
 
 Native summaries with omitted/null code findings remain pending unless independently corroborated by already recognized strict receipts. No gate bypass is permitted.
+
+## Native-review follow-up
+
+Require the code-review row completion time after the trusted request; security-only summary edits cannot refresh old code review evidence. Add missing/stale/fresh timestamp regressions.

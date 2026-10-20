@@ -440,7 +440,7 @@ test("later wakeups cannot pass while the independent withdrawal writer is pendi
   const source = { id: 42, repository: { full_name: "example/project" }, event: "issue_comment",
     path: ".github/workflows/ai-review-rerun.yml@main", head_branch: "main", created_at: "2026-10-01T10:03:00Z",
     display_title: "AI review evidence:issue_comment:deleted:1:chatgpt-codex-connector[bot]:false:true:false" };
-  const fresh = comment(summary(), { created_at: "2026-10-01T10:04:00Z" });
+  const fresh = comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" });
   const pages = (runs) => [{ total_count: runs.length, workflow_runs: runs }];
   for (const status of ["queued", "in_progress", "completed"]) {
     const runs = [{ ...source, status, conclusion: status === "completed" ? "failure" : null }];
@@ -477,8 +477,8 @@ test("durable deletion tombstones invalidate every pre-deletion positive verdict
       for (const positive of [receipt, summary()]) {
         assert.notEqual(evaluate({ reviews: [review], comments: [comment(positive), withdrawal()] }), "pass");
         assert.equal(runGate({ body: positive, extraComments: [withdrawal()] }).status, 1);
-        assert.equal(evaluate({ reviews: [review], comments: [comment(positive, { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), positive === receipt ? "pending" : "pass");
-        assert.equal(evaluate({ reviews: [review], comments: [comment(summary(), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), "pass");
+        assert.equal(evaluate({ reviews: [review], comments: [comment(positive.replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), positive === receipt ? "pending" : "pass");
+        assert.equal(evaluate({ reviews: [review], comments: [comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), "pass");
       }
       assert.notEqual(evaluate({ reviews: [review], comments: [withdrawal()] }), "pass");
     }
@@ -526,7 +526,7 @@ test("later code-only evidence cannot override the latest native summary's whole
       assert.notEqual(evaluate(extra), "pass", body);
     }
     assert.equal(runGate({ body: positive.body, extraComments: [snapshot] }).status, 1);
-    assert.equal(evaluate({ comments: [snapshot, positive, comment(summary(), { created_at: "2026-10-01T10:04:00Z" })] }), "pass", "a newer complete authoritative snapshot restores success");
+    assert.equal(evaluate({ comments: [snapshot, positive, comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" })] }), "pass", "a newer complete authoritative snapshot restores success");
   }
   assert.equal(evaluate({ comments: [positive, comment(bodies[0], { user: { login: "untrusted[bot]" } })] }), "pass");
 });
@@ -584,7 +584,7 @@ test("legacy verdicts use the same case-insensitive column-zero grammar as delet
     assert.equal(isAcceptableCodexSummaryComment(comment(prefix + legacy), headSha, marker), false);
   }
   assert.equal(runGate({ extraComments: [withdrawal(), comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }).status, 1);
-  assert.equal(runGate({ extraComments: [withdrawal(), comment(summary(), { created_at: "2026-10-01T10:04:00Z" })] }).status, 0);
+  assert.equal(runGate({ extraComments: [withdrawal(), comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" })] }).status, 0);
 });
 
 test("edit history preserves the prior body's own leading whitespace", () => {
@@ -806,7 +806,7 @@ test("equal-time invalid machine signals outrank clean proof around opaque recei
       assert.notEqual(evaluate({ comments: [...snapshots, opaque] }), "pass", body);
   }
   const good = receipt.replace(":rocket:", "Swish!");
-  assert.equal(runGate({ body: good, extraComments: [comment(summary(), { created_at: "2026-10-01T10:03:00Z" })] }).status, 0);
+  assert.equal(runGate({ body: good, extraComments: [comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:03:00Z"), { created_at: "2026-10-01T10:03:00Z" })] }).status, 0);
   for (const body of [good + "\n<!-- codex-review-receipt:v1 -->", good + "\n<!-- unknown -->", good + "\nP0: issue", good + "\n**Reviewed commit:** `0123456789`", good + "\n<details> <summary>ℹ️ About Codex in GitHub</summary> P0: issue </details>"])
     assert.notEqual(evaluate({ comments: [comment(summary()), comment(body, { created_at: "2026-10-01T10:03:00Z" })] }), "pass", body);
 });
@@ -816,6 +816,27 @@ test("equal-time and later unknown verdict prose require newer machine proof", (
     const body = receipt.replace(":rocket:", closing);
     assert.notEqual(evaluate({ comments: [comment(body), comment(summary())] }), "pass", closing);
     assert.notEqual(evaluate({ comments: [comment(summary()), comment(body, { created_at: "2026-10-01T10:03:00Z" })] }), "pass", closing);
-    assert.equal(evaluate({ comments: [comment(body), comment(summary(), { created_at: "2026-10-01T10:03:00Z" })] }), "pass", closing);
+    assert.equal(evaluate({ comments: [comment(body), comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:03:00Z"), { created_at: "2026-10-01T10:03:00Z" })] }), "pass", closing);
   }
+});
+
+test("security-only summary edits cannot renew stale or missing code completion time", () => {
+  const repeated = { ...marker, sourceCommentCreatedAt: "2026-10-01T10:03:00Z" };
+  for (const body of [summary(), summary().replace(/ <relative-time[^>]+>[^<]+<\/relative-time>/, "")])
+    assert.notEqual(evaluateCodexEvidence({ headSha, requestMarker: repeated, comments: [comment(body, { created_at: resultAt, updated_at: "2026-10-01T10:04:00Z" })] }), "pass", body);
+  const fresh = summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z");
+  assert.equal(evaluateCodexEvidence({ headSha, requestMarker: repeated, comments: [comment(fresh, { created_at: "2026-10-01T10:04:00Z" })] }), "pass");
+});
+
+test("security-only edits cannot reorder old code proof over an unknown receipt", () => {
+  const edited = comment(summary(), { created_at: resultAt, updated_at: "2026-10-01T10:04:00Z" });
+  const unknown = comment(receipt.replace(":rocket:", "Swish!"), { created_at: "2026-10-01T10:03:00Z" });
+  assert.equal(evaluate({ comments: [edited, unknown] }), "pending");
+  assert.notEqual(evaluate({ comments: [comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:05:00Z"))] }), "pass");
+});
+
+test("fractional completion times cannot outrun same-second receipts or requests", () => {
+  const fractional = summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:02:00.500Z");
+  assert.equal(evaluate({ comments: [comment(fractional), comment(receipt.replace(":rocket:", "Swish!"))] }), "pending");
+  assert.equal(evaluateCodexEvidence({ headSha, requestMarker: { ...marker, sourceCommentCreatedAt: resultAt }, comments: [comment(fractional)] }), "pending");
 });
