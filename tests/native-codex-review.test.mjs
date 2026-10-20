@@ -861,3 +861,17 @@ test("structured withdrawal recovery requires a new code completion, not a summa
     }
   }
 });
+
+
+test("actual gate dates unknown receipt edits by server observation", () => {
+  const request = comment(createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "later", sourceCommentId: "20", requestedAt: "2026-10-01T10:02:00Z" }), { user: { login: "github-actions[bot]" }, created_at: "2026-10-01T10:02:01Z" });
+  const clean = comment(summary().replaceAll(resultAt, "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" });
+  for (const [created, updated, expected] of [["10:01", "10:03", 0], ["10:03", "10:03", 0], ["10:01", "10:05", 1], ["10:01", "10:04", 1], ["10:05", "10:05", 1]]) {
+    const unknown = comment(receipt.replace(":rocket:", "Swish!"), { created_at: `2026-10-01T${created}:00Z`, updated_at: `2026-10-01T${updated}:00Z` });
+    const result = runGate({ deletedEvidence: true, extraComments: [request, unknown, clean] });
+    assert.equal(result.status, expected, `${created}/${updated}: ${result.stderr}`);
+  }
+  const oldPositive = comment(receipt, { created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:05:00Z" });
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [request, oldPositive] }).status, 1);
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [request, oldPositive, clean] }).status, 0);
+});

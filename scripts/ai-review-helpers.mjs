@@ -506,7 +506,7 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
     }
     // Only a structured snapshot carries a new whole-review verdict on edit.
     // Code-only receipts/legacy positives retain their original publication age.
-    const eligibilityTime = parsed.explicitSha && isCodexStructuredSummarySignal(comment.body)
+    const eligibilityTime = isCodexStructuredSummarySignal(comment.body) || parsed.result !== "pass"
       ? reviewEvidenceTime(comment) : comment.created_at;
     const fresh = isCodexStructuredSummarySignal(comment.body)
       ? Date.parse(eligibilityTime || "") > Date.parse(requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt || requestMarker?.commentCreatedAt || "")

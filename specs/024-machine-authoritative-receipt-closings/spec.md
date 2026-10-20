@@ -16,3 +16,5 @@ Avoid presentation-only native receipt endings blocking independently proven cle
 Contrary findings, additional verdicts, hashes, lines, unknown markers, and null code findings flags cannot independently supply approval or conceal newer incomplete machine state.
 
 Structured withdrawal recovery requires code completion in a strictly later whole-second bucket than the withdrawal; refreshing the summary alone cannot restore approval.
+
+Unknown and negative receipt edits use their observed server update time; only static clean approval retains publication time. An unknown edit blocks older or equal-time code completion.

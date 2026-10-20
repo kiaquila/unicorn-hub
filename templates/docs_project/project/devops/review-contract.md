@@ -187,3 +187,5 @@ buckets, matching GitHub comment precision. Same-second request or pending
 evidence remains blocking; security-only edits cannot advance that order.
 
 Structured withdrawal recovery requires code completion in a strictly later whole-second bucket than the withdrawal; refreshing the summary alone cannot restore approval.
+
+Unknown and negative receipt edits use their observed server update time; only static clean approval retains publication time. An unknown edit blocks older or equal-time code completion.
