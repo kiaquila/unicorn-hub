@@ -7,7 +7,7 @@ Avoid presentation-only native receipt endings blocking independently proven cle
 ## Acceptance criteria
 
 - AC-001: Observed and unseen single-line opaque endings alone cannot approve.
-- AC-002: Exact-head clean receipts are neutral in either arrival order around an independent trusted complete current-request structured snapshot with explicit false findings flags.
+- AC-002: An unknown receipt remains pending until a strictly newer independent trusted complete current-request structured snapshot with explicit false findings flags supersedes it.
 - AC-003: Stale SHA, author, request, malformed metadata, security findings, pending state and unresolved findings remain blocking.
 - AC-004: Documentation and installed contract explain machine authority without a finite positive phrase expansion.
 

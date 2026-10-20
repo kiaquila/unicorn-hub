@@ -309,18 +309,6 @@ function parseStructuredCodexSummary(body, headSha) {
 }
 
 
-// This recognizes presentation, never grants a positive verdict. Only an
-// independently validated, current-request whole-review snapshot can approve.
-function isOpaqueCleanCodexReceipt(body, headSha) {
-  const visible = withoutCodexHelpFooter(String(body).trim()).trim();
-  const match = visible.match(/^(?:<!-- codex-review-receipt:v1 -->\s*)?Codex Review: Didn't find any major issues\.([^\r\n]*)\r?\n\s*\r?\n\*\*Reviewed commit:\*\* `([a-f0-9]{10}|[a-f0-9]{40})`$/i);
-  if (!match || !/^[a-f0-9]{40}$/.test(String(headSha)) || !headSha.startsWith(match[2].toLowerCase())) return false;
-  const suffix = match[1];
-  if (suffix.length > 240 || /[<>`{}[\]\\\u2028\u2029]/u.test(suffix) || /\b[a-f0-9]{10,40}\b/i.test(suffix)) return false;
-  if (/\b(?:p[0-3]|codex|review|commit|sha|head|request|finding\w*|issue\w*|bug\w*|defect\w*|regression\w*|vulnerab\w*|security|risk\w*|problem\w*|concern\w*|found|detect\w*|leak\w*|credential\w*|delet\w*|data|but|however|except|although|status|state|verdict|metadata|true|false|null)\b/i.test(suffix.replace(/[_-]/g, " ")) || containsNegativeReviewState(suffix)) return false;
-  return true;
-}
-
 export function classifyCodexSummaryComment(comment, headSha, requestMarker = null, config = {}) {
   if (!isTrustedReviewLogin(comment?.user?.login, "codex", config)) return null;
   const body = String(comment?.body || "").trim();
@@ -361,7 +349,9 @@ export function classifyCodexSummaryComment(comment, headSha, requestMarker = nu
   // prose (outside the optional standard help section) must fail closed.
   const verdictText = withoutCodexHelpFooter(text);
   const conflict = /\bfound\b/i.test(verdictText) || containsNegativeReviewState(verdictText);
-  if (!positive && !conflict && isOpaqueCleanCodexReceipt(body, headSha)) return { result: "pending", explicitSha, opaqueClosing: true };
+  // Unknown prose carries no verdict. Only a newer independently affirmative
+  // whole-review snapshot can supersede this pending native review signal.
+  if (!positive && !conflict) return { result: "pending", explicitSha };
   return { result: positive && !conflict ? "pass" : "fail", explicitSha };
 }
 
@@ -485,12 +475,6 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   }
   for (const comment of comments) {
     const parsed = effectiveCommentResult(comment);
-    // An exact clean receipt's opaque presentation cannot overrule independent
-    // affirmative machine proof, in either arrival order. It never supplies it.
-    if (parsed?.opaqueClosing && latestSummaries.length && summaryResults.every((result) => result === "pass") &&
-        latestSummaries.every((snapshot) => classifyCodexSummaryComment(snapshot, headSha, requestMarker, config)?.result === "pass" &&
-          Date.parse(reviewEvidenceTime(snapshot) || "") > Date.parse(requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt || requestMarker?.commentCreatedAt || "")) &&
-        isAfterReviewRequest(comment.created_at, requestMarker)) continue;
     if (!parsed) {
       // The gate verifies prior signal membership from server edit history.
       // Ordinary bot replies cannot invalidate an unrelated completed review.

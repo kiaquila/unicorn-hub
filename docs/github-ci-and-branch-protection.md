@@ -257,8 +257,8 @@ separate trusted v1 no-findings receipt bound to the exact head and created afte
 the current request. Legacy receipt closings remain strict: unseen presentation text alone never
 approves. A current-request complete structured snapshot with explicit
 false findings flags independently establishes the verdict; arbitrary English
-never determines machine success. An exact clean receipt with opaque presentation is neutral in either arrival
-order; malformed receipts and known contrary findings still block. Structured success must follow the current request.
+never determines machine success. Unknown receipt prose remains pending. Only a strictly newer affirmative snapshot
+can supersede it; pending wins an equal timestamp. Structured success must follow the current request.
 Both artifacts
 must be newer than any withdrawal they clear. Mixed null/boolean flags, missing
 receipts, formal approvals, stale or edited older receipts, and unknown active
