@@ -440,7 +440,7 @@ test("later wakeups cannot pass while the independent withdrawal writer is pendi
   const source = { id: 42, repository: { full_name: "example/project" }, event: "issue_comment",
     path: ".github/workflows/ai-review-rerun.yml@main", head_branch: "main", created_at: "2026-10-01T10:03:00Z",
     display_title: "AI review evidence:issue_comment:deleted:1:chatgpt-codex-connector[bot]:false:true:false" };
-  const fresh = comment(summary(), { created_at: "2026-10-01T10:04:00Z" });
+  const fresh = comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" });
   const pages = (runs) => [{ total_count: runs.length, workflow_runs: runs }];
   for (const status of ["queued", "in_progress", "completed"]) {
     const runs = [{ ...source, status, conclusion: status === "completed" ? "failure" : null }];
@@ -477,8 +477,8 @@ test("durable deletion tombstones invalidate every pre-deletion positive verdict
       for (const positive of [receipt, summary()]) {
         assert.notEqual(evaluate({ reviews: [review], comments: [comment(positive), withdrawal()] }), "pass");
         assert.equal(runGate({ body: positive, extraComments: [withdrawal()] }).status, 1);
-        assert.equal(evaluate({ reviews: [review], comments: [comment(positive, { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), positive === receipt ? "pending" : "pass");
-        assert.equal(evaluate({ reviews: [review], comments: [comment(summary(), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), "pass");
+        assert.equal(evaluate({ reviews: [review], comments: [comment(positive.replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), positive === receipt ? "pending" : "pass");
+        assert.equal(evaluate({ reviews: [review], comments: [comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" }), withdrawal()] }), "pass");
       }
       assert.notEqual(evaluate({ reviews: [review], comments: [withdrawal()] }), "pass");
     }
@@ -526,7 +526,7 @@ test("later code-only evidence cannot override the latest native summary's whole
       assert.notEqual(evaluate(extra), "pass", body);
     }
     assert.equal(runGate({ body: positive.body, extraComments: [snapshot] }).status, 1);
-    assert.equal(evaluate({ comments: [snapshot, positive, comment(summary(), { created_at: "2026-10-01T10:04:00Z" })] }), "pass", "a newer complete authoritative snapshot restores success");
+    assert.equal(evaluate({ comments: [snapshot, positive, comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" })] }), "pass", "a newer complete authoritative snapshot restores success");
   }
   assert.equal(evaluate({ comments: [positive, comment(bodies[0], { user: { login: "untrusted[bot]" } })] }), "pass");
 });
@@ -566,7 +566,7 @@ test("removed structured state requires a newer complete structured snapshot", (
       const blocked = runGate({ extraComments: [removed, later], historyNodes: { [removed.node_id]: history } });
       assert.equal(blocked.status, 1, blocked.stdout);
       assert.doesNotMatch(blocked.stderr, /Last API error/);
-      const recovered = comment(summary(), { created_at: "2026-10-01T10:05:00Z" });
+      const recovered = comment(summary().replaceAll(resultAt, "2026-10-01T10:05:00Z"), { created_at: "2026-10-01T10:05:00Z" });
       assert.equal(evaluate({ comments: [removed, later, recovered] }), "pass");
       const restored = runGate({ extraComments: [removed, later, recovered], historyNodes: { [removed.node_id]: history } });
       assert.equal(restored.status, 0, restored.stderr);
@@ -584,7 +584,7 @@ test("legacy verdicts use the same case-insensitive column-zero grammar as delet
     assert.equal(isAcceptableCodexSummaryComment(comment(prefix + legacy), headSha, marker), false);
   }
   assert.equal(runGate({ extraComments: [withdrawal(), comment(receipt, { created_at: "2026-10-01T10:04:00Z" })] }).status, 1);
-  assert.equal(runGate({ extraComments: [withdrawal(), comment(summary(), { created_at: "2026-10-01T10:04:00Z" })] }).status, 0);
+  assert.equal(runGate({ extraComments: [withdrawal(), comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" })] }).status, 0);
 });
 
 test("edit history preserves the prior body's own leading whitespace", () => {
@@ -749,7 +749,7 @@ test("completed summaries with omitted code flags require an independent current
 test("corroborated structured recovery requires both artifacts after withdrawal", () => {
   const body = summary(state({ has_any_findings: null, has_unresolved_findings: null }));
   const freshReceipt = comment(receipt, { created_at: "2026-10-01T10:05:00Z" });
-  const freshSummary = comment(body, { created_at: "2026-10-01T10:04:00Z" });
+  const freshSummary = comment(body.replaceAll(resultAt, "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" });
   assert.equal(evaluate({ comments: [comment(body), freshReceipt, withdrawal()] }), "pending");
   assert.equal(evaluate({ comments: [freshSummary, comment(receipt), withdrawal()] }), "pending");
   assert.equal(evaluate({ comments: [freshSummary, freshReceipt, withdrawal()] }), "pass");
@@ -779,4 +779,99 @@ test("edited code-only positives cannot renew their age over intervening failure
     assert.equal(evaluate({ comments: [edited, negative, unknown, fresh] }), "pass");
     assert.equal(evaluate({ comments: [edited, negative, fresh] }), "pass");
   }
+});
+
+
+test("unseen receipt presentation is neutral only under independent affirmative machine proof", () => {
+  for (const closing of ["You're on a roll.", "Another round soon, please!", "Chef's kiss.", "Swish!", "A sparkling little triumph!", "No worries!"]) {
+    const body = receipt.replace(":rocket:", closing);
+    assert.notEqual(evaluate({ comments: [comment(body)] }), "pass");
+    for (const time of ["2026-10-01T10:01:00Z", "2026-10-01T10:03:00Z"]) {
+      const comments = [comment(body, { created_at: time }), comment(summary())];
+      assert.equal(evaluate({ comments }), time < resultAt ? "pass" : "pending", closing);
+    }
+    assert.notEqual(evaluate({ comments: [comment(body), comment(summary(state({ has_any_findings: null, has_unresolved_findings: null })))] }), "pass");
+  }
+  for (const suffix of ["Authentication leaks credentials.", "The deployment deletes all customer data.", "Found a P0 issue.", "Found a P1 issue.", "Found a P2 issue.", "Review incomplete.", "<!-- unknown -->", "Status: completed", "\nExtra line", "Codex Review: Approved."]) {
+    assert.notEqual(evaluate({ comments: [comment(summary()), comment(receipt.replace(":rocket:", suffix), { created_at: "2026-10-01T10:03:00Z" })] }), "pass", suffix);
+  }
+  assert.notEqual(evaluate({ comments: [comment(receipt.replace(":rocket:", "Swish!")), comment(summary(), { created_at: triggerAt })] }), "pass");
+});
+
+
+test("equal-time invalid machine signals outrank clean proof around opaque receipts", () => {
+  const opaque = comment(receipt.replace(":rocket:", "Swish!"));
+  for (const body of [summary(state({ commit_sha: oldSha })), summary().replace(':v1', ':v2'), summary().replace(':v1 {', ':v1 {bad'), summary(state({ status: "running" }))]) {
+    for (const snapshots of [[comment(summary()), comment(body)], [comment(body), comment(summary())]])
+      assert.notEqual(evaluate({ comments: [...snapshots, opaque] }), "pass", body);
+  }
+  const good = receipt.replace(":rocket:", "Swish!");
+  assert.equal(runGate({ body: good, extraComments: [comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:03:00Z"), { created_at: "2026-10-01T10:03:00Z" })] }).status, 0);
+  for (const body of [good + "\n<!-- codex-review-receipt:v1 -->", good + "\n<!-- unknown -->", good + "\nP0: issue", good + "\n**Reviewed commit:** `0123456789`", good + "\n<details> <summary>ℹ️ About Codex in GitHub</summary> P0: issue </details>"])
+    assert.notEqual(evaluate({ comments: [comment(summary()), comment(body, { created_at: "2026-10-01T10:03:00Z" })] }), "pass", body);
+});
+
+test("equal-time and later unknown verdict prose require newer machine proof", () => {
+  for (const closing of ["Swish!", "Do not merge.", "A vulnerability remains.", "Needs work."]) {
+    const body = receipt.replace(":rocket:", closing);
+    assert.notEqual(evaluate({ comments: [comment(body), comment(summary())] }), "pass", closing);
+    assert.notEqual(evaluate({ comments: [comment(summary()), comment(body, { created_at: "2026-10-01T10:03:00Z" })] }), "pass", closing);
+    assert.equal(evaluate({ comments: [comment(body), comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:03:00Z"), { created_at: "2026-10-01T10:03:00Z" })] }), "pass", closing);
+  }
+});
+
+test("security-only summary edits cannot renew stale or missing code completion time", () => {
+  const repeated = { ...marker, sourceCommentCreatedAt: "2026-10-01T10:03:00Z" };
+  for (const body of [summary(), summary().replace(/ <relative-time[^>]+>[^<]+<\/relative-time>/, "")])
+    assert.notEqual(evaluateCodexEvidence({ headSha, requestMarker: repeated, comments: [comment(body, { created_at: resultAt, updated_at: "2026-10-01T10:04:00Z" })] }), "pass", body);
+  const fresh = summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:04:00Z");
+  assert.equal(evaluateCodexEvidence({ headSha, requestMarker: repeated, comments: [comment(fresh, { created_at: "2026-10-01T10:04:00Z" })] }), "pass");
+});
+
+test("security-only edits cannot reorder old code proof over an unknown receipt", () => {
+  const edited = comment(summary(), { created_at: resultAt, updated_at: "2026-10-01T10:04:00Z" });
+  const unknown = comment(receipt.replace(":rocket:", "Swish!"), { created_at: "2026-10-01T10:03:00Z" });
+  assert.equal(evaluate({ comments: [edited, unknown] }), "pending");
+  assert.notEqual(evaluate({ comments: [comment(summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:05:00Z"))] }), "pass");
+});
+
+test("fractional completion times cannot outrun same-second receipts or requests", () => {
+  const fractional = summary().replaceAll("2026-10-01T10:02:00Z", "2026-10-01T10:02:00.500Z");
+  assert.equal(evaluate({ comments: [comment(fractional), comment(receipt.replace(":rocket:", "Swish!"))] }), "pending");
+  assert.equal(evaluateCodexEvidence({ headSha, requestMarker: { ...marker, sourceCommentCreatedAt: resultAt }, comments: [comment(fractional)] }), "pending");
+});
+
+
+test("structured withdrawal recovery requires a new code completion, not a summary edit", () => {
+  const removed = comment("Ordinary text", { prior_review_signal: true, prior_structured_summary: true,
+    created_at: resultAt, updated_at: "2026-10-01T10:03:00Z" });
+  const laterReceipt = comment(receipt, { created_at: "2026-10-01T10:04:00Z" });
+  for (const fence of [withdrawal(), removed]) {
+    for (const flags of [{}, { has_any_findings: null, has_unresolved_findings: null }]) {
+      for (const completion of [resultAt, "2026-10-01T10:03:00.999Z"]) {
+        const stale = comment(summary(state(flags)).replaceAll(resultAt, completion), {
+          created_at: "2026-10-01T10:05:00Z", updated_at: "2026-10-01T10:05:00Z"
+        });
+        assert.equal(evaluate({ comments: [fence, laterReceipt, stale] }), "pending");
+      }
+      const fresh = comment(summary(state(flags)).replaceAll(resultAt, "2026-10-01T10:05:00Z"), {
+        created_at: "2026-10-01T10:05:00Z", updated_at: "2026-10-01T10:05:00Z"
+      });
+      assert.equal(evaluate({ comments: [fence, laterReceipt, fresh] }), "pass");
+    }
+  }
+});
+
+
+test("actual gate dates unknown receipt edits by server observation", () => {
+  const request = comment(createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "later", sourceCommentId: "20", requestedAt: "2026-10-01T10:02:00Z" }), { user: { login: "github-actions[bot]" }, created_at: "2026-10-01T10:02:01Z" });
+  const clean = comment(summary().replaceAll(resultAt, "2026-10-01T10:04:00Z"), { created_at: "2026-10-01T10:04:00Z" });
+  for (const [created, updated, expected] of [["10:01", "10:03", 0], ["10:03", "10:03", 0], ["10:01", "10:05", 1], ["10:01", "10:04", 1], ["10:05", "10:05", 1]]) {
+    const unknown = comment(receipt.replace(":rocket:", "Swish!"), { created_at: `2026-10-01T${created}:00Z`, updated_at: `2026-10-01T${updated}:00Z` });
+    const result = runGate({ deletedEvidence: true, extraComments: [request, unknown, clean] });
+    assert.equal(result.status, expected, `${created}/${updated}: ${result.stderr}`);
+  }
+  const oldPositive = comment(receipt, { created_at: "2026-10-01T10:01:00Z", updated_at: "2026-10-01T10:05:00Z" });
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [request, oldPositive] }).status, 1);
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [request, oldPositive, clean] }).status, 0);
 });

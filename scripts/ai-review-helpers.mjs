@@ -287,6 +287,7 @@ function parseStructuredCodexSummary(body, headSha) {
     if (keys.filter((value) => value === key).length !== expected) return null;
   }
   const code = state.code_review;
+  if (!/^[a-f0-9]{40}$/.test(String(headSha))) return null;
   if (code.commit_sha !== headSha) return null;
   // Conflicting visible severity or a second verdict cannot be hidden by JSON.
   const visibleVerdict = withoutCodexHelpFooter(body.slice(envelope[0].length));
@@ -306,6 +307,7 @@ function parseStructuredCodexSummary(body, headSha) {
   }
   return { result: positiveRendering ? "pass" : "pending", explicitSha: true };
 }
+
 
 export function classifyCodexSummaryComment(comment, headSha, requestMarker = null, config = {}) {
   if (!isTrustedReviewLogin(comment?.user?.login, "codex", config)) return null;
@@ -347,6 +349,9 @@ export function classifyCodexSummaryComment(comment, headSha, requestMarker = nu
   // prose (outside the optional standard help section) must fail closed.
   const verdictText = withoutCodexHelpFooter(text);
   const conflict = /\bfound\b/i.test(verdictText) || containsNegativeReviewState(verdictText);
+  // Unknown prose carries no verdict. Only a newer independently affirmative
+  // whole-review snapshot can supersede this pending native review signal.
+  if (!positive && !conflict) return { result: "pending", explicitSha };
   return { result: positive && !conflict ? "pass" : "fail", explicitSha };
 }
 
@@ -399,6 +404,23 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
   });
 }
 
+
+// The shared summary can be edited by security activity. Its server update
+// time alone cannot prove that code review ran for this particular request.
+function codeReviewCompletionTime(body) {
+  const rows = [...withoutCodexHelpFooter(String(body)).matchAll(/^\| 📝 \*\*Code Review\*\* \| ✅ \*\*Completed\*\* <relative-time datetime="([^"<>]+)">([^<>]+)<\/relative-time> \|/gm)];
+  return rows.length === 1 && rows[0][1] === rows[0][2] ? Date.parse(rows[0][1]) : NaN;
+}
+
+function hasFreshCodeReviewCompletion(body, requestMarker, updatedAt) {
+  const time = codeReviewCompletionTime(body);
+  const cutoff = Date.parse(requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt || requestMarker?.commentCreatedAt || "");
+  const snapshotTime = Date.parse(updatedAt || "");
+  // GitHub comment timestamps have second precision; row times retain fractions.
+  return Number.isFinite(time) && Number.isFinite(cutoff) && Number.isFinite(snapshotTime) &&
+    Math.floor(time / 1000) > Math.floor(cutoff / 1000) && time <= snapshotTime + 999;
+}
+
 export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComments = [], threads = [], timeline = [], headSha, requestMarker, config = {} }) {
   // All unresolved Codex findings block, including advisory and old-head threads.
   // Request markers only set the evidence cutoff; they cannot resolve findings.
@@ -447,6 +469,9 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
   }
   const effectiveCommentResult = (comment) => {
     const parsed = classifyCodexSummaryComment(comment, headSha, requestMarker, config);
+    if (isCodexStructuredSummarySignal(comment.body) && parsed && parsed.result !== "fail" &&
+        (!hasFreshCodeReviewCompletion(comment.body, requestMarker, reviewEvidenceTime(comment)) ||
+         Math.floor(codeReviewCompletionTime(comment.body) / 1000) <= Math.floor(structuredWithdrawalTime / 1000))) return { ...parsed, result: "pending", requiresCodeReceipt: false };
     if (!parsed?.requiresCodeReceipt) return parsed;
     const receiptTimes = comments.flatMap((receipt) => {
       if (!String(receipt.body || "").trim().startsWith("<!-- codex-review-receipt:v1 -->") ||
@@ -481,14 +506,19 @@ export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComme
     }
     // Only a structured snapshot carries a new whole-review verdict on edit.
     // Code-only receipts/legacy positives retain their original publication age.
-    const eligibilityTime = parsed.explicitSha && isCodexStructuredSummarySignal(comment.body)
+    const eligibilityTime = isCodexStructuredSummarySignal(comment.body) || parsed.result !== "pass"
       ? reviewEvidenceTime(comment) : comment.created_at;
-    if (!isAfterReviewRequest(eligibilityTime, requestMarker) && parsed.result !== "fail") continue;
+    const fresh = isCodexStructuredSummarySignal(comment.body)
+      ? Date.parse(eligibilityTime || "") > Date.parse(requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt || requestMarker?.commentCreatedAt || "")
+      : isAfterReviewRequest(eligibilityTime, requestMarker);
+    if (!fresh && parsed.result !== "fail") continue;
     if (!parsed.explicitSha && hasHeadUpdateBetweenTimestamps(timeline,
       requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt, eligibilityTime)) continue;
     // An edit cannot refresh SHA-less request/head eligibility, but an accepted
     // negative edit must invalidate a positive verdict posted before the edit.
-    const orderingTime = parsed.result === "fail" ? reviewEvidenceTime(comment) : eligibilityTime;
+    const orderingTime = parsed.result === "pass" && isCodexStructuredSummarySignal(comment.body)
+      ? new Date(Math.floor(codeReviewCompletionTime(comment.body) / 1000) * 1000).toISOString()
+      : parsed.result === "fail" ? reviewEvidenceTime(comment) : eligibilityTime;
     const evidenceTime = Date.parse(orderingTime || "");
     // A summary cannot renew its receipt's older verdict and erase intervening
     // negative or incomplete evidence. The pair is only as new as both parts.

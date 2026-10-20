@@ -254,9 +254,12 @@ controller; later reviews or replacement records cannot silently erase its sourc
 When the native backend omits both code findings flags in a completed summary,
 that summary remains pending by itself. The gate can corroborate it only with a
 separate trusted v1 no-findings receipt bound to the exact head and created after
-the current request. Only exact observed celebratory receipt closings are accepted, including `:+1:`, "Delightful!",
-"Can't wait for the next one!", and "Already looking forward to the next diff.".
-Unknown closings or appended findings remain non-passing. Both artifacts
+the current request. Legacy receipt closings remain strict: unseen presentation text alone never
+approves. A current-request complete structured snapshot with explicit
+false findings flags independently establishes the verdict; arbitrary English
+never determines machine success. Unknown receipt prose remains pending. Only a strictly newer affirmative snapshot
+can supersede it; pending wins an equal timestamp. Structured success must follow the current request.
+Both artifacts
 must be newer than any withdrawal they clear. Mixed null/boolean flags, missing
 receipts, formal approvals, stale or edited older receipts, and unknown active
 security flags cannot fill the missing code verdict. Security and visible status
@@ -310,3 +313,12 @@ Existing consumers must refresh the three review scripts, command policy,
 review workflows, and review contract together (or run bootstrap with `--force`
 after reviewing consumer customizations). New bootstraps install these files
 from the same blueprint version.
+
+
+Structured approval also requires the visible code-review completion timestamp
+to be strictly newer than the trusted request. A security-only edit of the shared
+summary cannot renew an old code verdict; a missing completion time stays pending.
+
+Positive machine evidence is ordered by code completion time in whole-second
+buckets, matching GitHub comment precision. Same-second request or pending
+evidence remains blocking; security-only edits cannot advance that order.
