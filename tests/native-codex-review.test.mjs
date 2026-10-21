@@ -962,6 +962,10 @@ test("actual gate requires section completion to retire historical typed finding
   const codeFindingOnly = { ...negative, body: render({ ...state(), code_review: { ...cleanState.code_review, has_any_findings: true, has_unresolved_findings: true } }).replaceAll(time(4), time(1)), created_at: time(1), updated_at: time(5) };
   const hiddenNullRow = { ...codeFindingOnly, body: codeFindingOnly.body + "\n    | 🛡️ **Security Review** | ⚠️ Do not merge |" };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, hiddenNullRow, historicalResolution, clean, positive], reviews: [native] }).status, 1, "inactive section label cannot hide behind indentation");
+  for (const label of ["Security&#32;Review", "Security&nbsp;Review", "Security<strong> </strong>Review"]) {
+    const renderedNull = { ...hiddenNullRow, body: hiddenNullRow.body.replace("**Security Review**", "**" + label + "**").replace("⚠️ Do not merge", "Completed") };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, renderedNull, historicalResolution, clean, positive], reviews: [native] }).status, 1, "rendered inactive companion label keeps observed edit authority");
+  }
   for (const whitespace of [" ", "\n", "   "]) {
     const normalizedResolution = { ...historicalResolution, body: whitespace + historicalResolution.body };
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, normalizedResolution, clean, positive], reviews: [native] }).status, 0, "accepted envelope whitespace remains valid resolution");
@@ -995,14 +999,14 @@ test("actual gate requires section completion to retire historical typed finding
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, malformedStatus, clean, positive], reviews: [native] }).status, 0, "duplicate protocol inside envelope is not durable authority");
   const fencedResolution = { ...historicalResolution, body: historicalResolution.body.replace(/(\| 🛡️ \*\*Security Review\*\*[^\n]*)/, "```markdown\n$1\n````") };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, fencedResolution, clean, positive], reviews: [native] }).status, 1, "fenced completed row cannot clear findings");
-  for (const indent of ["    ", "\t"]) {
+  for (const indent of ["    ", "\t", "\uFEFF    ", "<!-- presentation metadata -->    "]) {
     const codeHeadingClear = { ...historicalResolution, body: historicalResolution.body.replace("## Codex Review Summary", indent + "## Codex Review Summary") };
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, codeHeadingClear, clean, positive], reviews: [native] }).status, 1, "indented code heading cannot clear findings");
   }
   const afterVisibleClear = { ...fullyClean, body: fullyClean.body.replaceAll(time(4), time(7)), created_at: time(7), updated_at: time(7) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, lateVisibleNegative, afterVisibleClear, positive], reviews: [native] }).status, 0, "newer strict same-section completion clears earlier visible finding");
-  for (const warning of ["P&#49; blocker", "P&#x31; blocker", "P*1* blocker", "Do&#32;not&#32;merge"]) {
-    const renderedWarning = { ...historicalResolution, body: historicalResolution.body + "\n" + warning };
+  for (const warning of ["P&#49; blocker", "P&#x31; blocker", "P*1* blocker", "Do&#32;not&#32;merge", "Do&MediumSpace;not&MediumSpace;merge", "Do&hairsp;not&hairsp;merge", "P<strong>1</strong> blocker", "Do <em>not</em> merge", "Do [not](https://example.com) merge", "P&#8203;1 blocker", "P\uFE0F1 blocker", "Found **1** issue", "Found &#49; issue", "P<!--hidden-->1 blocker", "Do <!--hidden-->not merge", "Do&#8203;not&#8203;merge", "Do&ZeroWidthSpace;not&ZeroWidthSpace;merge", "Do&ThinSpace;not&ThinSpace;merge"]) {
+    const renderedWarning = { ...historicalResolution, body: historicalResolution.body + "\n<details><summary>ℹ️ About Codex in GitHub</summary>" + warning + "\n</details>" };
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, renderedWarning, clean, positive], reviews: [native] }).status, 1, "rendered warning cannot clear findings");
   }
   for (const indent of [" ", "  ", "   "]) {
@@ -1011,6 +1015,15 @@ test("actual gate requires section completion to retire historical typed finding
   }
   const commentedNegativeRow = { ...oldFinding, body: oldFinding.body.replace(/(\| 🛡️ \*\*Security Review\*\*[^\n]*)/, "<!--\n$1\n-->"), updated_at: time(6) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, commentedNegativeRow, fullyClean, positive], reviews: [native] }).status, 1, "HTML-comment row cannot backdate a negative edit");
+  const unterminatedCommentClear = { ...historicalResolution, body: historicalResolution.body.replace("| 🛡️ **Security Review** |", "<!--\n| 🛡️ **Security Review** |") };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, unterminatedCommentClear, clean, positive], reviews: [native] }).status, 1, "unterminated HTML comment cannot supply section completion");
+  const splitRowClear = { ...historicalResolution, body: historicalResolution.body.replaceAll("✅ **Completed** <relative-time", "✅ **Completed** <!--\nmetadata\n--> <relative-time") };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, splitRowClear, clean, positive], reviews: [native] }).status, 1, "comment removal cannot join split rows into completion proof");
+  const collapsedRowClear = { ...historicalResolution, body: historicalResolution.body.replace(/(\| 🛡️ \*\*Security Review\*\*[^\n]*)/, "<details><summary>ℹ️ About Codex in GitHub</summary>\n$1\n</details>") };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, collapsedRowClear, clean, positive], reviews: [native] }).status, 1, "collapsed help details cannot supply section completion");
+  const bomMarkerClear = { ...historicalResolution, body: historicalResolution.body.replace(/^<!-- codex-pull-request-review-summary/, "    \uFEFF<!-- codex-pull-request-review-summary") };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, bomMarkerClear, clean, positive], reviews: [native] }).status, 1, "BOM between indentation and marker cannot create authority");
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, { ...bomMarkerClear, body: bomMarkerClear.body.replace("\uFEFF", "\u00A0") }, clean, positive], reviews: [native] }).status, 1, "NBSP between indentation and marker cannot create authority");
   const codeNegative = { ...negative, body: render(state({ has_any_findings: true, has_unresolved_findings: true })) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, positive], reviews: [native] }).status, 1);
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, clean] }).status, 0);
