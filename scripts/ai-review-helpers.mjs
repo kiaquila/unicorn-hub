@@ -422,10 +422,24 @@ function codeReviewCompletionTime(body, section = "Code Review", headSha = null)
 // A request or code-only receipt cannot clear a typed finding from another
 // section. Only a newer independently clean snapshot with that section's own
 // canonical completion clock can retire the valid current-head finding.
+function hasValidFindingCompanions(state, body, observed) {
+  for (const [section, label, emoji] of [["code_review", "Code Review", "📝"], ["security_review", "Security Review", "🛡️"]]) {
+    const value = state[section];
+    if (value.has_any_findings === true || value.has_unresolved_findings === true) continue;
+    if (value.status === null) {
+      if (String(body).split("\n").some(line => line.startsWith(`| ${emoji} **${label}** |`))) return false;
+      continue;
+    }
+    const completed = codeReviewCompletionTime(body, label, value.commit_sha);
+    if (value.status !== "completed" || !Number.isFinite(completed) || completed > observed + 999) return false;
+  }
+  return true;
+}
+
 function structuredNegativeTime(comment, headSha) {
   const observed = Date.parse(comment.updated_at || comment.created_at || "");
   const state = parseStructuredCodexSummary(String(comment.body || "").trim(), headSha, true);
-  if (!state) return observed;
+  if (!state || !hasValidFindingCompanions(state, comment.body, observed)) return observed;
   const times = [];
   for (const [section, label] of [["code_review", "Code Review"], ["security_review", "Security Review"]]) {
     const value = state[section];
@@ -449,6 +463,7 @@ function isSupersededTypedFinding(comment, snapshots, headSha) {
   const visible = withoutCodexHelpFooter(body.replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
   if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\bfound\s+(?:a|[1-9])\b/i.test(visible)) return false;
   const observed = Date.parse(comment.updated_at || comment.created_at || "");
+  if (!hasValidFindingCompanions(state, body, observed)) return false;
   const findings = [["code_review", "Code Review"], ["security_review", "Security Review"]].filter(([section]) => state[section].commit_sha === headSha && (state[section].has_any_findings === true || state[section].has_unresolved_findings === true));
   return findings.length > 0 && findings.every(([section, label]) => {
     const completed = codeReviewCompletionTime(body, label, headSha);
