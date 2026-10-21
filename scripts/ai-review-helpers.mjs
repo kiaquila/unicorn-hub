@@ -212,18 +212,27 @@ export function reviewEvidenceTime(comment) {
 }
 
 function withoutAuthorityHtmlBlocks(value) {
-  let result = "", cursor = 0;
-  const stack = [];
-  const tags = /<\/?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul|pre|script|style|textarea|code)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi;
-  for (let tag; (tag = tags.exec(value));) {
-    const fragment = value.slice(cursor, tag.index);
-    result += stack.length ? fragment.replace(/[^\r\n]/g, "") : fragment;
-    const name = tag[1].toLowerCase();
-    if (/^<\//.test(tag[0])) { if (stack.at(-1) === name) stack.pop(); }
-    else if (!/\/>$/.test(tag[0]) && !/^(?:base|basefont|col|frame|hr|link|param|source|track)$/.test(name)) stack.push(name);
-    cursor = tags.lastIndex;
+  // GFM HTML block classes: raw-text/declaration terminators, then blank-line blocks.
+  const blockTags = /^(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)$/i;
+  const completeTag = /^ {0,3}<(?:\/[a-z][a-z0-9-]*\s*|[a-z][a-z0-9-]*(?:\s+[a-z_:][a-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?)>[ \t]*$/i;
+  let result = "", end = null, blankTerminated = false;
+  for (const line of value.split(/(?<=\n)/)) {
+    if (blankTerminated && /^\s*$/.test(line)) { end = null; blankTerminated = false; }
+    if (!end && !blankTerminated) {
+      const raw = line.match(/^ {0,3}<(script|pre|style|textarea)(?=[\s>]|$)/i);
+      const block = line.match(/^ {0,3}<\/?([a-z][a-z0-9-]*)(?=[\s/>]|$)/i);
+      if (raw) end = new RegExp("</" + raw[1] + "\\s*>", "i");
+      else if (/^ {0,3}<!--/.test(line)) end = /-->/;
+      else if (/^ {0,3}<\?/.test(line)) end = /\?>/;
+      else if (/^ {0,3}<!\[CDATA\[/.test(line)) end = /\]\]>/;
+      else if (/^ {0,3}<![A-Z]/.test(line)) end = />/;
+      else if ((block && blockTags.test(block[1])) || completeTag.test(line.replace(/\r?\n$/, ""))) blankTerminated = true;
+    }
+    const hidden = Boolean(end || blankTerminated);
+    result += hidden ? line.replace(/[^\r\n]/g, "") : line;
+    if (end?.test(line)) end = null;
   }
-  return result + (stack.length ? value.slice(cursor).replace(/[^\r\n]/g, "") : value.slice(cursor));
+  return result;
 }
 
 function rawVisibleHtml(value) {
@@ -241,34 +250,35 @@ function markdownEscapeAt(value, index) {
 
 function inlineLinkEnd(value, start) {
   let index = start, depth = 0;
-  while (/\s/.test(value[index] || "") && index < value.length) index++;
+  const finish = end => /\n[ \t]*\n/.test(value.slice(start, end).replace(/\r\n?/g, "\n")) ? null : end;
+  { const begin = index; while (/[ \t\r\n\f\v]/.test(value[index] || "") && index < value.length) index++; if ((value.slice(begin, index).match(/\r\n|[\r\n]/g) || []).length > 1) return null; }
   if (value[index] === "<") {
     index++;
     for (; index < value.length && value[index] !== ">"; index++) {
       if (markdownEscapeAt(value, index)) index++;
-      else if (value[index] === "\n" || value[index] === "<") return null;
+      else if (/[\r\n]/.test(value[index]) || value[index] === "<") return null;
     }
     if (value[index++] !== ">") return null;
   } else {
     for (; index < value.length; index++) {
       const char = value[index];
       if (markdownEscapeAt(value, index)) { index++; continue; }
-      if (char === "<" || char === ">") return null;
-      if (/\s/.test(char) && !depth) break;
+      if (char === "<" || char === ">" || (char.charCodeAt(0) < 32 && !/[ \t\r\n\f\v]/.test(char)) || char.charCodeAt(0) === 127) return null;
+      if (/[ \t\r\n\f\v]/.test(char) && !depth) break;
       if (char === "(") depth++;
-      else if (char === ")") { if (!depth) return index + 1; depth--; }
+      else if (char === ")") { if (!depth) return finish(index + 1); depth--; }
     }
     if (depth) return null;
   }
   const boundary = index;
-  while (/\s/.test(value[index] || "") && index < value.length) index++;
-  if (value[index] === ")") return index + 1;
+  { const begin = index; while (/[ \t\r\n\f\v]/.test(value[index] || "") && index < value.length) index++; if ((value.slice(begin, index).match(/\r\n|[\r\n]/g) || []).length > 1) return null; }
+  if (value[index] === ")") return finish(index + 1);
   if (index === boundary || !['"', "'", "("].includes(value[index])) return null;
   const closing = value[index] === "(" ? ")" : value[index];
   for (index++; index < value.length && value[index] !== closing; index++) if (markdownEscapeAt(value, index)) index++;
   if (value[index++] !== closing) return null;
-  while (/\s/.test(value[index] || "") && index < value.length) index++;
-  return value[index] === ")" ? index + 1 : null;
+  { const begin = index; while (/[ \t\r\n\f\v]/.test(value[index] || "") && index < value.length) index++; if ((value.slice(begin, index).match(/\r\n|[\r\n]/g) || []).length > 1) return null; }
+  return value[index] === ")" ? finish(index + 1) : null;
 }
 
 function markdownLinkOpenerAllowed(value, index) {
@@ -283,13 +293,51 @@ function markdownLabelEnd(value, start) {
     if (markdownEscapeAt(value, index)) { index++; continue; }
     if (value[index] === "[") depth++;
     else if (value[index] === "]" && --depth === 0) return index;
-    else if (value[index] === "\n") return null;
+    else if (/[\r\n]/.test(value[index]) && /^\n[ \t]*\n/.test(value.slice(index).replace(/\r\n?/g, "\n"))) return null;
   }
   return null;
 }
 
+function containsActiveMarkdownLink(value, defined) {
+  const starts = /!?\[/g;
+  for (let match; (match = starts.exec(value));) {
+    if (match[0][0] === "!" || !markdownLinkOpenerAllowed(value, match.index)) continue;
+    const end = markdownLabelEnd(value, starts.lastIndex);
+    if (end === null) continue;
+    const label = value.slice(starts.lastIndex, end);
+    if (value[end + 1] === "(" && inlineLinkEnd(value, end + 2) !== null) return true;
+    if (value[end + 1] === "[") {
+      const referenceEnd = markdownLabelEnd(value, end + 2);
+      if (referenceEnd !== null && defined(value.slice(end + 2, referenceEnd) || label)) return true;
+    } else if (value[end + 1] !== "(" && defined(label)) return true;
+  }
+  return false;
+}
+
+function markdownReferenceDefinitions(value, hiddenLines = null) {
+  const definitions = new Set();
+  const lines = value.split(/\r\n|[\r\n]/);
+  for (let index = 0; index < lines.length; index++) {
+    const match = lines[index].match(/^ {0,3}\[([^\]\n]+)\]:([\s\S]*)$/);
+    if (!match) continue;
+    const candidates = [match[2]];
+    for (let extra = 1; extra <= 2 && index + extra < lines.length; extra++) {
+      if (!/^ {0,3}[^ \t\r\n\f\v]/.test(lines[index + extra])) break;
+      candidates.push(match[2] + "\n" + lines.slice(index + 1, index + extra + 1).join("\n"));
+    }
+    const valid = candidates.reverse().find(candidate => /[^ \t\r\n\f\v]/.test(candidate) && inlineLinkEnd(candidate + ")", 0) === candidate.length + 1);
+    if (valid !== undefined) {
+      definitions.add(match[1].trim().replace(/\s+/g, " ").toLowerCase());
+      if (hiddenLines) for (let line = index; line <= index + valid.split("\n").length - 1; line++) hiddenLines.add(line);
+    }
+  }
+  return definitions;
+}
+
 function visibleMarkdownLinkLabels(value, referenceText = value) {
-  const definitions = new Set([...referenceText.matchAll(/^ {0,3}\[([^\]\n]+)\]:[ \t]*\S+/gm)].map(match => match[1].trim().replace(/\s+/g, " ").toLowerCase()));
+  const definitions = markdownReferenceDefinitions(referenceText);
+  const hiddenLines = new Set(); markdownReferenceDefinitions(value, hiddenLines);
+  value = value.split(/\r\n|[\r\n]/).map((line, index) => hiddenLines.has(index) ? "" : line).join("\n");
   const defined = label => definitions.has(label.trim().replace(/\s+/g, " ").toLowerCase());
   let output = "", cursor = 0;
   const starts = /!?\[/g;
@@ -298,6 +346,7 @@ function visibleMarkdownLinkLabels(value, referenceText = value) {
     const labelEnd = markdownLabelEnd(value, starts.lastIndex);
     if (labelEnd === null) continue;
     const label = value.slice(starts.lastIndex, labelEnd);
+    if (containsActiveMarkdownLink(label, defined)) continue;
     let end = null;
     if (value[labelEnd + 1] === "(") end = inlineLinkEnd(value, labelEnd + 2);
     else if (value[labelEnd + 1] === "[") {
@@ -311,22 +360,35 @@ function visibleMarkdownLinkLabels(value, referenceText = value) {
   return output + value.slice(cursor);
 }
 
+function markdownContainerContent(line) {
+  let previous;
+  do {
+    previous = line;
+    line = line.replace(/^ {0,3}>[ \t]?/, "").replace(/^ {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]+/, "");
+  } while (line !== previous);
+  return line;
+}
+
 function literalAwareVisibleText(value) {
-  value = String(value || "").replace(/<!--[\s\S]*?(?:-->|$)/g, "");
+  value = String(value || "");
+  const comments = [...value.matchAll(/<!--[\s\S]*?(?:-->|$)/g)].map(match => [match.index, match.index + match[0].length]);
+  const inComment = index => comments.some(([start, end]) => index >= start && index < end);
   const ranges = [];
-  for (const match of value.matchAll(/<(pre|code|script|style|textarea)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>[\s\S]*?(?:<\/\1\s*>|$)/gi)) ranges.push([match.index, match.index + match[0].length]);
+  for (const match of value.matchAll(/<(pre|code|script|style|textarea)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>[\s\S]*?(?:<\/\1\s*>|$)/gi)) if (!inComment(match.index)) ranges.push([match.index, match.index + match[0].length]);
   let offset = 0, fence = null, fenceStart = 0;
   for (const line of value.split(/(?<=\n)/)) {
-    const marker = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    const content = markdownContainerContent(line);
+    const marker = content.match(/^ {0,3}(`{3,}|~{3,})/);
     if (fence) {
-      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && /^\s*$/.test(line.slice(marker[0].length))) { ranges.push([fenceStart, offset + line.length]); fence = null; }
-    } else if (marker) { fence = marker[1]; fenceStart = offset; }
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && /^\s*$/.test(content.slice(marker[0].length))) { ranges.push([fenceStart, offset + line.length]); fence = null; }
+    } else if (marker && !inComment(offset)) { fence = marker[1]; fenceStart = offset; }
+    else if (/^(?: {4}| *\t)/.test(content) && !inComment(offset)) ranges.push([offset, offset + line.length]);
     offset += line.length;
   }
   if (fence) ranges.push([fenceStart, value.length]);
   const ticks = /`+/g;
   for (let opening; (opening = ticks.exec(value));) {
-    if (ranges.some(([start, end]) => opening.index >= start && opening.index < end)) continue;
+    if (!markdownLinkOpenerAllowed(value, opening.index) || inComment(opening.index) || ranges.some(([start, end]) => opening.index >= start && opening.index < end)) continue;
     const closing = new RegExp("(?<!`)" + opening[0] + "(?!`)", "g"); closing.lastIndex = ticks.lastIndex;
     const match = closing.exec(value);
     if (match) { ranges.push([opening.index, match.index + match[0].length]); ticks.lastIndex = match.index + match[0].length; }
@@ -335,14 +397,22 @@ function literalAwareVisibleText(value) {
   let result = "", cursor = 0;
   for (const [start, end] of ranges) {
     if (end <= cursor) continue;
-    if (start > cursor) result += visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor, start)), value);
-    result += rawVisibleHtml(value.slice(Math.max(cursor, start), end)); cursor = end;
+    if (start > cursor) result += normalizeVisibleFragment(visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor, start)), value));
+    result += value.slice(Math.max(cursor, start), end); cursor = end;
   }
-  return result + visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor)), value);
+  return result + normalizeVisibleFragment(visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor)), value));
+}
+
+function renderedLabelAmbiguityText(value) {
+  return normalizeVisibleFragment(rawVisibleHtml(String(value || "")));
 }
 
 function visibleReviewText(value) {
-  return literalAwareVisibleText(value).replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (entity, digits) => {
+  return literalAwareVisibleText(value);
+}
+
+function normalizeVisibleFragment(value) {
+  return value.replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (entity, digits) => {
     const point = digits[0].toLowerCase() === "x" ? parseInt(digits.slice(1), 16) : Number(digits);
     return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff) ? String.fromCodePoint(point) : entity;
   }).replace(/&(ZeroWidthSpace|NegativeVeryThinSpace|NegativeThinSpace|NegativeMediumSpace|NegativeThickSpace|NoBreak|zwnj|zwj|lrm|rlm|shy);/g, "").replace(/\p{Default_Ignorable_Code_Point}/gu, "").replace(/&(nbsp|NonBreakingSpace|ensp|emsp|emsp13|emsp14|numsp|puncsp|thinsp|ThinSpace|hairsp|VeryThinSpace|MediumSpace|ThickSpace|Tab|NewLine);/g, " ").replace(/[*`~]/g, "").replace(/_/g, " ");
@@ -451,7 +521,7 @@ function parseStructuredCodexSummary(body, headSha, stateOnly = false, negativeO
   // Conflicting visible severity or a second verdict cannot be hidden by JSON.
   const visibleVerdict = withoutCodexHelpFooter(body.slice(envelope[0].length));
   if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visibleVerdict) ||
-      /Codex Review:|\bfound\s+(?:a|[1-9]|issues)\b/i.test(visibleVerdict)) return { result: "fail", explicitSha: true };
+      /Codex Review:|\bfound\s+(?:an?\b|[1-9]\b|issues\b|(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b)/i.test(visibleVerdict)) return { result: "fail", explicitSha: true };
   const security = state.security_review;
   if (code.has_any_findings || code.has_unresolved_findings || security.has_any_findings || security.has_unresolved_findings) {
     return { result: "fail", explicitSha: true };
@@ -567,8 +637,11 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
 // The shared summary can be edited by security activity. Its server update
 // time alone cannot prove that code review ran for this particular request.
 function codeReviewCompletionTime(body, section = "Code Review", headSha = null) {
+  // Rendered-equivalent duplicate labels are ambiguity, never new clock authority.
+  const rawRows = String(body).split(/\r?\n/).filter(line => new RegExp("^ {0,3}\\|[^|]*\\b" + section + "\\s*\\|", "i").test(renderedLabelAmbiguityText(line)));
+  if (rawRows.length !== 1 || [...rawRows[0].matchAll(/<!--[\s\S]*?(?:-->|$)/g)].some(comment => [...comment[0].matchAll(/\|/g)].some(pipe => markdownLinkOpenerAllowed(comment[0], pipe.index)))) return NaN;
   // A rendered code example cannot supply a canonical completion row.
-  if ([...String(body).matchAll(/<summary\b(?:[^"'<>]|"[^"]*"|'[^']*')*>([\s\S]*?)<\/summary>/gi)].some(match => visibleReviewText(match[1]).includes(section))) return NaN;
+  if ([...String(body).matchAll(/<summary\b(?:[^"'<>]|"[^"]*"|'[^']*')*>([\s\S]*?)<\/summary>/gi)].some(match => renderedLabelAmbiguityText(match[1]).includes(section))) return NaN;
   body = withoutMarkdownFences(withoutAuthorityHtmlBlocks(String(body).replace(/<!--[\s\S]*?(?:-->|$)/g, comment => comment.replace(/[^\r\n]/g, "")))).replace(/^ {1,3}(?=\|)/gm, "");
   const label = section === "Code Review" ? "📝 \\*\\*Code Review\\*\\*" : "🛡️ \\*\\*Security Review\\*\\*";
   const rowPattern = new RegExp('^\\| ' + label + ' \\| ✅ \\*\\*Completed\\*\\* <relative-time datetime="([^"<>]+)">([^<>]+)</relative-time> \\| `([a-f0-9]{7,40})` \\| (?:Manual request|Automatic review) \\|$', "gm");
@@ -589,7 +662,7 @@ function hasValidFindingCompanions(state, body, observed, headSha, resolvingSect
     if (section === resolvingSection) continue;
     if (!resolvingSection && value.commit_sha === headSha && (value.has_any_findings === true || value.has_unresolved_findings === true)) continue;
     if (value.status === null) {
-      if (visibleReviewText(body).toLowerCase().includes(label.toLowerCase())) return false;
+      if (renderedLabelAmbiguityText(body).toLowerCase().includes(label.toLowerCase())) return false;
       continue;
     }
     const rowBody = resolvingSection && value.status === "running"
@@ -626,7 +699,7 @@ function hasVisibleStructuredConflict(body, section = null) {
     if (rows.some(line => !/^\| [📝🛡️]+ \*\*(?:Code|Security) Review\*\* \| (?:✅ \*\*Completed\*\*|🔄 \*\*Running\*\*)(?: since)?(?: <relative-time datetime="[^"<>]+">[^<>]+<\/relative-time>)? \| `[a-f0-9]{7,40}` \| (?:Manual request|Automatic review) \|$/.test(line))) return true;
   }
   if (section) visible = visible.split("\n").filter(line => !line.startsWith(section === "code_review" ? "| 🛡️ **Security Review** |" : "| 📝 **Code Review** |")).join("\n");
-  return /<!--\s*codex-/i.test(visible) || containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\bfound\s+(?:a|[1-9]|issues)\b/i.test(visibleReviewText(visible));
+  return /<!--\s*codex-/i.test(visible) || containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\bfound\s+(?:an?\b|[1-9]\b|issues\b|(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b)/i.test(visibleReviewText(visible));
 }
 
 function isSupersededTypedFinding(comment, snapshots, headSha) {
@@ -634,7 +707,7 @@ function isSupersededTypedFinding(comment, snapshots, headSha) {
   const state = parseStructuredCodexSummary(String(comment.body || ""), headSha, true);
   if (!state) return false;
   const visible = withoutCodexHelpFooter(body.replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
-  if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\bfound\s+(?:a|[1-9]|issues)\b/i.test(visibleReviewText(visible))) return false;
+  if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\bfound\s+(?:an?\b|[1-9]\b|issues\b|(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b)/i.test(visibleReviewText(visible))) return false;
   const observed = Date.parse(comment.updated_at || comment.created_at || "");
   if (!hasValidFindingCompanions(state, body, observed, headSha)) return false;
   const findings = [["code_review", "Code Review"], ["security_review", "Security Review"]].filter(([section]) => state[section].commit_sha === headSha && (state[section].has_any_findings === true || state[section].has_unresolved_findings === true));
