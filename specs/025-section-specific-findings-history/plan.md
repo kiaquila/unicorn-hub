@@ -29,3 +29,5 @@ Visible negative edits retain server observation time; fenced example rows canno
 Protocol and completion-row extraction share the same stateful Markdown fence scanner; a closer with the same character and at least the opener length ends the example.
 
 A summary heading indented as Markdown code cannot establish typed authority. A later strict same-section completion can still clear an earlier visible finding.
+
+Visible contradiction checks decode numeric character references and inline Markdown before checking P0–P2 and the known “Do not merge” warning. Canonical row scans exclude HTML comments and use the same accepted zero-to-three-space indentation when detecting duplicate sections. Raw protocol, JSON, SHA and timestamp validation remain unchanged.

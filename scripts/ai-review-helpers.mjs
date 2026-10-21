@@ -119,7 +119,7 @@ export function latestAiReviewRequestMarker(comments = [], agent, headSha) {
 export function containsBlockingSeverity(body, agent) {
   const text = String(body || "");
   if (agent === "codex") {
-    return /\bP[0-2]\b/i.test(text);
+    return /\bP[0-2]\b/i.test(visibleReviewText(text));
   }
   if (agent === "gemini") {
     return /\b(critical|high)\b/i.test(text);
@@ -211,11 +211,18 @@ export function reviewEvidenceTime(comment) {
   return comment?.updated_at || comment?.created_at;
 }
 
+function visibleReviewText(value) {
+  return String(value || "").replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (entity, digits) => {
+    const point = digits[0].toLowerCase() === "x" ? parseInt(digits.slice(1), 16) : Number(digits);
+    return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff) ? String.fromCodePoint(point) : entity;
+  }).replace(/[*`~]/g, "").replace(/_/g, " ");
+}
+
 function containsNegativeReviewState(text) {
-  const plain = String(text).replace(/_/g, " ").replace(/[*`~]/g, "");
+  const plain = visibleReviewText(text);
   const negativeState = /\b(?:unresolved|incomplete|pending|in[\s./:-]*progress|changes[\s./:-]*requested|fail(?:ed|ure)?|running|queued|cancel(?:led|ed)|error(?:ed)?|blocked|unknown|withdraw(?:n|al|ing)?|revok(?:e|ed|ing)|revocation|retracted|rescinded|rejected|declined|denied|aborted|abandoned|paused|suspended|skipped|stopped|terminated|expired|invalid|unavailable|inconclusive|deferred|unsuccessful|stale|outdated|superseded|waiting|timed[\s./:-]*out|action[\s./:-]*required)\b/i;
   const negatedSuccess = /\b(?:not|never|no[\s./:-]*longer|(?:has|have|had|is|was|were|could|did|does|do)n['’]t|can['’]t|won['’]t|cannot|unable[\s./:-]*to)(?:[\s./:-]*(?:yet|fully|be|been|being|to))*[\s./:-]*(?:complet(?:e|ed)|finish(?:ed)?|approv(?:e|ed)|start(?:ed)?|review(?:ed)?|pass(?:ed)?|valid(?:ate|ated)?|ready|done|success(?:ful(?:ly)?)?|available)\b/i;
-  return negativeState.test(plain) || negatedSuccess.test(plain);
+  return negativeState.test(plain) || negatedSuccess.test(plain) || /\bdo\s+not\s+merge\b/i.test(plain);
 }
 
 const codexHelpIntroduction = `[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you
@@ -430,7 +437,7 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
 // time alone cannot prove that code review ran for this particular request.
 function codeReviewCompletionTime(body, section = "Code Review", headSha = null) {
   // A rendered code example cannot supply a canonical completion row.
-  body = withoutMarkdownFences(body);
+  body = withoutMarkdownFences(body).replace(/<!--[\s\S]*?-->/g, "").replace(/^ {1,3}(?=\|)/gm, "");
   const label = section === "Code Review" ? "📝 \\*\\*Code Review\\*\\*" : "🛡️ \\*\\*Security Review\\*\\*";
   const rowPattern = new RegExp('^\\| ' + label + ' \\| ✅ \\*\\*Completed\\*\\* <relative-time datetime="([^"<>]+)">([^<>]+)</relative-time> \\| `([a-f0-9]{7,40})` \\| (?:Manual request|Automatic review) \\|$', "gm");
   const rows = [...withoutCodexHelpFooter(String(body)).matchAll(rowPattern)];
@@ -480,6 +487,7 @@ function structuredNegativeTime(comment, headSha) {
 function hasVisibleStructuredConflict(body, section = null) {
   if (/^(?: {4,}| *\t[ \t]*)<!--/m.test(String(body))) return true;
   let visible = withoutCodexHelpFooter(String(body).trim().replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
+  visible = visible.replace(/^ {1,3}(?=\|)/gm, "");
   if (section) {
     const other = section === "code_review" ? "| 🛡️ **Security Review** |" : "| 📝 **Code Review** |";
     const rows = visible.split("\n").filter(line => line.startsWith(other));

@@ -1001,6 +1001,16 @@ test("actual gate requires section completion to retire historical typed finding
   }
   const afterVisibleClear = { ...fullyClean, body: fullyClean.body.replaceAll(time(4), time(7)), created_at: time(7), updated_at: time(7) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, lateVisibleNegative, afterVisibleClear, positive], reviews: [native] }).status, 0, "newer strict same-section completion clears earlier visible finding");
+  for (const warning of ["P&#49; blocker", "P&#x31; blocker", "P*1* blocker", "Do&#32;not&#32;merge"]) {
+    const renderedWarning = { ...historicalResolution, body: historicalResolution.body + "\n" + warning };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, renderedWarning, clean, positive], reviews: [native] }).status, 1, "rendered warning cannot clear findings");
+  }
+  for (const indent of [" ", "  ", "   "]) {
+    const duplicateIndentedRow = { ...historicalResolution, body: historicalResolution.body + "\n" + indent + "| 🛡️ **Security Review** | ✅ **Completed** <relative-time datetime=\"" + time(2) + "\">" + time(2) + "</relative-time> | `bbbbbbb` | Manual request |" };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, duplicateIndentedRow, clean, positive], reviews: [native] }).status, 1, "accepted row indentation cannot hide duplicate section");
+  }
+  const commentedNegativeRow = { ...oldFinding, body: oldFinding.body.replace(/(\| 🛡️ \*\*Security Review\*\*[^\n]*)/, "<!--\n$1\n-->"), updated_at: time(6) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, commentedNegativeRow, fullyClean, positive], reviews: [native] }).status, 1, "HTML-comment row cannot backdate a negative edit");
   const codeNegative = { ...negative, body: render(state({ has_any_findings: true, has_unresolved_findings: true })) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, positive], reviews: [native] }).status, 1);
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, clean] }).status, 0);
