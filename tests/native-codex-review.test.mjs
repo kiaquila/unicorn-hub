@@ -966,7 +966,7 @@ test("actual gate requires section completion to retire historical typed finding
     const ambiguousNull = { ...codeFindingOnly, body: codeFindingOnly.body + "\n" + companion };
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, ambiguousNull, historicalResolution, clean, positive], reviews: [native] }).status, 1, "rendered inactive companion contradicts null state independent of container");
   }
-  for (const label of ["Security&#32;Review", "Security&nbsp;Review", "Security<strong> </strong>Review"]) {
+  for (const label of ["Security&#32;Review", "Security&nbsp;Review", "Security<strong> </strong>Review", "SECURITY REVIEW"]) {
     const renderedNull = { ...hiddenNullRow, body: hiddenNullRow.body.replace("**Security Review**", "**" + label + "**").replace("⚠️ Do not merge", "Completed") };
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, renderedNull, historicalResolution, clean, positive], reviews: [native] }).status, 1, "rendered inactive companion label keeps observed edit authority");
   }
@@ -996,6 +996,9 @@ test("actual gate requires section completion to retire historical typed finding
   const fullyClean = { ...negative, body: render(cleanState, time(4)), created_at: time(4), updated_at: time(4) };
   const lateVisibleNegative = { ...oldFinding, body: oldFinding.body + "\nP1: Security review failed.", updated_at: time(6) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, lateVisibleNegative, fullyClean, positive], reviews: [native] }).status, 1, "visible negative edit uses observation clock");
+  const footerNegative = { ...oldFinding, body: oldFinding.body + "\n<details><summary>ℹ️ About Codex in GitHub</summary>P1 remains.</details>", updated_at: time(6) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, footerNegative, fullyClean, positive], reviews: [native] }).status, 1, "visible About-footer finding uses observed edit time");
+
   const warningLabel = { ...oldFinding, body: oldFinding.body.replace("| 🛡️ **Security Review** |", "| ⚠️ P1 🛡️ **Security Review** |"), updated_at: time(6) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, warningLabel, fullyClean, positive], reviews: [native] }).status, 1, "warning-bearing own row cannot borrow old completion clock");
   const malformedStatusState = { ...negativeState, security_review: { ...negativeState.security_review, status: "<!-- codex-review-state:" } };
@@ -1009,7 +1012,7 @@ test("actual gate requires section completion to retire historical typed finding
   }
   const afterVisibleClear = { ...fullyClean, body: fullyClean.body.replaceAll(time(4), time(7)), created_at: time(7), updated_at: time(7) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, lateVisibleNegative, afterVisibleClear, positive], reviews: [native] }).status, 0, "newer strict same-section completion clears earlier visible finding");
-  for (const warning of ["P&#49; blocker", "P&#x31; blocker", "P*1* blocker", "Do&#32;not&#32;merge", "Do&MediumSpace;not&MediumSpace;merge", "Do&hairsp;not&hairsp;merge", "P<strong>1</strong> blocker", "Do <em>not</em> merge", "Do [not](https://example.com) merge", "P&#8203;1 blocker", "P\uFE0F1 blocker", '<img src="invalid" alt="P1 blocker">', "[safe](P1 blocker)", "Do [not][x] merge\n[x]: https://example.com", 'Do <span title=">">not</span> merge', "Do [not](https://example.com/(x)) merge", "Found **1** issue", "Found &#49; issue", "P<!--hidden-->1 blocker", "Do <!--hidden-->not merge", "Do&#8203;not&#8203;merge", "Do&ZeroWidthSpace;not&ZeroWidthSpace;merge", "Do&ThinSpace;not&ThinSpace;merge"]) {
+  for (const warning of ["P&#49; blocker", "P&#x31; blocker", "P*1* blocker", "Do&#32;not&#32;merge", "Do&MediumSpace;not&MediumSpace;merge", "Do&hairsp;not&hairsp;merge", "P<strong>1</strong> blocker", "Do <em>not</em> merge", "Do [not](https://example.com) merge", "Do [not]( https://example.com ) merge", "Do [not]() merge", "P&#8203;1 blocker", "P\uFE0F1 blocker", "[safe](P1>)", "<P1?> blocker", "[safe\\]( P1)", "`[safe](P1)`", "```\n[safe](P1)\n```", "<code>[safe](P1)</code>", "\\[safe](P1)", "Found issues.", "Security review failed.", "Review pending.", "Changes requested.", "[safe](P1\\ blocker)", "<!--[x](foo-->P1)", "[safe][P1 blocker]", 'Do [not](https://example.com "title") merge', "Do [not](https://example.com 'title') merge", "Do [not](https://example.com (title)) merge", 'Do <span title="&#34;>">not</span> merge', "Do [not][] merge\n[not]: https://example.com", "Do [not] merge\n[not]: https://example.com", '<img src="invalid" alt="P1 blocker">', "[safe](P1 blocker)", "Do [not][x] merge\n[x]: https://example.com", 'Do <span title=">">not</span> merge', "Do [not](https://example.com/(x)) merge", "Found **1** issue", "Found &#49; issue", "P<!--hidden-->1 blocker", "Do <!--hidden-->not merge", "Do&#8203;not&#8203;merge", "Do&ZeroWidthSpace;not&ZeroWidthSpace;merge", "Do&ThinSpace;not&ThinSpace;merge"]) {
     const renderedWarning = { ...historicalResolution, body: historicalResolution.body + "\n<details><summary>ℹ️ About Codex in GitHub</summary>" + warning + "\n</details>" };
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, renderedWarning, clean, positive], reviews: [native] }).status, 1, "rendered warning cannot clear findings");
   }
@@ -1028,7 +1031,15 @@ test("actual gate requires section completion to retire historical typed finding
   const securityRow = historicalResolution.body.match(/^\| 🛡️[^\n]*$/m)[0];
   const nestedHiddenClear = { ...historicalResolution, body: historicalResolution.body.replace(securityRow, "<details><summary>outer</summary><details><summary>inner</summary></details>\n" + securityRow + "\n</details>") };
   const commentedFenceClear = { ...historicalResolution, body: historicalResolution.body + "\n<!--\n```\n-->\n" + securityRow };
-  for (const invalidClear of [nestedHiddenClear, commentedFenceClear]) assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, invalidClear, clean, positive], reviews: [native] }).status, 1, "hidden containers cannot synthesize unique completion proof");
+  const visibleSummaryClear = { ...historicalResolution, body: historicalResolution.body + "\n<details><summary>\n" + securityRow.replace(/`[a-f0-9]+`/, "`bbbbbbb`") + "\n</summary></details>" };
+  const duplicateAfterAbout = { ...historicalResolution, body: historicalResolution.body + "\n<details><summary>ℹ️ About Codex in GitHub</summary>\ninformation\n</details>\n" + securityRow };
+  const unmatchedCloserClear = { ...historicalResolution, body: historicalResolution.body.replace(securityRow, "<details>\n</pre>\n" + securityRow + "\n</details>") };
+  const rawBlockClears = ["pre", "code", "div", "script", "style", "textarea", "table", "section", "article", "blockquote"].map(tag => ({ ...historicalResolution, body: historicalResolution.body.replace(securityRow, "<" + tag + ">\n" + securityRow + "\n</" + tag + ">") }));
+  for (const tag of ["pre", "code", "div", "script", "style", "textarea", "table", "section", "article", "blockquote"]) {
+    const rawBlockNegative = { ...oldFinding, body: oldFinding.body.replace(/^(\| 🛡️[^\n]*)/m, "<" + tag + ">\n$1\n</" + tag + ">"), updated_at: time(6) };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, rawBlockNegative, fullyClean, positive], reviews: [native] }).status, 1, "raw-block negative retains updated observation clock");
+  }
+  for (const invalidClear of [nestedHiddenClear, commentedFenceClear, visibleSummaryClear, duplicateAfterAbout, unmatchedCloserClear, ...rawBlockClears]) assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, invalidClear, clean, positive], reviews: [native] }).status, 1, "hidden containers cannot synthesize unique completion proof");
   const bomMarkerClear = { ...historicalResolution, body: historicalResolution.body.replace(/^<!-- codex-pull-request-review-summary/, "    \uFEFF<!-- codex-pull-request-review-summary") };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, bomMarkerClear, clean, positive], reviews: [native] }).status, 1, "BOM between indentation and marker cannot create authority");
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, { ...bomMarkerClear, body: bomMarkerClear.body.replace("\uFEFF", "\u00A0") }, clean, positive], reviews: [native] }).status, 1, "NBSP between indentation and marker cannot create authority");

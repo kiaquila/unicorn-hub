@@ -38,3 +38,7 @@ Existing warning checks use rendered HTML text and Markdown link labels, ignorin
 BOM placement cannot erase raw code indentation before protocol markers; zero-width formatting cannot hide the known Do not merge warning.
 
 Visible warning projection preserves quoted HTML attributes, image alternative text, balanced and reference link labels, and literal malformed links. Completion-row visibility removes comments before Markdown fences and tracks nested details through the outer closing tag.
+
+Presentation warning checks remove raw comments before links, tokenize quoted HTML before decoding entities, and resolve defined full, collapsed, shortcut references and optional inline-link titles. Undefined or malformed links stay literal. Visible details-summary section text can invalidate completion evidence, but never supplies canonical authority.
+
+Canonical completion rows cannot come from raw HTML block containers; container closing names must match. Escaped Markdown link openers remain literal across inline and defined-reference warning projection.
