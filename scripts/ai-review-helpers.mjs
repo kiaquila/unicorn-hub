@@ -260,7 +260,7 @@ function isPositiveSummaryRendering(text, headSha, securityActive) {
     (!securityActive || seen.has("Security Review"));
 }
 
-function parseStructuredCodexSummary(body, headSha, stateOnly = false) {
+function parseStructuredCodexSummary(body, headSha, stateOnly = false, negativeOnly = false) {
   // Four-space/tab protocol openers are Markdown examples, never authority.
   const leadingMarkers = body.match(/^\uFEFF?(?:[ \t]*\r?\n)*([ \t]*)<!--\s*codex-(?:pull-request-review-summary|review-state:)/);
   const leadingState = body.match(/^\uFEFF?(?:[ \t]*\r?\n)*[ \t]*<!-- codex-pull-request-review-summary -->[ \t]*\r?\n([ \t]*)<!--\s*codex-review-state:/);
@@ -277,8 +277,8 @@ function parseStructuredCodexSummary(body, headSha, stateOnly = false) {
     return true;
   }).join("\n").replace(/^(?: {4,}| *\t[ \t]*)<!--[^\n]*-->[ \t]*$/gm, "");
   const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
-  if (!envelope || (protocolBody.match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
-      (protocolBody.match(/<!--\s*codex-review-state:/g) || []).length !== 1 || /<!--\s*codex-review-receipt:/.test(body)) return null;
+  if (!envelope || (!negativeOnly && ((protocolBody.match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
+      (protocolBody.match(/<!--\s*codex-review-state:/g) || []).length !== 1 || /<!--\s*codex-review-receipt:/.test(body)))) return null;
   let state;
   try { state = JSON.parse(envelope[1]); } catch { return null; }
   const keysAre = (value, keys) => value && typeof value === "object" && !Array.isArray(value) &&
@@ -507,10 +507,11 @@ function isSupersededTypedFinding(comment, snapshots, headSha) {
 function hasUnclearedStructuredFindings(snapshots, headSha) {
   const states = snapshots.map(({ comment, result }) => ({ comment, result,
     state: parseStructuredCodexSummary(String(comment.body || ""), headSha, true),
+    negativeState: parseStructuredCodexSummary(String(comment.body || ""), headSha, true, true),
     time: Date.parse(comment.updated_at || comment.created_at || "")
-  })).filter((entry) => entry.state && Number.isFinite(entry.time));
+  })).filter((entry) => (entry.state || entry.negativeState) && Number.isFinite(entry.time));
   for (const [section, label] of [["code_review", "Code Review"], ["security_review", "Security Review"]]) {
-    const findings = states.filter(({ state }) => state[section].commit_sha === headSha &&
+    const findings = states.map(entry => ({ ...entry, state: entry.negativeState || entry.state })).filter(({ state }) => state[section].commit_sha === headSha &&
       (state[section].has_any_findings === true || state[section].has_unresolved_findings === true));
     if (!findings.length) continue;
     const fence = Math.max(...findings.map(({ comment, state, time }) => {
@@ -518,6 +519,7 @@ function hasUnclearedStructuredFindings(snapshots, headSha) {
       return Math.floor((state[section].status === "completed" && Number.isFinite(completed) && completed <= time + 999 ? completed : time) / 1000);
     }));
     const cleared = states.some(({ comment, state, result, time }) => {
+      if (!state) return false;
       const value = state[section];
       const completed = codeReviewCompletionTime(comment.body, label, headSha);
       return hasValidFindingCompanions(state, comment.body, time, headSha, section) && !hasVisibleStructuredConflict(comment.body, section) && value.commit_sha === headSha && value.status === "completed" &&

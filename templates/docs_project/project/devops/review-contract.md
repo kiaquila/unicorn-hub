@@ -203,3 +203,5 @@ Malformed protocol discovery is case-insensitive and remains pending. Indentatio
 Historical resolution validates each visible companion against its typed SHA, status, and canonical clock; canonical running progress remains compatible. All-null companions cannot hide any rendered section label. Accepted leading whitespace is normalized consistently for conflict scanning.
 
 BOM-prefixed indented envelopes remain examples. Later fenced marker examples cannot erase a genuine leading finding. Indented nonprotocol HTML cannot be normalized into historical clearance.
+
+Explicit negative facts in a canonical leading summary marker, closed typed state and summary heading survive trailing presentation, including protocol examples. This negative-only extraction never grants approval or section clearance; those require strict full-body validation. Duplicate markers within the leading envelope remain invalid.
