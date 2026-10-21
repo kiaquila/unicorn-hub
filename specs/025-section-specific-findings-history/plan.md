@@ -37,3 +37,5 @@ HTML-comment row exclusion consumes an unterminated comment through EOF and pres
 Existing warning checks use rendered HTML text and Markdown link labels, ignoring Unicode default-ignorable characters, including variation selectors. Collapsed informational details cannot supply canonical completion rows.
 
 BOM placement cannot erase raw code indentation before protocol markers; zero-width formatting cannot hide the known Do not merge warning.
+
+Visible warning projection preserves quoted HTML attributes, image alternative text, balanced and reference link labels, and literal malformed links. Completion-row visibility removes comments before Markdown fences and tracks nested details through the outer closing tag.

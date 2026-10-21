@@ -211,11 +211,42 @@ export function reviewEvidenceTime(comment) {
   return comment?.updated_at || comment?.created_at;
 }
 
+function withoutHtmlDetails(value) {
+  let result = "", cursor = 0, depth = 0;
+  const tags = /<\/?details\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi;
+  for (let tag; (tag = tags.exec(value));) {
+    const fragment = value.slice(cursor, tag.index);
+    result += depth ? fragment.replace(/[^\r\n]/g, "") : fragment;
+    if (/^<\//.test(tag[0])) depth = Math.max(0, depth - 1);
+    else depth++;
+    cursor = tags.lastIndex;
+  }
+  return result + (depth ? value.slice(cursor).replace(/[^\r\n]/g, "") : value.slice(cursor));
+}
+
+function visibleMarkdownLinkLabels(value) {
+  let output = "", cursor = 0;
+  const starts = /!?\[([^\]\n]*)\]\(/g;
+  for (let match; (match = starts.exec(value));) {
+    let index = starts.lastIndex, depth = 1;
+    for (; index < value.length && depth; index++) {
+      if (value[index] === "\\") { index++; continue; }
+      if (value[index] === "(") depth++;
+      if (value[index] === ")") depth--;
+    }
+    if (depth || /\s/.test(value.slice(starts.lastIndex, index - 1))) continue;
+    output += value.slice(cursor, match.index) + match[1];
+    cursor = index;
+    starts.lastIndex = index;
+  }
+  return (output + value.slice(cursor)).replace(/!?\[([^\]\n]*)\]\[[^\]\n]*\]/g, "$1");
+}
+
 function visibleReviewText(value) {
-  return String(value || "").replace(/<!--[\s\S]*?(?:-->|$)/g, "").replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (entity, digits) => {
+  return visibleMarkdownLinkLabels(String(value || "")).replace(/<!--[\s\S]*?(?:-->|$)/g, "").replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (entity, digits) => {
     const point = digits[0].toLowerCase() === "x" ? parseInt(digits.slice(1), 16) : Number(digits);
     return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff) ? String.fromCodePoint(point) : entity;
-  }).replace(/&(ZeroWidthSpace|NegativeVeryThinSpace|NegativeThinSpace|NegativeMediumSpace|NegativeThickSpace|NoBreak|zwnj|zwj|lrm|rlm|shy);/g, "").replace(/<\/?(?:summary|details)\b[^>]*>/gi, " ").replace(/<\/?[a-z][^>]*>/gi, "").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\p{Default_Ignorable_Code_Point}/gu, "").replace(/&(nbsp|NonBreakingSpace|ensp|emsp|emsp13|emsp14|numsp|puncsp|thinsp|ThinSpace|hairsp|VeryThinSpace|MediumSpace|ThickSpace|Tab|NewLine);/g, " ").replace(/[*`~]/g, "").replace(/_/g, " ");
+  }).replace(/&(ZeroWidthSpace|NegativeVeryThinSpace|NegativeThinSpace|NegativeMediumSpace|NegativeThickSpace|NoBreak|zwnj|zwj|lrm|rlm|shy);/g, "").replace(/<\/?(?:summary|details)\b[^>]*>/gi, " ").replace(/<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, tag => tag.match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)?.slice(1).find(value => value !== undefined) || "").replace(/<\/?[a-z](?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, "").replace(/\p{Default_Ignorable_Code_Point}/gu, "").replace(/&(nbsp|NonBreakingSpace|ensp|emsp|emsp13|emsp14|numsp|puncsp|thinsp|ThinSpace|hairsp|VeryThinSpace|MediumSpace|ThickSpace|Tab|NewLine);/g, " ").replace(/[*`~]/g, "").replace(/_/g, " ");
 }
 
 function containsNegativeReviewState(text) {
@@ -438,7 +469,7 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
 // time alone cannot prove that code review ran for this particular request.
 function codeReviewCompletionTime(body, section = "Code Review", headSha = null) {
   // A rendered code example cannot supply a canonical completion row.
-  body = withoutMarkdownFences(body).replace(/<details\b[^>]*>[\s\S]*?(?:<\/details>|$)/gi, detail => detail.replace(/[^\r\n]/g, "")).replace(/<!--[\s\S]*?(?:-->|$)/g, comment => comment.replace(/[^\r\n]/g, "")).replace(/^ {1,3}(?=\|)/gm, "");
+  body = withoutMarkdownFences(withoutHtmlDetails(String(body).replace(/<!--[\s\S]*?(?:-->|$)/g, comment => comment.replace(/[^\r\n]/g, "")))).replace(/^ {1,3}(?=\|)/gm, "");
   const label = section === "Code Review" ? "📝 \\*\\*Code Review\\*\\*" : "🛡️ \\*\\*Security Review\\*\\*";
   const rowPattern = new RegExp('^\\| ' + label + ' \\| ✅ \\*\\*Completed\\*\\* <relative-time datetime="([^"<>]+)">([^<>]+)</relative-time> \\| `([a-f0-9]{7,40})` \\| (?:Manual request|Automatic review) \\|$', "gm");
   const rows = [...withoutCodexHelpFooter(String(body)).matchAll(rowPattern)];
