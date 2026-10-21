@@ -51,3 +51,5 @@ Presentation warning checks remove raw comments before links, tokenize quoted HT
 Canonical completion rows cannot come from GFM raw HTML blocks, including generic complete-tag blocks. Raw-text terminators and blank-line block boundaries follow the HTML block class; unrelated closing tags cannot expose a row. Escaped Markdown link openers remain literal across inline and defined-reference warning projection.
 
 Warning projection removes inline-code delimiters while preserving literal code contents. GFM raw HTML blocks suppress Markdown parsing until their standard terminator, while HTML and entities still render; active Markdown in an About footer requires a blank line after its summary. Only validated reference-definition labels and balanced destinations can hide definition text.
+
+Collapsed details remain non-authoritative across HTML-block blank lines. Warning projection preserves referenced footnotes and container raw HTML, omits unused footnotes, and respects the renderer’s 32-level bare-destination limit. Coordinated and existential issue reports retain the observation clock.

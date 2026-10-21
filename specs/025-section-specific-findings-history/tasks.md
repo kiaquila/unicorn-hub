@@ -42,3 +42,5 @@ Visible warning projection preserves quoted HTML attributes, image alternative t
 Presentation warning checks remove raw comments before links, tokenize quoted HTML before decoding entities, and resolve defined full, collapsed, shortcut references and optional inline-link titles. Undefined or malformed links stay literal. Visible details-summary section text can invalidate completion evidence, but never supplies canonical authority.
 
 Canonical completion rows cannot come from GFM raw HTML blocks, including generic complete-tag blocks. Raw-text terminators and blank-line block boundaries follow the HTML block class; unrelated closing tags cannot expose a row. Escaped Markdown link openers remain literal across inline and defined-reference warning projection.
+
+- [x] Cover collapsed details across blank lines, container raw HTML, mixed finding counts, existential issue reports, referenced and unused footnotes, and bare destination depth with actual-gate regressions.
