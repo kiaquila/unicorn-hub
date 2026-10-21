@@ -993,8 +993,14 @@ test("actual gate requires section completion to retire historical typed finding
   const malformedStatusState = { ...negativeState, security_review: { ...negativeState.security_review, status: "<!-- codex-review-state:" } };
   const malformedStatus = { ...oldFinding, body: render(malformedStatusState, time(1)).replaceAll(time(4), time(1)) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, malformedStatus, clean, positive], reviews: [native] }).status, 0, "duplicate protocol inside envelope is not durable authority");
-  const fencedResolution = { ...fullyClean, body: fullyClean.body.replace(/(\| 📝 \*\*Code Review\*\*[^\n]*)/, "```markdown\n$1\n```") };
-  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, fencedResolution, positive], reviews: [native] }).status, 1, "fenced completed row cannot clear findings");
+  const fencedResolution = { ...historicalResolution, body: historicalResolution.body.replace(/(\| 🛡️ \*\*Security Review\*\*[^\n]*)/, "```markdown\n$1\n````") };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, fencedResolution, clean, positive], reviews: [native] }).status, 1, "fenced completed row cannot clear findings");
+  for (const indent of ["    ", "\t"]) {
+    const codeHeadingClear = { ...historicalResolution, body: historicalResolution.body.replace("## Codex Review Summary", indent + "## Codex Review Summary") };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, codeHeadingClear, clean, positive], reviews: [native] }).status, 1, "indented code heading cannot clear findings");
+  }
+  const afterVisibleClear = { ...fullyClean, body: fullyClean.body.replaceAll(time(4), time(7)), created_at: time(7), updated_at: time(7) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, lateVisibleNegative, afterVisibleClear, positive], reviews: [native] }).status, 0, "newer strict same-section completion clears earlier visible finding");
   const codeNegative = { ...negative, body: render(state({ has_any_findings: true, has_unresolved_findings: true })) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, positive], reviews: [native] }).status, 1);
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, clean] }).status, 0);

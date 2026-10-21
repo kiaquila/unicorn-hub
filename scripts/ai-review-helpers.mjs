@@ -260,14 +260,9 @@ function isPositiveSummaryRendering(text, headSha, securityActive) {
     (!securityActive || seen.has("Security Review"));
 }
 
-function parseStructuredCodexSummary(body, headSha, stateOnly = false, negativeOnly = false) {
-  // Four-space/tab protocol openers are Markdown examples, never authority.
-  const leadingMarkers = body.match(/^\uFEFF?(?:[ \t]*\r?\n)*([ \t]*)<!--\s*codex-(?:pull-request-review-summary|review-state:)/);
-  const leadingState = body.match(/^\uFEFF?(?:[ \t]*\r?\n)*[ \t]*<!-- codex-pull-request-review-summary -->[ \t]*\r?\n([ \t]*)<!--\s*codex-review-state:/);
-  if ([leadingMarkers, leadingState].some(match => match && (/\t/.test(match[1]) || match[1].length >= 4))) return null;
-  body = body.trim();
+function withoutMarkdownFences(body) {
   let fence = null;
-  const protocolBody = body.split("\n").filter(line => {
+  return String(body).split("\n").filter(line => {
     const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
     if (fence) {
       if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
@@ -275,7 +270,17 @@ function parseStructuredCodexSummary(body, headSha, stateOnly = false, negativeO
     }
     if (marker) { fence = marker[1]; return false; }
     return true;
-  }).join("\n").replace(/^(?: {4,}| *\t[ \t]*)<!--[^\n]*-->[ \t]*$/gm, "");
+  }).join("\n");
+}
+
+function parseStructuredCodexSummary(body, headSha, stateOnly = false, negativeOnly = false) {
+  // Four-space/tab protocol openers are Markdown examples, never authority.
+  const leadingMarkers = body.match(/^\uFEFF?(?:[ \t]*\r?\n)*([ \t]*)<!--\s*codex-(?:pull-request-review-summary|review-state:)/);
+  const leadingState = body.match(/^\uFEFF?(?:[ \t]*\r?\n)*[ \t]*<!-- codex-pull-request-review-summary -->[ \t]*\r?\n([ \t]*)<!--\s*codex-review-state:/);
+  const leadingHeading = body.match(/^\uFEFF?(?:[ \t]*\r?\n)*[ \t]*<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->[ \t]*\r?\n(?:[ \t]*\r?\n)*([ \t]*)## Codex Review Summary/s);
+  if ([leadingMarkers, leadingState, leadingHeading].some(match => match && (/\t/.test(match[1]) || match[1].length >= 4))) return null;
+  body = body.trim();
+  const protocolBody = withoutMarkdownFences(body).replace(/^(?: {4,}| *\t[ \t]*)<!--[^\n]*-->[ \t]*$/gm, "");
   const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
   if (!envelope || (!negativeOnly && ((protocolBody.match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
       (protocolBody.match(/<!--\s*codex-review-state:/g) || []).length !== 1 || /<!--\s*codex-review-receipt:/.test(body)))) return null;
@@ -425,7 +430,7 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
 // time alone cannot prove that code review ran for this particular request.
 function codeReviewCompletionTime(body, section = "Code Review", headSha = null) {
   // A rendered code example cannot supply a canonical completion row.
-  body = String(body).replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[ \t]*$/gm, "");
+  body = withoutMarkdownFences(body);
   const label = section === "Code Review" ? "📝 \\*\\*Code Review\\*\\*" : "🛡️ \\*\\*Security Review\\*\\*";
   const rowPattern = new RegExp('^\\| ' + label + ' \\| ✅ \\*\\*Completed\\*\\* <relative-time datetime="([^"<>]+)">([^<>]+)</relative-time> \\| `([a-f0-9]{7,40})` \\| (?:Manual request|Automatic review) \\|$', "gm");
   const rows = [...withoutCodexHelpFooter(String(body)).matchAll(rowPattern)];
