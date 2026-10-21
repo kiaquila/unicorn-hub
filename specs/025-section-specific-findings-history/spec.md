@@ -55,3 +55,5 @@ Warning projection removes inline-code delimiters while preserving literal code 
 Collapsed details remain non-authoritative across HTML-block blank lines. Warning projection preserves referenced footnotes and container raw HTML, omits unused footnotes, and respects the renderer’s 32-level bare-destination limit. Coordinated and existential issue reports retain the observation clock.
 
 Footnote use follows rendered inline contexts, including case-folded transitive references and lazy continuations; link destinations and HTML attributes do not activate notes. Raw HTML visibility ends at the owning quote or list container boundary.
+
+Raw HTML container continuation replays quote and list frames in their original order. Affirmative article-based finding statements stay within paragraph boundaries and preserve explicit negation.

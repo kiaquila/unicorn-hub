@@ -46,3 +46,5 @@ Canonical completion rows cannot come from GFM raw HTML blocks, including generi
 - [x] Cover collapsed details across blank lines, container raw HTML, mixed finding counts, existential issue reports, referenced and unused footnotes, and bare destination depth with actual-gate regressions.
 
 Footnote use follows rendered inline contexts, including case-folded transitive references and lazy continuations; link destinations and HTML attributes do not activate notes. Raw HTML visibility ends at the owning quote or list container boundary.
+
+Raw HTML container continuation replays quote and list frames in their original order. Affirmative article-based finding statements stay within paragraph boundaries and preserve explicit negation.

@@ -218,10 +218,9 @@ function withoutAuthorityHtmlBlocks(value, htmlRanges = null) {
   let result = "", end = null, blankTerminated = false, offset = 0, detailsDepth = 0, htmlContainer = null;
   for (const line of value.split(/(?<=\n)/)) {
     const context = markdownContainerContext(line);
-    let content = context.content;
     if (!end && !blankTerminated && !detailsDepth) htmlContainer = null;
-    if (htmlContainer && (context.quoteDepth < htmlContainer.quoteDepth || (htmlContainer.listIndent && !context.listIndent && !new RegExp("^ {" + htmlContainer.listIndent + "}|^\\t").test(content)))) { end = null; blankTerminated = false; detailsDepth = 0; htmlContainer = null; }
-    if (htmlContainer?.listIndent && !context.listIndent) content = content.replace(new RegExp("^ {" + htmlContainer.listIndent + "}|^\\t"), "");
+    let content = htmlContainer ? markdownContainerContinuation(line, htmlContainer.frames) : context.content;
+    if (content === null) { end = null; blankTerminated = false; detailsDepth = 0; htmlContainer = null; content = context.content; }
     if (blankTerminated && /^\s*$/.test(content)) { end = null; blankTerminated = false; }
     if (!end && !blankTerminated) {
       const raw = content.match(/^ {0,3}<(script|pre|style|textarea)(?=[\s>]|$)/i);
@@ -382,21 +381,30 @@ function visibleMarkdownLinkLabels(value, referenceText = value) {
 }
 
 function markdownContainerContext(line) {
-  let quoteDepth = 0;
-  let listIndent = 0;
+  const frames = [];
   while (true) {
     const quote = line.match(/^ {0,3}>[ \t]?/);
-    if (quote) { quoteDepth++; line = line.slice(quote[0].length); continue; }
+    if (quote) { frames.push({ kind: "quote" }); line = line.slice(quote[0].length); continue; }
     const list = line.match(/^ {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]+/);
-    if (list) { listIndent += list[0].length; line = line.slice(list[0].length); continue; }
-    return { content: line, quoteDepth, listIndent };
+    if (list) { frames.push({ kind: "list", width: list[0].length }); line = line.slice(list[0].length); continue; }
+    return { content: line, frames };
   }
+}
+
+function markdownContainerContinuation(line, frames) {
+  for (const frame of frames) {
+    const prefix = frame.kind === "quote"
+      ? line.match(/^ {0,3}>[ \t]?/)
+      : line.match(new RegExp("^(?: {" + frame.width + "}|\\t)"));
+    if (!prefix) return null;
+    line = line.slice(prefix[0].length);
+  }
+  return line;
 }
 
 function markdownContainerContent(line) {
   return markdownContainerContext(line).content;
 }
-
 
 function projectFootnoteDefinitions(value, ranges, inlineDelimiters, htmlStarts) {
   const definitions = [...value.matchAll(/^ {0,3}\[\^([^\[\]\x00-\x20]+)\]:[^\r\n]*(?:(?:\r\n|\r|\n)(?: {2,}|\t)[^\r\n]*)*/gm)]
@@ -478,6 +486,12 @@ function literalAwareVisibleText(value) {
 
 function renderedLabelAmbiguityText(value) {
   return normalizeVisibleFragment(rawVisibleHtml(String(value || "")));
+}
+
+function hasArticleFindingStatement(text) {
+  return String(text).replace(/\r\n?/g, "\n").split(/\n[ \t\f\v]*\n/).some(paragraph =>
+    [...paragraph.replace(/[ \t\r\n\f\v]+/g, " ").matchAll(/\b[\p{L}]+ +an? +(?:[\p{L}-]+ +)*?(?:issues?|findings?|problems?)\b/giu)]
+      .some(match => !/\b(?:no|not|without|zero)\b/i.test(match[0])));
 }
 
 function visibleReviewText(value) {
@@ -594,7 +608,7 @@ function parseStructuredCodexSummary(body, headSha, stateOnly = false, negativeO
   // Conflicting visible severity or a second verdict cannot be hidden by JSON.
   const visibleVerdict = withoutCodexHelpFooter(body.slice(envelope[0].length));
   if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visibleVerdict) ||
-      /Codex Review:|\b[1-9][0-9]*\s+(?:[a-z-]+\s+)*(?:issues?|findings?|problems?)\b|\bthere\s+(?:is|are)\s+(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b|\bfound\s+(?:an?\b|[1-9]\b|issues\b|(?:(?:[^.!?;\r\n]*?\b(?:and|or|but)\b|[^.!?;\r\n]*?,)\s*)?(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b)/i.test(visibleVerdict)) return { result: "fail", explicitSha: true };
+      /Codex Review:|\b[1-9][0-9]*\s+(?:[a-z-]+\s+)*(?:issues?|findings?|problems?)\b|\bthere\s+(?:is|are)\s+(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b|\bfound\s+(?:an?\b|[1-9]\b|issues\b|(?:(?:[^.!?;\r\n]*?\b(?:and|or|but)\b|[^.!?;\r\n]*?,)\s*)?(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b)/i.test(visibleVerdict) || hasArticleFindingStatement(visibleVerdict)) return { result: "fail", explicitSha: true };
   const security = state.security_review;
   if (code.has_any_findings || code.has_unresolved_findings || security.has_any_findings || security.has_unresolved_findings) {
     return { result: "fail", explicitSha: true };
@@ -772,7 +786,7 @@ function hasVisibleStructuredConflict(body, section = null) {
     if (rows.some(line => !/^\| [📝🛡️]+ \*\*(?:Code|Security) Review\*\* \| (?:✅ \*\*Completed\*\*|🔄 \*\*Running\*\*)(?: since)?(?: <relative-time datetime="[^"<>]+">[^<>]+<\/relative-time>)? \| `[a-f0-9]{7,40}` \| (?:Manual request|Automatic review) \|$/.test(line))) return true;
   }
   if (section) visible = visible.split("\n").filter(line => !line.startsWith(section === "code_review" ? "| 🛡️ **Security Review** |" : "| 📝 **Code Review** |")).join("\n");
-  return /<!--\s*codex-/i.test(visible) || containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\b[1-9][0-9]*\s+(?:[a-z-]+\s+)*(?:issues?|findings?|problems?)\b|\bthere\s+(?:is|are)\s+(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b|\bfound\s+(?:an?\b|[1-9]\b|issues\b|(?:(?:[^.!?;\r\n]*?\b(?:and|or|but)\b|[^.!?;\r\n]*?,)\s*)?(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b)/i.test(visibleReviewText(visible));
+  return /<!--\s*codex-/i.test(visible) || containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\b[1-9][0-9]*\s+(?:[a-z-]+\s+)*(?:issues?|findings?|problems?)\b|\bthere\s+(?:is|are)\s+(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b|\bfound\s+(?:an?\b|[1-9]\b|issues\b|(?:(?:[^.!?;\r\n]*?\b(?:and|or|but)\b|[^.!?;\r\n]*?,)\s*)?(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b)/i.test(visibleReviewText(visible)) || hasArticleFindingStatement(visibleReviewText(visible));
 }
 
 function isSupersededTypedFinding(comment, snapshots, headSha) {
@@ -780,7 +794,7 @@ function isSupersededTypedFinding(comment, snapshots, headSha) {
   const state = parseStructuredCodexSummary(String(comment.body || ""), headSha, true);
   if (!state) return false;
   const visible = withoutCodexHelpFooter(body.replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
-  if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\b[1-9][0-9]*\s+(?:[a-z-]+\s+)*(?:issues?|findings?|problems?)\b|\bthere\s+(?:is|are)\s+(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b|\bfound\s+(?:an?\b|[1-9]\b|issues\b|(?:(?:[^.!?;\r\n]*?\b(?:and|or|but)\b|[^.!?;\r\n]*?,)\s*)?(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b)/i.test(visibleReviewText(visible))) return false;
+  if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\b[1-9][0-9]*\s+(?:[a-z-]+\s+)*(?:issues?|findings?|problems?)\b|\bthere\s+(?:is|are)\s+(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b|\bfound\s+(?:an?\b|[1-9]\b|issues\b|(?:(?:[^.!?;\r\n]*?\b(?:and|or|but)\b|[^.!?;\r\n]*?,)\s*)?(?!(?:no|zero|0)\b)[^.!?;\r\n]*?\bissues?\b)/i.test(visibleReviewText(visible)) || hasArticleFindingStatement(visibleReviewText(visible))) return false;
   const observed = Date.parse(comment.updated_at || comment.created_at || "");
   if (!hasValidFindingCompanions(state, body, observed, headSha)) return false;
   const findings = [["code_review", "Code Review"], ["security_review", "Security Review"]].filter(([section]) => state[section].commit_sha === headSha && (state[section].has_any_findings === true || state[section].has_unresolved_findings === true));
