@@ -934,6 +934,24 @@ test("actual gate requires section completion to retire historical typed finding
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, companionNegative, historicalResolution, clean, positive], reviews: [native] }).status, 1, "resolved finding cannot discard mismatched companion row");
   const validCompanionNegative = { ...companionNegative, body: companionNegative.body.replace(/(\| 🛡️ \*\*Security Review\*\*[^\n]*`)[a-f0-9]{7}(`)/, "$1bbbbbbb$2") };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, validCompanionNegative, historicalResolution, clean, positive], reviews: [native] }).status, 0, "coherent foreign-head companion does not renew resolved finding");
+  for (const foreignFlags of [false, true]) {
+    const foreignState = { ...companionState, security_review: { ...companionState.security_review, has_any_findings: foreignFlags, has_unresolved_findings: foreignFlags } };
+    const malformedCompanion = { ...companionNegative, body: render(foreignState, time(1)).replaceAll(time(4), time(1)) };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, malformedCompanion, historicalResolution, clean, positive], reviews: [native] }).status, 1, "foreign finding flags cannot hide malformed companion");
+    const coherentCompanion = { ...malformedCompanion, body: malformedCompanion.body.replace(/(\| 🛡️ \*\*Security Review\*\*[^\n]*`)[a-f0-9]{7}(`)/, "$1bbbbbbb$2") };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, coherentCompanion, historicalResolution, clean, positive], reviews: [native] }).status, 0);
+  }
+  for (const indent of ["    ", "\t"]) {
+    const indentMarkers = body => body.replace(/^<!-- codex-/gm, indent + "<!-- codex-");
+    const exampleFinding = { ...oldFinding, body: indentMarkers(oldFinding.body) };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, exampleFinding, clean, positive], reviews: [native] }).status, 0, "indented markers cannot latch historical findings");
+    const exampleClear = { ...historicalResolution, body: indentMarkers(historicalResolution.body) };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, exampleClear, clean, positive], reviews: [native] }).status, 1, "indented markers cannot resolve findings");
+    const exampleApproval = { ...negative, body: indentMarkers(render(cleanState, time(4))), created_at: time(4), updated_at: time(4) };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, exampleApproval] }).status, 1, "indented markers cannot approve");
+  }
+  const unknownProtocolClear = { ...historicalResolution, body: historicalResolution.body + "\n<!-- CODEX-unknown -->" };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, unknownProtocolClear, clean, positive], reviews: [native] }).status, 1, "unknown protocol HTML cannot clear historical finding");
   const codeNegative = { ...negative, body: render(state({ has_any_findings: true, has_unresolved_findings: true })) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, positive], reviews: [native] }).status, 1);
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, clean] }).status, 0);

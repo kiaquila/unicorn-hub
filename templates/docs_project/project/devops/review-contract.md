@@ -195,3 +195,5 @@ Valid exact-head structured findings survive a repeated request until a newer cl
 Completed typed findings are dated by their affected section’s valid canonical completion row; an edit to another section does not renew them. Missing or invalid completion rows retain the server observation time.
 
 Historical section resolution uses independent canonical clean proof for that same head and section, regardless of later requests or the other section’s progress. It does not itself approve the current request. Visible conflicting findings cannot provide resolution proof.
+
+Protocol markers indented by four spaces or a tab are Markdown examples without approval or history authority. Foreign-head finding companions require canonical row coherence before an observation can be retired.
