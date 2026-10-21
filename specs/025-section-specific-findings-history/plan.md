@@ -17,3 +17,7 @@ A resolved finding does not erase a later malformed companion observation: compl
 Protocol markers indented by four spaces or a tab are Markdown examples without approval or history authority. Foreign-head finding companions require canonical row coherence before an observation can be retired.
 
 Malformed protocol discovery is case-insensitive and remains pending. Indentation examples are excluded only in leading-envelope context; a later indented snippet cannot erase real findings. Section projection validates known companion-row rendering before removing it.
+
+Historical resolution validates each visible companion against its typed SHA, status, and canonical clock; canonical running progress remains compatible. All-null companions cannot hide any rendered section label. Accepted leading whitespace is normalized consistently for conflict scanning.
+
+BOM-prefixed indented envelopes remain examples. Later fenced marker examples cannot erase a genuine leading finding. Indented nonprotocol HTML cannot be normalized into historical clearance.

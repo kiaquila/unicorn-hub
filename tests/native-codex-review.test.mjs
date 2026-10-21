@@ -913,7 +913,8 @@ test("actual gate requires section completion to retire historical typed finding
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, foreignCodeSecurity, clean] }).status, 1, "current-head security findings survive foreign-head code state");
   for (const other of [{}, { status: "running" }, { commit_sha: "b".repeat(40) }]) {
     const historicalNegative = { ...negative, body: render(negativeState, time(1)).replaceAll(time(4), time(1)), created_at: time(1), updated_at: time(1) };
-    const resolution = { ...negative, body: render({ ...cleanState, code_review: { ...cleanState.code_review, ...other } }, time(2)).replaceAll(time(4), time(2)).replace("| 📝 **Code Review** | ✅ **Completed**", other.status === "running" ? "| 📝 **Code Review** | 🔄 **Running**" : "| 📝 **Code Review** | ✅ **Completed**"), created_at: time(2), updated_at: time(2) };
+    let resolution = { ...negative, body: render({ ...cleanState, code_review: { ...cleanState.code_review, ...other } }, time(2)).replaceAll(time(4), time(2)).replace("| 📝 **Code Review** | ✅ **Completed**", other.status === "running" ? "| 📝 **Code Review** | 🔄 **Running**" : "| 📝 **Code Review** | ✅ **Completed**"), created_at: time(2), updated_at: time(2) };
+    if (other.commit_sha) resolution.body = resolution.body.replace(/(\| 📝 \*\*Code Review\*\*[^\n]*`)[a-f0-9]{7}(`)/, "$1bbbbbbb$2");
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, historicalNegative, resolution, clean, positive], reviews: [native] }).status, 0, "historical section resolution survives repeated request and other-section progress");
   }
   const oldFinding = { ...negative, body: render(negativeState, time(1)).replaceAll(time(4), time(1)), created_at: time(1), updated_at: time(1) };
@@ -958,6 +959,28 @@ test("actual gate requires section completion to retire historical typed finding
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, genuineWithExample, clean, positive], reviews: [native] }).status, 1, "later indented example cannot erase genuine finding");
   const dangerousCompanion = { ...historicalResolution, body: historicalResolution.body.replace(/\| 📝 \*\*Code Review\*\*[^\n]*/, "| 📝 **Code Review** | ⚠️ Do not merge | `" + headSha.slice(0,7) + "` | Manual request |") };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, dangerousCompanion, clean, positive], reviews: [native] }).status, 1, "projection cannot erase companion row verdict");
+  const codeFindingOnly = { ...negative, body: render({ ...state(), code_review: { ...cleanState.code_review, has_any_findings: true, has_unresolved_findings: true } }).replaceAll(time(4), time(1)), created_at: time(1), updated_at: time(5) };
+  const hiddenNullRow = { ...codeFindingOnly, body: codeFindingOnly.body + "\n    | 🛡️ **Security Review** | ⚠️ Do not merge |" };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, hiddenNullRow, historicalResolution, clean, positive], reviews: [native] }).status, 1, "inactive section label cannot hide behind indentation");
+  for (const whitespace of [" ", "\n", "   "]) {
+    const normalizedResolution = { ...historicalResolution, body: whitespace + historicalResolution.body };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, normalizedResolution, clean, positive], reviews: [native] }).status, 0, "accepted envelope whitespace remains valid resolution");
+  }
+  const foreignResolutionState = { ...cleanState, code_review: { ...cleanState.code_review, commit_sha: "b".repeat(40) } };
+  const mismatchedResolution = { ...historicalResolution, body: render(foreignResolutionState, time(2)).replaceAll(time(4), time(2)) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, mismatchedResolution, clean, positive], reviews: [native] }).status, 1, "historical clearing requires coherent companion SHA");
+  const genuineWithFencedExample = { ...oldFinding, body: oldFinding.body + "\n```html\n<!-- codex-review-state:v1 example -->\n```" };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, genuineWithFencedExample, clean, positive], reviews: [native] }).status, 1, "later fenced example cannot erase genuine finding");
+  for (const indent of ["    ", "\t"]) {
+    const bomExample = { ...negative, body: "\uFEFF" + render(cleanState, time(4)).replace(/^<!-- codex-/gm, indent + "<!-- codex-"), created_at: time(4), updated_at: time(4) };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, bomExample] }).status, 1, "BOM cannot normalize indented protocol example into authority");
+  }
+  const runningStateCompletedRow = { ...historicalResolution, body: render({ ...cleanState, code_review: { ...cleanState.code_review, status: "running" } }, time(2)).replaceAll(time(4), time(2)) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, runningStateCompletedRow, clean, positive], reviews: [native] }).status, 1, "running typed companion requires Running rendering");
+  for (const indent of ["    ", "\t"]) {
+    const indentedTodoClear = { ...historicalResolution, body: historicalResolution.body + "\n" + indent + "<!-- TODO -->" };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, indentedTodoClear, clean, positive], reviews: [native] }).status, 1, "indented nonprotocol HTML cannot normalize into history clearance");
+  }
   const codeNegative = { ...negative, body: render(state({ has_any_findings: true, has_unresolved_findings: true })) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, positive], reviews: [native] }).status, 1);
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, clean] }).status, 0);

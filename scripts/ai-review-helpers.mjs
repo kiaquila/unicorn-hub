@@ -262,11 +262,20 @@ function isPositiveSummaryRendering(text, headSha, securityActive) {
 
 function parseStructuredCodexSummary(body, headSha, stateOnly = false) {
   // Four-space/tab protocol openers are Markdown examples, never authority.
-  const leadingMarkers = body.match(/^(?:[ \t]*\r?\n)*([ \t]*)<!--\s*codex-(?:pull-request-review-summary|review-state:)/);
-  const leadingState = body.match(/^(?:[ \t]*\r?\n)*[ \t]*<!-- codex-pull-request-review-summary -->[ \t]*\r?\n([ \t]*)<!--\s*codex-review-state:/);
+  const leadingMarkers = body.match(/^\uFEFF?(?:[ \t]*\r?\n)*([ \t]*)<!--\s*codex-(?:pull-request-review-summary|review-state:)/);
+  const leadingState = body.match(/^\uFEFF?(?:[ \t]*\r?\n)*[ \t]*<!-- codex-pull-request-review-summary -->[ \t]*\r?\n([ \t]*)<!--\s*codex-review-state:/);
   if ([leadingMarkers, leadingState].some(match => match && (/\t/.test(match[1]) || match[1].length >= 4))) return null;
   body = body.trim();
-  const protocolBody = body.replace(/^(?: {4,}| *\t[ \t]*)<!--[^\n]*-->[ \t]*$/gm, "");
+  let fence = null;
+  const protocolBody = body.split("\n").filter(line => {
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
+      return false;
+    }
+    if (marker) { fence = marker[1]; return false; }
+    return true;
+  }).join("\n").replace(/^(?: {4,}| *\t[ \t]*)<!--[^\n]*-->[ \t]*$/gm, "");
   const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
   if (!envelope || (protocolBody.match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
       (protocolBody.match(/<!--\s*codex-review-state:/g) || []).length !== 1 || /<!--\s*codex-review-receipt:/.test(body)) return null;
@@ -426,16 +435,21 @@ function codeReviewCompletionTime(body, section = "Code Review", headSha = null)
 // A request or code-only receipt cannot clear a typed finding from another
 // section. Only a newer independently clean snapshot with that section's own
 // canonical completion clock can retire the valid current-head finding.
-function hasValidFindingCompanions(state, body, observed, headSha) {
+function hasValidFindingCompanions(state, body, observed, headSha, resolvingSection = null) {
   for (const [section, label, emoji] of [["code_review", "Code Review", "📝"], ["security_review", "Security Review", "🛡️"]]) {
     const value = state[section];
-    if (value.commit_sha === headSha && (value.has_any_findings === true || value.has_unresolved_findings === true)) continue;
+    if (section === resolvingSection) continue;
+    if (!resolvingSection && value.commit_sha === headSha && (value.has_any_findings === true || value.has_unresolved_findings === true)) continue;
     if (value.status === null) {
-      if (String(body).split("\n").some(line => line.startsWith(`| ${emoji} **${label}** |`))) return false;
+      if (String(body).includes(`**${label}**`)) return false;
       continue;
     }
-    const completed = codeReviewCompletionTime(body, label, value.commit_sha);
-    if (value.status !== "completed" || !Number.isFinite(completed) || completed > observed + 999) return false;
+    const rowBody = resolvingSection && value.status === "running"
+      ? String(body).replace(`| ${emoji} **${label}** | 🔄 **Running** since`, `| ${emoji} **${label}** | ✅ **Completed**`).replace(`| ${emoji} **${label}** | 🔄 **Running**`, `| ${emoji} **${label}** | ✅ **Completed**`)
+      : body;
+    if (resolvingSection && value.status === "running" && rowBody === body) return false;
+    const completed = codeReviewCompletionTime(rowBody, label, value.commit_sha);
+    if (!(value.status === "completed" || (resolvingSection && value.status === "running")) || !Number.isFinite(completed) || completed > observed + 999) return false;
   }
   return true;
 }
@@ -455,7 +469,8 @@ function structuredNegativeTime(comment, headSha) {
 }
 
 function hasVisibleStructuredConflict(body, section = null) {
-  let visible = withoutCodexHelpFooter(String(body).replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
+  if (/^(?: {4,}| *\t[ \t]*)<!--/m.test(String(body))) return true;
+  let visible = withoutCodexHelpFooter(String(body).trim().replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
   if (section) {
     const other = section === "code_review" ? "| 🛡️ **Security Review** |" : "| 📝 **Code Review** |";
     const rows = visible.split("\n").filter(line => line.startsWith(other));
@@ -480,7 +495,7 @@ function isSupersededTypedFinding(comment, snapshots, headSha) {
     return snapshots.some(({ comment: clean }) => {
       if (clean === comment || hasVisibleStructuredConflict(clean.body, section)) return false;
       const cleanState = parseStructuredCodexSummary(String(clean.body || ""), headSha, true);
-      if (!cleanState) return false;
+      if (!cleanState || !hasValidFindingCompanions(cleanState, clean.body, Date.parse(clean.updated_at || clean.created_at || ""), headSha, section)) return false;
       const value = cleanState[section];
       const time = codeReviewCompletionTime(clean.body, label, headSha);
       const updated = Date.parse(clean.updated_at || clean.created_at || "");
@@ -505,7 +520,7 @@ function hasUnclearedStructuredFindings(snapshots, headSha) {
     const cleared = states.some(({ comment, state, result, time }) => {
       const value = state[section];
       const completed = codeReviewCompletionTime(comment.body, label, headSha);
-      return !hasVisibleStructuredConflict(comment.body, section) && value.commit_sha === headSha && value.status === "completed" &&
+      return hasValidFindingCompanions(state, comment.body, time, headSha, section) && !hasVisibleStructuredConflict(comment.body, section) && value.commit_sha === headSha && value.status === "completed" &&
         value.has_any_findings === false && value.has_unresolved_findings === false &&
         Number.isFinite(completed) && completed <= time + 999 && Math.floor(completed / 1000) > fence;
     });
