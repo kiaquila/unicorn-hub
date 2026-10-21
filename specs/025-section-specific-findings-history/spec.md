@@ -13,3 +13,5 @@ Foreign-head, malformed and duplicate-key historical summaries do not create per
 - Invalid historical metadata cannot create a permanent veto.
 
 A current-head section retains findings even if the other section references an earlier head. Independent historical canonical section resolution survives repeated requests and other-section progress.
+
+Canonical historical completion requires exactly four table columns and the affected row’s exact head; resolved section findings do not inherit an unrelated foreign-head section edit clock.

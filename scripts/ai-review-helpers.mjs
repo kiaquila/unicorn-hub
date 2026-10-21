@@ -410,7 +410,7 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
 // time alone cannot prove that code review ran for this particular request.
 function codeReviewCompletionTime(body, section = "Code Review", headSha = null) {
   const label = section === "Code Review" ? "📝 \\*\\*Code Review\\*\\*" : "🛡️ \\*\\*Security Review\\*\\*";
-  const rowPattern = new RegExp('^\\| ' + label + ' \\| ✅ \\*\\*Completed\\*\\* <relative-time datetime="([^"<>]+)">([^<>]+)</relative-time> \\| `([a-f0-9]{7,40})` \\|', "gm");
+  const rowPattern = new RegExp('^\\| ' + label + ' \\| ✅ \\*\\*Completed\\*\\* <relative-time datetime="([^"<>]+)">([^<>]+)</relative-time> \\| `([a-f0-9]{7,40})` \\| (?:Manual request|Automatic review) \\|$', "gm");
   const rows = [...withoutCodexHelpFooter(String(body)).matchAll(rowPattern)];
   if ((String(body).match(new RegExp("^\\| " + label + " \\|", "gm")) || []).length !== 1 || rows.length !== 1 || (headSha && !headSha.startsWith(rows[0][3])) || rows[0][1] !== rows[0][2] ||
       !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(rows[0][1])) return NaN;
@@ -445,7 +445,7 @@ function hasVisibleStructuredConflict(body, section = null) {
 function isSupersededTypedFinding(comment, snapshots, headSha) {
   const body = String(comment.body || "").trim();
   const state = parseStructuredCodexSummary(body, headSha, true);
-  if (!state || parseStructuredCodexSummary(body, headSha)?.result !== "fail") return false;
+  if (!state) return false;
   const visible = withoutCodexHelpFooter(body.replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
   if (containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\bfound\s+(?:a|[1-9])\b/i.test(visible)) return false;
   const observed = Date.parse(comment.updated_at || comment.created_at || "");
