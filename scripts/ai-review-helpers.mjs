@@ -279,6 +279,8 @@ function parseStructuredCodexSummary(body, headSha, stateOnly = false, negativeO
   const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
   if (!envelope || (!negativeOnly && ((protocolBody.match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
       (protocolBody.match(/<!--\s*codex-review-state:/g) || []).length !== 1 || /<!--\s*codex-review-receipt:/.test(body)))) return null;
+  if (negativeOnly && ((envelope[0].match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
+      (envelope[0].match(/<!--\s*codex-review-state:/g) || []).length !== 1 || /<!--\s*codex-review-receipt:/.test(envelope[0]))) return null;
   let state;
   try { state = JSON.parse(envelope[1]); } catch { return null; }
   const keysAre = (value, keys) => value && typeof value === "object" && !Array.isArray(value) &&
@@ -422,6 +424,8 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
 // The shared summary can be edited by security activity. Its server update
 // time alone cannot prove that code review ran for this particular request.
 function codeReviewCompletionTime(body, section = "Code Review", headSha = null) {
+  // A rendered code example cannot supply a canonical completion row.
+  body = String(body).replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[ \t]*$/gm, "");
   const label = section === "Code Review" ? "📝 \\*\\*Code Review\\*\\*" : "🛡️ \\*\\*Security Review\\*\\*";
   const rowPattern = new RegExp('^\\| ' + label + ' \\| ✅ \\*\\*Completed\\*\\* <relative-time datetime="([^"<>]+)">([^<>]+)</relative-time> \\| `([a-f0-9]{7,40})` \\| (?:Manual request|Automatic review) \\|$', "gm");
   const rows = [...withoutCodexHelpFooter(String(body)).matchAll(rowPattern)];
@@ -457,7 +461,7 @@ function hasValidFindingCompanions(state, body, observed, headSha, resolvingSect
 function structuredNegativeTime(comment, headSha) {
   const observed = Date.parse(comment.updated_at || comment.created_at || "");
   const state = parseStructuredCodexSummary(String(comment.body || ""), headSha, true);
-  if (!state || !hasValidFindingCompanions(state, comment.body, observed, headSha)) return observed;
+  if (!state || hasVisibleStructuredConflict(comment.body) || !hasValidFindingCompanions(state, comment.body, observed, headSha)) return observed;
   const times = [];
   for (const [section, label] of [["code_review", "Code Review"], ["security_review", "Security Review"]]) {
     const value = state[section];

@@ -205,3 +205,5 @@ Historical resolution validates each visible companion against its typed SHA, st
 BOM-prefixed indented envelopes remain examples. Later fenced marker examples cannot erase a genuine leading finding. Indented nonprotocol HTML cannot be normalized into historical clearance.
 
 Explicit negative facts in a canonical leading summary marker, closed typed state and summary heading survive trailing presentation, including protocol examples. This negative-only extraction never grants approval or section clearance; those require strict full-body validation. Duplicate markers within the leading envelope remain invalid.
+
+Visible negative edits retain server observation time; fenced example rows cannot supply completion clocks. Negative-only parsing still requires marker uniqueness within the leading envelope.
