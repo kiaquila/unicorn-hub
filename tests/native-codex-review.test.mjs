@@ -886,6 +886,8 @@ test("actual gate requires section completion to retire historical typed finding
   const positive = comment(receipt, { created_at: time(5), updated_at: time(5) });
   const native = { databaseId: 90, author: { login: bot.login, __typename: "Bot" }, commit: { oid: headSha }, state: "APPROVED", body: "Approved.", submittedAt: time(5), updatedAt: time(5), lastEditedAt: null };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, negative, positive], reviews: [native] }).status, 1);
+  const markerProse = { ...negative, body: negative.body + "\nThe codex-review-state: parser has a defect." };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, markerProse, positive], reviews: [native] }).status, 1, "ordinary marker prose cannot erase findings");
   const cleanState = { ...state(), security_review: { ...state().code_review } };
   for (const [value, securityTime, expected] of [[state(), null, 1], [cleanState, null, 1], [cleanState, time(2), 1], [cleanState, time(2).replace("00Z", "00.999Z"), 1], [cleanState, "2026-02-30T12:04:00Z", 1], [cleanState, "October 15, 2026 12:04:00 GMT", 1], [cleanState, time(4), 0]]) {
     const clean = comment(render(value, securityTime), { created_at: time(4), updated_at: time(4) });
@@ -894,6 +896,7 @@ test("actual gate requires section completion to retire historical typed finding
   const duplicateSection = { ...negative, body: render(cleanState, time(4)) + "\n| 🛡️ **Security Review** | 🔄 **Running** |", created_at: time(4), updated_at: time(4) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, negative, duplicateSection] }).status, 1, "duplicate affected section cannot clear findings");
   const clean = comment(render(state()), { created_at: time(4), updated_at: time(4) });
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, markerProse, clean, positive], reviews: [native] }).status, 1, "marker prose cannot erase historical security findings before code-only snapshot");
   for (const body of [negative.body.replaceAll(headSha, "b".repeat(40)), negative.body.replace('"has_any_findings":true', '"has_any_findings":true,"has_any_findings":true'), negative.body.replace(":v1", ":v2")])
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, { ...negative, body }, clean] }).status, 0);
   for (const section of ["code_review", "security_review"]) {

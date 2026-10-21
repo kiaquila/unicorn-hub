@@ -8,3 +8,5 @@
 - [x] Cover mixed section clocks, foreign other-head findings, and historical partial-section resolution with actual gate regressions.
 
 Canonical historical completion requires exactly four table columns and the affected row’s exact head; resolved section findings do not inherit an unrelated foreign-head section edit clock.
+
+Protocol uniqueness counts actual HTML markers, so ordinary marker-name prose cannot erase typed findings.

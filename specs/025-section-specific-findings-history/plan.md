@@ -9,3 +9,5 @@ Run actual-gate regression cases and the complete pnpm preflight, then request n
 Resolve typed negative entries only with independent newer per-section clean completion proof, preserving visible findings and current-request approval guards.
 
 Canonical historical completion requires exactly four table columns and the affected row’s exact head; resolved section findings do not inherit an unrelated foreign-head section edit clock.
+
+Protocol uniqueness counts actual HTML markers, so ordinary marker-name prose cannot erase typed findings.

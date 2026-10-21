@@ -264,8 +264,8 @@ function isPositiveSummaryRendering(text, headSha, securityActive) {
 
 function parseStructuredCodexSummary(body, headSha, stateOnly = false) {
   const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
-  if (!envelope || (body.match(/codex-pull-request-review-summary/g) || []).length !== 1 ||
-      (body.match(/codex-review-state:/g) || []).length !== 1 || body.includes("codex-review-receipt:")) return null;
+  if (!envelope || (body.match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
+      (body.match(/<!--\s*codex-review-state:/g) || []).length !== 1 || /<!--\s*codex-review-receipt:/.test(body)) return null;
   let state;
   try { state = JSON.parse(envelope[1]); } catch { return null; }
   const keysAre = (value, keys) => value && typeof value === "object" && !Array.isArray(value) &&
