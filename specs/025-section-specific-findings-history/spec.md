@@ -11,3 +11,5 @@ Foreign-head, malformed and duplicate-key historical summaries do not create per
 - Prior exact-head security findings block code-only approval and inactive security state.
 - Fresh canonical clean security completion clears security history; stale, same-second and invalid timestamps do not.
 - Invalid historical metadata cannot create a permanent veto.
+
+A current-head section retains findings even if the other section references an earlier head. Independent historical canonical section resolution survives repeated requests and other-section progress.

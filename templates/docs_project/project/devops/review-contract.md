@@ -193,3 +193,5 @@ Unknown and negative receipt edits use their observed server update time; only s
 Valid exact-head structured findings survive a repeated request until a newer clean machine snapshot completes the affected review section. A security finding requires its own newer canonical Security Review completion timestamp; all-null security state and code-only approval cannot clear it. Same-second completions remain pending. Malformed, duplicate or foreign-head history cannot create this durable fence; the latest invalid signal still blocks.
 
 Completed typed findings are dated by their affected section’s valid canonical completion row; an edit to another section does not renew them. Missing or invalid completion rows retain the server observation time.
+
+Historical section resolution uses independent canonical clean proof for that same head and section, regardless of later requests or the other section’s progress. It does not itself approve the current request. Visible conflicting findings cannot provide resolution proof.

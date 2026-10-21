@@ -891,14 +891,27 @@ test("actual gate requires section completion to retire historical typed finding
     const clean = comment(render(value, securityTime), { created_at: time(4), updated_at: time(4) });
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, negative, clean, positive], reviews: [native] }).status, expected);
   }
+  const duplicateSection = { ...negative, body: render(cleanState, time(4)) + "\n| 🛡️ **Security Review** | 🔄 **Running** |", created_at: time(4), updated_at: time(4) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, negative, duplicateSection] }).status, 1, "duplicate affected section cannot clear findings");
   const clean = comment(render(state()), { created_at: time(4), updated_at: time(4) });
-  for (const body of [negative.body.replace(headSha, "b".repeat(40)), negative.body.replace('"has_any_findings":true', '"has_any_findings":true,"has_any_findings":true'), negative.body.replace(":v1", ":v2")])
+  for (const body of [negative.body.replaceAll(headSha, "b".repeat(40)), negative.body.replace('"has_any_findings":true', '"has_any_findings":true,"has_any_findings":true'), negative.body.replace(":v1", ":v2")])
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, { ...negative, body }, clean] }).status, 0);
   for (const section of ["code_review", "security_review"]) {
     const value = { ...state(), [section]: { ...state().code_review, has_any_findings: true, has_unresolved_findings: true } };
     const editedNegative = { ...negative, body: render(value, time(1)).replaceAll(time(4), time(1)), updated_at: time(5) };
     const fullClean = { ...negative, body: render(cleanState, time(4)), created_at: time(4), updated_at: time(4) };
     assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, editedNegative, fullClean] }).status, 0, section + " other-section edit cannot renew old finding");
+  }
+  const mixedState = { ...negativeState, code_review: { ...negativeState.security_review } };
+  const oldMixed = { ...negative, body: render(mixedState, time(3)).replaceAll(time(4), time(1)), updated_at: time(3) };
+  const staggeredClean = { ...negative, body: render(cleanState, time(5)).replaceAll(time(4), time(4)), created_at: time(5), updated_at: time(5) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldMixed, staggeredClean] }).status, 0, "each clean section outruns its finding independently");
+  const foreignCodeSecurity = { ...negative, body: render({ ...negativeState, code_review: { ...negativeState.code_review, commit_sha: oldSha } }, time(2)) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, foreignCodeSecurity, clean] }).status, 1, "current-head security findings survive foreign-head code state");
+  for (const other of [{}, { status: "running" }, { commit_sha: "b".repeat(40) }]) {
+    const historicalNegative = { ...negative, body: render(negativeState, time(1)).replaceAll(time(4), time(1)), created_at: time(1), updated_at: time(1) };
+    const resolution = { ...negative, body: render({ ...cleanState, code_review: { ...cleanState.code_review, ...other } }, time(2)).replaceAll(time(4), time(2)).replace("| 📝 **Code Review** | ✅ **Completed**", other.status === "running" ? "| 📝 **Code Review** | 🔄 **Running**" : "| 📝 **Code Review** | ✅ **Completed**"), created_at: time(2), updated_at: time(2) };
+    assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, historicalNegative, resolution, clean, positive], reviews: [native] }).status, 0, "historical section resolution survives repeated request and other-section progress");
   }
   const codeNegative = { ...negative, body: render(state({ has_any_findings: true, has_unresolved_findings: true })) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, positive], reviews: [native] }).status, 1);
