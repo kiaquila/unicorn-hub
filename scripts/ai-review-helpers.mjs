@@ -211,11 +211,11 @@ export function reviewEvidenceTime(comment) {
   return comment?.updated_at || comment?.created_at;
 }
 
-function withoutAuthorityHtmlBlocks(value) {
+function withoutAuthorityHtmlBlocks(value, htmlRanges = null) {
   // GFM HTML block classes: raw-text/declaration terminators, then blank-line blocks.
   const blockTags = /^(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)$/i;
   const completeTag = /^ {0,3}<(?:\/[a-z][a-z0-9-]*\s*|[a-z][a-z0-9-]*(?:\s+[a-z_:][a-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?)>[ \t]*$/i;
-  let result = "", end = null, blankTerminated = false;
+  let result = "", end = null, blankTerminated = false, offset = 0;
   for (const line of value.split(/(?<=\n)/)) {
     if (blankTerminated && /^\s*$/.test(line)) { end = null; blankTerminated = false; }
     if (!end && !blankTerminated) {
@@ -229,6 +229,8 @@ function withoutAuthorityHtmlBlocks(value) {
       else if ((block && blockTags.test(block[1])) || completeTag.test(line.replace(/\r?\n$/, ""))) blankTerminated = true;
     }
     const hidden = Boolean(end || blankTerminated);
+    if (hidden && htmlRanges) htmlRanges.push([offset, offset + line.length]);
+    offset += line.length;
     result += hidden ? line.replace(/[^\r\n]/g, "") : line;
     if (end?.test(line)) end = null;
   }
@@ -314,12 +316,17 @@ function containsActiveMarkdownLink(value, defined) {
   return false;
 }
 
+function validMarkdownReferenceLabel(label) {
+  return label.length >= 1 && label.length <= 999 && /[^ \t\r\n\f\v]/.test(label) &&
+    ![...label.matchAll(/[\[\]]/g)].some(bracket => markdownLinkOpenerAllowed(label, bracket.index));
+}
+
 function markdownReferenceDefinitions(value, hiddenLines = null) {
   const definitions = new Set();
   const lines = value.split(/\r\n|[\r\n]/);
   for (let index = 0; index < lines.length; index++) {
-    const match = lines[index].match(/^ {0,3}\[([^\]\n]+)\]:([\s\S]*)$/);
-    if (!match) continue;
+    const match = lines[index].match(/^ {0,3}\[((?:\\[\s\S]|[^\]\\\n])+)\]:([\s\S]*)$/);
+    if (!match || !validMarkdownReferenceLabel(match[1])) continue;
     const candidates = [match[2]];
     for (let extra = 1; extra <= 2 && index + extra < lines.length; extra++) {
       if (!/^ {0,3}[^ \t\r\n\f\v]/.test(lines[index + extra])) break;
@@ -373,8 +380,18 @@ function literalAwareVisibleText(value) {
   value = String(value || "");
   const comments = [...value.matchAll(/<!--[\s\S]*?(?:-->|$)/g)].map(match => [match.index, match.index + match[0].length]);
   const inComment = index => comments.some(([start, end]) => index >= start && index < end);
-  const ranges = [];
-  for (const match of value.matchAll(/<(pre|code|script|style|textarea)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>[\s\S]*?(?:<\/\1\s*>|$)/gi)) if (!inComment(match.index)) ranges.push([match.index, match.index + match[0].length]);
+  const htmlRanges = [];
+  withoutAuthorityHtmlBlocks(value, htmlRanges);
+  const rawBlockRanges = htmlRanges.map(range => [...range]);
+  for (const match of value.matchAll(/<(pre|code|script|style|textarea)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>[\s\S]*?(?:<\/\1\s*>|$)/gi)) if (!inComment(match.index)) htmlRanges.push([match.index, match.index + match[0].length]);
+  const mergedHtml = [];
+  for (const range of htmlRanges.sort((a, b) => a[0] - b[0])) {
+    const prior = mergedHtml.at(-1);
+    if (prior && range[0] <= prior[1]) prior[1] = Math.max(prior[1], range[1]);
+    else mergedHtml.push([...range]);
+  }
+  const htmlStarts = new Set(mergedHtml.map(range => range[0]));
+  const ranges = mergedHtml.map(range => [...range]);
   let offset = 0, fence = null, fenceStart = 0;
   for (const line of value.split(/(?<=\n)/)) {
     const content = markdownContainerContent(line);
@@ -386,19 +403,22 @@ function literalAwareVisibleText(value) {
     offset += line.length;
   }
   if (fence) ranges.push([fenceStart, value.length]);
+  const inlineDelimiters = new Map();
   const ticks = /`+/g;
   for (let opening; (opening = ticks.exec(value));) {
     if (!markdownLinkOpenerAllowed(value, opening.index) || inComment(opening.index) || ranges.some(([start, end]) => opening.index >= start && opening.index < end)) continue;
     const closing = new RegExp("(?<!`)" + opening[0] + "(?!`)", "g"); closing.lastIndex = ticks.lastIndex;
     const match = closing.exec(value);
-    if (match) { ranges.push([opening.index, match.index + match[0].length]); ticks.lastIndex = match.index + match[0].length; }
+    if (match) { inlineDelimiters.set(opening.index, opening[0].length); ranges.push([opening.index, match.index + match[0].length]); ticks.lastIndex = match.index + match[0].length; }
   }
   ranges.sort((a, b) => a[0] - b[0]);
   let result = "", cursor = 0;
   for (const [start, end] of ranges) {
     if (end <= cursor) continue;
     if (start > cursor) result += normalizeVisibleFragment(visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor, start)), value));
-    result += value.slice(Math.max(cursor, start), end); cursor = end;
+    const delimiter = inlineDelimiters.get(start) || 0;
+    const content = value.slice(Math.max(cursor, start + delimiter), end - delimiter);
+    result += htmlStarts.has(start) ? normalizeVisibleFragment(rawVisibleHtml(content), rawBlockRanges.some(([begin, finish]) => start >= begin && start < finish)) : content; cursor = end;
   }
   return result + normalizeVisibleFragment(visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor)), value));
 }
@@ -411,8 +431,8 @@ function visibleReviewText(value) {
   return literalAwareVisibleText(value);
 }
 
-function normalizeVisibleFragment(value) {
-  return value.replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (entity, digits) => {
+function normalizeVisibleFragment(value, rawHtml = false) {
+  return value.replace(rawHtml ? /&#(x[0-9a-f]+|[0-9]+);?/gi : /&#(x[0-9a-f]+|[0-9]+);/gi, (entity, digits) => {
     const point = digits[0].toLowerCase() === "x" ? parseInt(digits.slice(1), 16) : Number(digits);
     return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff) ? String.fromCodePoint(point) : entity;
   }).replace(/&(ZeroWidthSpace|NegativeVeryThinSpace|NegativeThinSpace|NegativeMediumSpace|NegativeThickSpace|NoBreak|zwnj|zwj|lrm|rlm|shy);/g, "").replace(/\p{Default_Ignorable_Code_Point}/gu, "").replace(/&(nbsp|NonBreakingSpace|ensp|emsp|emsp13|emsp14|numsp|puncsp|thinsp|ThinSpace|hairsp|VeryThinSpace|MediumSpace|ThickSpace|Tab|NewLine);/g, " ").replace(/[*`~]/g, "").replace(/_/g, " ");
