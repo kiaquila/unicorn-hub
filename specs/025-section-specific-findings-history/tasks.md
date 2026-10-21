@@ -14,3 +14,5 @@ Protocol uniqueness counts actual HTML markers, so ordinary marker-name prose ca
 A resolved finding does not erase a later malformed companion observation: completed companion rows must agree with their own typed SHA and clock. A coherent foreign-head companion remains eligible for historical retirement.
 
 Protocol markers indented by four spaces or a tab are Markdown examples without approval or history authority. Foreign-head finding companions require canonical row coherence before an observation can be retired.
+
+Malformed protocol discovery is case-insensitive and remains pending. Indentation examples are excluded only in leading-envelope context; a later indented snippet cannot erase real findings. Section projection validates known companion-row rendering before removing it.

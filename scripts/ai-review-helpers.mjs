@@ -137,9 +137,7 @@ export function extractCodexPriority(body) {
 export function isCodexReviewSignal(body) {
   const text = String(body || "");
   return /^Codex Review:/i.test(text) ||
-    text.includes("<!-- codex-review-receipt:") ||
-    text.includes("<!-- codex-pull-request-review-summary") ||
-    text.includes("<!-- codex-review-state:");
+    /<!-- codex-(?:review-receipt:|pull-request-review-summary|review-state:)/i.test(text);
 }
 
 function priorBodyFromEditDiff(diff) {
@@ -196,7 +194,7 @@ export function hasCodexReviewSignalInEditDiff(diff) {
 }
 
 export function isCodexStructuredSummarySignal(body) {
-  return /codex-pull-request-review-summary|codex-review-state:/.test(String(body || ""));
+  return /codex-pull-request-review-summary|codex-review-state:/i.test(String(body || ""));
 }
 
 export function hasCodexStructuredSummaryInEditDiff(diff) {
@@ -264,11 +262,14 @@ function isPositiveSummaryRendering(text, headSha, securityActive) {
 
 function parseStructuredCodexSummary(body, headSha, stateOnly = false) {
   // Four-space/tab protocol openers are Markdown examples, never authority.
-  if (/^(?: {4,}| *\t[ \t]*)<!--\s*codex-(?:pull-request-review-summary|review-state:)/m.test(body)) return null;
+  const leadingMarkers = body.match(/^(?:[ \t]*\r?\n)*([ \t]*)<!--\s*codex-(?:pull-request-review-summary|review-state:)/);
+  const leadingState = body.match(/^(?:[ \t]*\r?\n)*[ \t]*<!-- codex-pull-request-review-summary -->[ \t]*\r?\n([ \t]*)<!--\s*codex-review-state:/);
+  if ([leadingMarkers, leadingState].some(match => match && (/\t/.test(match[1]) || match[1].length >= 4))) return null;
   body = body.trim();
+  const protocolBody = body.replace(/^(?: {4,}| *\t[ \t]*)<!--[^\n]*-->[ \t]*$/gm, "");
   const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
-  if (!envelope || (body.match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
-      (body.match(/<!--\s*codex-review-state:/g) || []).length !== 1 || /<!--\s*codex-review-receipt:/.test(body)) return null;
+  if (!envelope || (protocolBody.match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
+      (protocolBody.match(/<!--\s*codex-review-state:/g) || []).length !== 1 || /<!--\s*codex-review-receipt:/.test(body)) return null;
   let state;
   try { state = JSON.parse(envelope[1]); } catch { return null; }
   const keysAre = (value, keys) => value && typeof value === "object" && !Array.isArray(value) &&
@@ -316,7 +317,7 @@ function parseStructuredCodexSummary(body, headSha, stateOnly = false) {
 export function classifyCodexSummaryComment(comment, headSha, requestMarker = null, config = {}) {
   if (!isTrustedReviewLogin(comment?.user?.login, "codex", config)) return null;
   const body = String(comment?.body || "").trim();
-  if (body.includes("codex-pull-request-review-summary") || body.includes("codex-review-state:")) {
+  if (isCodexStructuredSummarySignal(body)) {
     return parseStructuredCodexSummary(String(comment?.body || ""), headSha);
   }
   const receipt = body.startsWith("<!-- codex-review-receipt:v1 -->");
@@ -455,6 +456,11 @@ function structuredNegativeTime(comment, headSha) {
 
 function hasVisibleStructuredConflict(body, section = null) {
   let visible = withoutCodexHelpFooter(String(body).replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
+  if (section) {
+    const other = section === "code_review" ? "| 🛡️ **Security Review** |" : "| 📝 **Code Review** |";
+    const rows = visible.split("\n").filter(line => line.startsWith(other));
+    if (rows.some(line => !/^\| [📝🛡️]+ \*\*(?:Code|Security) Review\*\* \| (?:✅ \*\*Completed\*\*|🔄 \*\*Running\*\*)(?: since)?(?: <relative-time datetime="[^"<>]+">[^<>]+<\/relative-time>)? \| `[a-f0-9]{7,40}` \| (?:Manual request|Automatic review) \|$/.test(line))) return true;
+  }
   if (section) visible = visible.split("\n").filter(line => !line.startsWith(section === "code_review" ? "| 🛡️ **Security Review** |" : "| 📝 **Code Review** |")).join("\n");
   return /<!--\s*codex-/i.test(visible) || containsBlockingSeverity(body, "codex") || containsNegativeReviewState(visible) || /Codex Review:|\bfound\s+(?:a|[1-9])\b/i.test(visible);
 }

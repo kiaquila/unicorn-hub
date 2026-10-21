@@ -952,6 +952,12 @@ test("actual gate requires section completion to retire historical typed finding
   }
   const unknownProtocolClear = { ...historicalResolution, body: historicalResolution.body + "\n<!-- CODEX-unknown -->" };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, unknownProtocolClear, clean, positive], reviews: [native] }).status, 1, "unknown protocol HTML cannot clear historical finding");
+  const uppercaseSignal = { ...negative, body: render(cleanState, time(4)).replaceAll("codex-", "CODEX-"), created_at: time(4), updated_at: time(5) };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, uppercaseSignal, clean, positive], reviews: [native] }).status, 1, "uppercase protocol is observed as pending");
+  const genuineWithExample = { ...oldFinding, body: oldFinding.body + "\n    <!-- codex-review-state:v1 example -->" };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, genuineWithExample, clean, positive], reviews: [native] }).status, 1, "later indented example cannot erase genuine finding");
+  const dangerousCompanion = { ...historicalResolution, body: historicalResolution.body.replace(/\| 📝 \*\*Code Review\*\*[^\n]*/, "| 📝 **Code Review** | ⚠️ Do not merge | `" + headSha.slice(0,7) + "` | Manual request |") };
+  assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, oldFinding, dangerousCompanion, clean, positive], reviews: [native] }).status, 1, "projection cannot erase companion row verdict");
   const codeNegative = { ...negative, body: render(state({ has_any_findings: true, has_unresolved_findings: true })) };
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, positive], reviews: [native] }).status, 1);
   assert.equal(runGate({ deletedEvidence: true, extraComments: [marker, codeNegative, clean] }).status, 0);
