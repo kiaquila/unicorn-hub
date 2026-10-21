@@ -215,9 +215,13 @@ function withoutAuthorityHtmlBlocks(value, htmlRanges = null) {
   // GFM HTML block classes: raw-text/declaration terminators, then blank-line blocks.
   const blockTags = /^(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)$/i;
   const completeTag = /^ {0,3}<(?:\/[a-z][a-z0-9-]*\s*|[a-z][a-z0-9-]*(?:\s+[a-z_:][a-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?)>[ \t]*$/i;
-  let result = "", end = null, blankTerminated = false, offset = 0, detailsDepth = 0;
+  let result = "", end = null, blankTerminated = false, offset = 0, detailsDepth = 0, htmlContainer = null;
   for (const line of value.split(/(?<=\n)/)) {
-    const content = markdownContainerContent(line);
+    const context = markdownContainerContext(line);
+    let content = context.content;
+    if (!end && !blankTerminated && !detailsDepth) htmlContainer = null;
+    if (htmlContainer && (context.quoteDepth < htmlContainer.quoteDepth || (htmlContainer.listIndent && !context.listIndent && !new RegExp("^ {" + htmlContainer.listIndent + "}|^\\t").test(content)))) { end = null; blankTerminated = false; detailsDepth = 0; htmlContainer = null; }
+    if (htmlContainer?.listIndent && !context.listIndent) content = content.replace(new RegExp("^ {" + htmlContainer.listIndent + "}|^\\t"), "");
     if (blankTerminated && /^\s*$/.test(content)) { end = null; blankTerminated = false; }
     if (!end && !blankTerminated) {
       const raw = content.match(/^ {0,3}<(script|pre|style|textarea)(?=[\s>]|$)/i);
@@ -229,6 +233,7 @@ function withoutAuthorityHtmlBlocks(value, htmlRanges = null) {
       else if (/^ {0,3}<![A-Z]/.test(content)) end = />/;
       else if ((block && blockTags.test(block[1])) || completeTag.test(content.replace(/\r?\n$/, ""))) blankTerminated = true;
     }
+    if ((end || blankTerminated) && !htmlContainer) htmlContainer = context;
     const insideDetails = detailsDepth > 0;
     if (htmlRanges === null && !end) for (const tag of content.matchAll(/<\/?details\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi)) {
       if (/^<\//.test(tag[0])) detailsDepth = Math.max(0, detailsDepth - 1); else detailsDepth++;
@@ -243,7 +248,10 @@ function withoutAuthorityHtmlBlocks(value, htmlRanges = null) {
 }
 
 function rawVisibleHtml(value, rawHtml = false) {
-  if (rawHtml) value = value.replace(/<\/[a-z][a-z0-9-]*\s+[^<>]*>/gi, "");
+  if (rawHtml) value = value.replace(/<\/?[a-z][a-z0-9-]*(?=[\s/>])(?:"[^"]*"|'[^']*'|[^'">])*>/gi, tag => {
+    if (/^<img\b/i.test(tag)) return tag.match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)?.slice(1).find(value => value !== undefined) || "";
+    return /^<\/?(?:summary|details)\b/i.test(tag) ? " " : "";
+  });
   return value.replace(/<!--[\s\S]*?(?:-->|$)/g, "").replace(/<(?:\/[a-z][a-z0-9-]*\s*|[a-z][a-z0-9-]*(?:\s+[a-z_:][a-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?)>/gi, tag => {
     if (/^<\/?(?:summary|details)\b/i.test(tag)) return " ";
     if (/^<img\b/i.test(tag)) return tag.match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)?.slice(1).find(value => value !== undefined) || "";
@@ -323,7 +331,7 @@ function containsActiveMarkdownLink(value, defined) {
 }
 
 function validMarkdownReferenceLabel(label) {
-  return !label.startsWith("^") && label.length >= 1 && label.length <= 999 && /[^ \t\r\n\f\v]/.test(label) &&
+  return !(label.startsWith("^") && /^[^\[\]\x00-\x20]+$/.test(label.slice(1))) && label.length >= 1 && label.length <= 999 && /[^ \t\r\n\f\v]/.test(label) &&
     ![...label.matchAll(/[\[\]]/g)].some(bracket => markdownLinkOpenerAllowed(label, bracket.index));
 }
 
@@ -348,8 +356,6 @@ function markdownReferenceDefinitions(value, hiddenLines = null) {
 }
 
 function visibleMarkdownLinkLabels(value, referenceText = value) {
-  const footnoteReferences = referenceText.replace(/^ {0,3}\[\^[^\]\r\n]+\]:[^\r\n]*/gm, "");
-  value = value.replace(/^ {0,3}\[\^([^\]\r\n]+)\]:[^\r\n]*/gm, (line, label) => [...footnoteReferences.matchAll(/\[\^([^\]\r\n]+)\]/g)].some(match => match[1] === label && markdownLinkOpenerAllowed(footnoteReferences, match.index)) ? line : "");
   const definitions = markdownReferenceDefinitions(referenceText);
   const hiddenLines = new Set(); markdownReferenceDefinitions(value, hiddenLines);
   value = value.split(/\r\n|[\r\n]/).map((line, index) => hiddenLines.has(index) ? "" : line).join("\n");
@@ -375,13 +381,49 @@ function visibleMarkdownLinkLabels(value, referenceText = value) {
   return output + value.slice(cursor);
 }
 
+function markdownContainerContext(line) {
+  let quoteDepth = 0;
+  let listIndent = 0;
+  while (true) {
+    const quote = line.match(/^ {0,3}>[ \t]?/);
+    if (quote) { quoteDepth++; line = line.slice(quote[0].length); continue; }
+    const list = line.match(/^ {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]+/);
+    if (list) { listIndent += list[0].length; line = line.slice(list[0].length); continue; }
+    return { content: line, quoteDepth, listIndent };
+  }
+}
+
 function markdownContainerContent(line) {
-  let previous;
-  do {
-    previous = line;
-    line = line.replace(/^ {0,3}>[ \t]?/, "").replace(/^ {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]+/, "");
-  } while (line !== previous);
-  return line;
+  return markdownContainerContext(line).content;
+}
+
+
+function projectFootnoteDefinitions(value, ranges, inlineDelimiters, htmlStarts) {
+  const definitions = [...value.matchAll(/^ {0,3}\[\^([^\[\]\x00-\x20]+)\]:[^\r\n]*(?:(?:\r\n|\r|\n)(?: {2,}|\t)[^\r\n]*)*/gm)]
+    .filter(match => !ranges.some(([start, end]) => match.index >= start && match.index < end));
+  const key = label => label.toLowerCase();
+  const refs = text => {
+    const rendered = visibleMarkdownLinkLabels(rawVisibleHtml(text), activeText);
+    return [...rendered.matchAll(/\[\^([^\[\]\x00-\x20]+)\]/g)].filter(match => markdownLinkOpenerAllowed(rendered, match.index)).map(match => key(match[1]));
+  };
+  for (let i = ranges.length - 1; i >= 0; i--) {
+    const [start, end] = ranges[i];
+    if (!inlineDelimiters.has(start) && !htmlStarts.has(start) && definitions.some(match => start >= match.index && (end <= match.index + match[0].length || /^[\r\n]*$/.test(value.slice(match.index + match[0].length, end))))) ranges.splice(i, 1);
+  }
+  let usage = value;
+  for (const [start, end] of [...ranges].sort((a,b) => b[0]-a[0])) usage = usage.slice(0,start) + usage.slice(start,end).replace(/[^\r\n]/g," ") + usage.slice(end);
+  const activeText = usage;
+  for (const match of [...definitions].reverse()) usage = usage.slice(0,match.index) + match[0].replace(/[^\r\n]/g," ") + usage.slice(match.index+match[0].length);
+  const used = new Set(refs(usage));
+  for (const label of used) {
+    const definition = definitions.find(match => key(match[1]) === label);
+    if (definition) for (const ref of refs(activeText.slice(definition.index, definition.index + definition[0].length).replace(/^ {0,3}\[\^[^\]\r\n]+\]:/,""))) used.add(ref);
+  }
+  for (const match of [...definitions].reverse()) {
+    const replacement = used.has(key(match[1])) ? match[0].replace(/^ {0,3}\[\^[^\]\r\n]+\]:/, prefix => " ".repeat(prefix.length)) : match[0].replace(/[^\r\n]/g," ");
+    value = value.slice(0,match.index) + replacement + value.slice(match.index+match[0].length);
+  }
+  return value;
 }
 
 function literalAwareVisibleText(value) {
@@ -419,6 +461,7 @@ function literalAwareVisibleText(value) {
     const match = closing.exec(value);
     if (match) { inlineDelimiters.set(opening.index, opening[0].length); ranges.push([opening.index, match.index + match[0].length]); ticks.lastIndex = match.index + match[0].length; }
   }
+  value = projectFootnoteDefinitions(value, ranges, inlineDelimiters, htmlStarts);
   ranges.sort((a, b) => a[0] - b[0]);
   let referenceText = value;
   for (const [start, end] of [...ranges].reverse()) referenceText = referenceText.slice(0, start) + referenceText.slice(start, end).replace(/[^\r\n]/g, " ") + referenceText.slice(end);

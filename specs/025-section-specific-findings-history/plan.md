@@ -45,3 +45,5 @@ Presentation warning checks remove raw comments before links, tokenize quoted HT
 Canonical completion rows cannot come from GFM raw HTML blocks, including generic complete-tag blocks. Raw-text terminators and blank-line block boundaries follow the HTML block class; unrelated closing tags cannot expose a row. Escaped Markdown link openers remain literal across inline and defined-reference warning projection.
 
 Keep details element visibility separate from Markdown HTML-block termination. Reuse literal-context masks for footnote references and evaluate each coordinated finding-count segment before applying historical clocks.
+
+Footnote use follows rendered inline contexts, including case-folded transitive references and lazy continuations; link destinations and HTML attributes do not activate notes. Raw HTML visibility ends at the owning quote or list container boundary.

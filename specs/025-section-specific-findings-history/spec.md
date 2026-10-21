@@ -53,3 +53,5 @@ Canonical completion rows cannot come from GFM raw HTML blocks, including generi
 Warning projection removes inline-code delimiters while preserving literal code contents. GFM raw HTML blocks suppress Markdown parsing until their standard terminator, while HTML and entities still render; active Markdown in an About footer requires a blank line after its summary. Only validated reference-definition labels and balanced destinations can hide definition text.
 
 Collapsed details remain non-authoritative across HTML-block blank lines. Warning projection preserves referenced footnotes and container raw HTML, omits unused footnotes, and respects the renderer’s 32-level bare-destination limit. Coordinated and existential issue reports retain the observation clock.
+
+Footnote use follows rendered inline contexts, including case-folded transitive references and lazy continuations; link destinations and HTML attributes do not activate notes. Raw HTML visibility ends at the owning quote or list container boundary.
