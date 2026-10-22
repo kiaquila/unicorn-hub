@@ -54,3 +54,5 @@ Reference identity uses Unicode full case folding. Explicit article-based bug re
 - [x] Verify actual assertion-scoped negation, coordinated absence, postposed zero, modified finding subjects and neutral meta-word mentions through the native gate.
 - [x] Preserve observation clocks for appended About-footer findings and malformed FALSE/FALSE companion triggers while retaining genuine TRUE-companion recovery.
 - [x] Verify indented-code to type-7 HTML transitions without changing valid paragraph continuations.
+
+Predicate-nominal findings reuse local negation and canonical recovery guards. Negative visible-text projection preserves renderer-confirmed block boundaries, including center, so a preceding absence word cannot negate a separate rendered finding. Syntactic HTML block detection remains distinct from sanitized rendered layout.

@@ -61,3 +61,5 @@ Raw HTML container continuation replays quote and list frames in their original 
 Reference identity uses Unicode full case folding. Explicit article-based bug reports retain the observed edit time under the existing finding statement guard.
 
 Finding assertions bind negation and resolution to the affected noun phrase. Explicit nonzero counts remain blocking even beside a postposed zero assertion; coordinated absence and resolved findings stay neutral. Indented code ends paragraph context before a following type-7 HTML block. A typed FALSE/FALSE companion must retain its original canonical trigger; only an explicit TRUE companion finding may isolate its own warning trigger for another section’s negative clock.
+
+Predicate-nominal findings reuse local negation and canonical recovery guards. Negative visible-text projection preserves renderer-confirmed block boundaries, including center, so a preceding absence word cannot negate a separate rendered finding. Syntactic HTML block detection remains distinct from sanitized rendered layout.

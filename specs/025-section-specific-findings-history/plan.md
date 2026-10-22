@@ -53,3 +53,5 @@ Raw HTML container continuation replays quote and list frames in their original 
 Reference identity uses Unicode full case folding. Explicit article-based bug reports retain the observed edit time under the existing finding statement guard.
 
 Use the shared assertion predicate for reporting, observation-time invalidation and historical clearing guards. Keep explicit determiner/modifier subjects separate from bare noun mentions, and preserve standard block context for indented code. Validate original clean-companion triggers before any negative-only projection.
+
+Predicate-nominal findings reuse local negation and canonical recovery guards. Negative visible-text projection preserves renderer-confirmed block boundaries, including center, so a preceding absence word cannot negate a separate rendered finding. Syntactic HTML block detection remains distinct from sanitized rendered layout.
