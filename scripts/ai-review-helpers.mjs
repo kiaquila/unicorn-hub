@@ -260,7 +260,7 @@ function withoutAuthorityHtmlBlocks(value, htmlRanges = null) {
     if (isMarkdownTableBoundary(previousContent, content)) tableActive = true;
     else if (tableActive && !content.includes("|")) tableActive = false;
     // Type 7 cannot interrupt a paragraph; other HTML block classes can.
-    paragraphFrames = tableActive || hidden || /^\s*$/.test(content) || /^ {0,3}(?:#{1,6}(?:[ \t]|$)|`{3,}|~{3,}|(?:[-*_][ \t]*){3,}$)/.test(content) ? null : context.frames;
+    paragraphFrames = (!paragraphFrames && indentationColumns(content.match(/^[ \t]*/)[0]) >= 4) || tableActive || hidden || /^\s*$/.test(content) || /^ {0,3}(?:#{1,6}(?:[ \t]|$)|`{3,}|~{3,}|(?:[-*_][ \t]*){3,}$)/.test(content) ? null : context.frames;
     previousContent = content;
     if (hidden && htmlRanges) htmlRanges.push([offset, offset + line.length]);
     offset += line.length;
@@ -270,12 +270,14 @@ function withoutAuthorityHtmlBlocks(value, htmlRanges = null) {
   return result;
 }
 
-function rawVisibleHtml(value, rawHtml = false) {
+function rawVisibleHtml(value, rawHtml = false, blockBoundaries = false) {
   if (rawHtml) value = value.replace(/<\/?[a-z][a-z0-9-]*(?=[\s/>])(?:"[^"]*"|'[^']*'|[^'">])*>/gi, tag => {
     if (/^<img\b/i.test(tag)) return tag.match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)?.slice(1).find(value => value !== undefined) || "";
+    if (blockBoundaries && /^<\/?(?:address|article|aside|blockquote|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|menu|nav|ol|p|pre|section|summary|table|tbody|td|tfoot|th|thead|tr|ul|br)(?:\s|\/?>)/i.test(tag)) return "\n\n";
     return /^<\/?(?:summary|details)\b/i.test(tag) ? " " : "";
   });
   return withoutHtmlComments(value).replace(/<(?:\/[a-z][a-z0-9-]*\s*|[a-z][a-z0-9-]*(?:\s+[a-z_:][a-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?)>/gi, tag => {
+    if (blockBoundaries && /^<\/?(?:address|article|aside|blockquote|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|menu|nav|ol|p|pre|section|summary|table|tbody|td|tfoot|th|thead|tr|ul|br)(?:\s|\/?>)/i.test(tag)) return "\n\n";
     if (/^<\/?(?:summary|details)\b/i.test(tag)) return " ";
     if (/^<img\b/i.test(tag)) return tag.match(/\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)?.slice(1).find(value => value !== undefined) || "";
     return "";
@@ -545,12 +547,12 @@ function literalAwareVisibleText(value) {
   let result = "", cursor = 0;
   for (const [start, end] of ranges) {
     if (end <= cursor) continue;
-    if (start > cursor) result += normalizeVisibleFragment(visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor, start)), referenceText));
+    if (start > cursor) result += normalizeVisibleFragment(visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor, start), false, true), referenceText));
     const delimiter = inlineDelimiters.get(start) || 0;
     const content = value.slice(Math.max(cursor, start + delimiter), end - delimiter);
-    result += htmlStarts.has(start) ? normalizeVisibleFragment(rawVisibleHtml(content, rawBlockRanges.some(([begin, finish]) => start >= begin && start < finish)), rawBlockRanges.some(([begin, finish]) => start >= begin && start < finish)) : content; cursor = end;
+    result += htmlStarts.has(start) ? normalizeVisibleFragment(rawVisibleHtml(content, rawBlockRanges.some(([begin, finish]) => start >= begin && start < finish), true), rawBlockRanges.some(([begin, finish]) => start >= begin && start < finish)) : content; cursor = end;
   }
-  return result + normalizeVisibleFragment(visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor)), referenceText));
+  return result + normalizeVisibleFragment(visibleMarkdownLinkLabels(rawVisibleHtml(value.slice(cursor), false, true), referenceText));
 }
 
 function renderedLabelAmbiguityText(value) {
@@ -560,29 +562,37 @@ function renderedLabelAmbiguityText(value) {
 function hasPositiveFindingStatement(text) {
   const paragraphs = String(text).replace(/\r\n/g, "\n").split(/[\r\n][ \t\f\v]*[\r\n]/);
   return paragraphs.some((paragraph) => paragraph.replace(/[ \t\r\n\f\v]+/g, " ")
+    .replace(/\b(no|zero) +((?:issues?|findings?|problems?|bugs?|vulnerabilit(?:y|ies))) +(?:and|or) +(?:issues?|findings?|problems?|bugs?|vulnerabilit(?:y|ies))\b/giu, "$1 $2")
+    .replace(/\b(no|zero) +(?:(?!(?:issues?|findings?|problems?|bugs?|vulnerabilit(?:y|ies)|is|are|was|were|has|have|been|get|gets|got|a|an|one|some|several|multiple)\b)[\p{L}-]+ +)+(?:and|or) +(?:(?!(?:issues?|findings?|problems?|bugs?|vulnerabilit(?:y|ies)|is|are|was|were|has|have|been|get|gets|got|a|an|one|some|several|multiple)\b)[\p{L}-]+ +)*((?:issues?|findings?|problems?|bugs?|vulnerabilit(?:y|ies))\b)/giu, "$1 $2")
     .split(/[.!?;]|(?<![0-9]),|,(?![0-9])|\b(?:and|or|but|however|yet)\b/i).some((clause) => {
       // Negating a resolution preserves the finding, unlike negating its noun.
-      clause = clause.replace(/\b(?:not|never) +(?:been +)?(?:resolved|fixed|addressed|cleared|removed|closed)\b|\b(?:is|are|was|were|has|have)n['’]t +(?:been +)?(?:resolved|fixed|addressed|cleared|removed|closed)\b/gi, " unresolved ");
-      const noun = "(?<![\\p{L}\\p{N}_\\p{Pd}])(?:issues?|findings?|problems?|bugs?)(?![\\p{L}\\p{N}_\\p{Pd}])";
-      const isAffirmative = (match) => {
+      clause = clause.replace(/\b(?:not|never) +(?:(?:be|been|being|get|gets|got|gotten|getting) +)*(?:resolved|fixed|addressed|cleared|removed|closed|eliminated)\b|\b(?:is|are|was|were|has|have|had)n['’]t +(?:(?:be|been|being|get|gets|got|gotten|getting) +)*(?:resolved|fixed|addressed|cleared|removed|closed|eliminated)\b/gi, " unresolved ");
+      const noun = "(?<![\\p{L}\\p{N}_\\p{Pd}])(?:issues?|findings?|problems?|bugs?|vulnerabilit(?:y|ies))(?![\\p{L}\\p{N}_\\p{Pd}])";
+      const headingNoun = noun.replace("(?![\\p{L}\\p{N}_\\p{Pd}])", "(?![\\p{L}\\p{N}_-])");
+      const isAffirmative = (match, counted = false) => {
         const before = clause.slice(0, match.index);
         const after = clause.slice(match.index + match[0].length);
+        if (!counted && /^ *(?::|[–—-]) *(?:no|none|zero|0+(?:,000)*) *$/iu.test(after)) return false;
         // Scope negation to this construction, not an unrelated earlier clause.
         if (/\b(?:no|zero|not|without|never|cannot)\b|\b[\p{L}]+n['’]t\b/iu.test(match[0])) return false;
-        if (/(?:\b(?:no|zero|not|without|never|cannot)|\b[\p{L}]+n['’]t)(?: +(?:be|been|being|considered))* +$/iu.test(before)) return false;
-        if (/\b(?:resolved|fixed|addressed|cleared|removed|closed)\b/i.test(match[0])) return false;
-        if (/^ +(?:(?:is|are|was|were|has|have|been|now) +)*(?:resolved|fixed|addressed|cleared|removed|closed)\b/i.test(after)) return false;
+        if (/(?:\b(?:no|zero|not|without|never|cannot)|\b[\p{L}]+n['’]t)(?: +(?:be|been|being|get|gets|got|gotten|getting|considered))* +$/iu.test(before)) return false;
+        if (/\b(?:resolved|fixed|addressed|cleared|removed|closed|eliminated)\b/i.test(match[0])) return false;
+        if (/^(?: +| *(?::|[–—-]) *)(?:(?:that|which) +)?(?:(?:is|are|was|were|has|have|had|be|been|being|get|gets|got|gotten|getting|now) +)*(?:resolved|fixed|addressed|cleared|removed|closed|eliminated)\b/i.test(after)) return false;
         return true;
       };
       const counts = [...clause.matchAll(new RegExp("(?<![\\p{L}\\p{N}_])[*_~`]*([0-9]+(?:,[0-9]{3})*)[*_~`]* +(?:[\\p{L}-]+ +)*?" + noun, "giu"))];
-      if (counts.some((match) => !/^0+$/.test(match[1].replaceAll(",", "")) && isAffirmative(match))) return true;
+      if (counts.some((match) => !/^0+$/.test(match[1].replaceAll(",", "")) && isAffirmative(match, true))) return true;
       const reporting = clause.replace(new RegExp("(?<![\\p{L}\\p{N}_])[*_~`]*0+(?:,000)*[*_~`]* +(?:[\\p{L}-]+ +)*?" + noun, "giu"), (match) => " ".repeat(match.length));
       const patterns = [
+        "(?<![\\p{L}\\p{N}_] )\\b(?:(?:a|an|one|some|several|multiple) +)?(?:(?!(?:the|this|that|these|those)\\b)[\\p{L}-]+ +)*?" + headingNoun + "(?= *(?::|[–—-]) *[^ \\t])",
         "\\b(?:found|[\\p{L}]+ed) +(?:[\\p{L}-]+ +)*?" + noun,
-        "(?:(?:a|an|one|some|several|multiple|[0-9]+) +)?" + noun + " +(?:(?:is|are|was|were|has|have|been) +)*(?:found|[\\p{L}]+ed|remains?|exists?)\\b",
-        "\\bthere +(?:is|are) +(?:[\\p{L}-]+ +)*?" + noun
+        "(?:\\b(?:a|an|one|some|several|multiple|[0-9]+) +(?:[\\p{L}-]+ +)*?" + noun + "|\\bthe +" + noun + "|(?<![\\p{L}\\p{N}_] )" + noun + ")" + " +(?:(?:is|are|was|were|has|have|had|be|been|being|get|gets|got|gotten|getting) +)*(?:found|[\\p{L}]+ed|remains?|exists?)\\b",
+        "\\bthere +(?:is|are) +(?:[\\p{L}-]+ +)*?" + noun,
+        "\\b(?:a|an) +(?:[\\p{L}-]+ +)*?" + noun + " +(?:(?:is|are|was|were) +[\\p{L}-]+|(?!(?:is|was|has)\\b)[\\p{L}]+s)\\b",
+        "\\b(?:this|that|these|those) +" + noun + " +(?:(?:is|are|was|were) +[\\p{L}-]+|(?!(?:is|was|has)\\b)[\\p{L}]+s)\\b",
+        "(?<![\\p{L}\\p{N}_] )(?:issues|findings|problems|bugs|vulnerabilities)\\b +(?:(?:is|are|was|were) +[\\p{L}-]+|(?!(?:is|was|has)\\b)[\\p{L}]+)\\b"
       ];
-      return patterns.some((pattern) => [...reporting.matchAll(new RegExp(pattern, "giu"))].some(isAffirmative));
+      return patterns.some((pattern) => [...reporting.matchAll(new RegExp(pattern, "giu"))].some((match) => isAffirmative(match)));
     }));
 }
 
@@ -974,7 +984,7 @@ function negativeSectionRow(body, value, label, observed) {
   if (value.status !== "completed") return null;
   const rows = String(body).split(/\r?\n/).filter(line => line.includes("**" + label + "**"));
   if (rows.length !== 1) return null;
-  const row = rows[0], structural = row.replace(/^(\|[^|]*\|[^|]+\|\s*`[a-f0-9]{7,40}`\s*\|)[^|\r\n]*(\|\s*)$/, "$1 Manual request $2");
+  const row = rows[0], structural = (value.has_any_findings === true || value.has_unresolved_findings === true) ? row.replace(/^(\|[^|]*\|[^|]+\|\s*`[a-f0-9]{7,40}`\s*\|)[^|\r\n]*(\|\s*)$/, "$1 Manual request $2") : row;
   const completed = codeReviewCompletionTime(String(body).replace(row, structural), label, value.commit_sha);
   return Number.isFinite(completed) && completed <= observed + 999 ? row : null;
 }

@@ -50,3 +50,7 @@ Footnote use follows rendered inline contexts, including case-folded transitive 
 Raw HTML container continuation replays quote and list frames in their original order. Affirmative article-based finding statements stay within paragraph boundaries and preserve explicit negation.
 
 Reference identity uses Unicode full case folding. Explicit article-based bug reports retain the observed edit time under the existing finding statement guard.
+
+- [x] Verify actual assertion-scoped negation, coordinated absence, postposed zero, modified finding subjects and neutral meta-word mentions through the native gate.
+- [x] Preserve observation clocks for appended About-footer findings and malformed FALSE/FALSE companion triggers while retaining genuine TRUE-companion recovery.
+- [x] Verify indented-code to type-7 HTML transitions without changing valid paragraph continuations.
