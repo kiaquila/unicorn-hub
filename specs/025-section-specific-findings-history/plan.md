@@ -57,3 +57,5 @@ Use the shared assertion predicate for reporting, observation-time invalidation 
 Predicate-nominal findings reuse local negation and canonical recovery guards. Negative visible-text projection preserves renderer-confirmed block boundaries, including center, so a preceding absence word cannot negate a separate rendered finding. Syntactic HTML block detection remains distinct from sanitized rendered layout.
 
 The finding statement checks preserve singular word counts, quantified plural subjects, auxiliary-qualified empty statuses, and resolution-qualified exceptions. Rendered line breaks remain within a paragraph for finding statements. Regression coverage includes historical edits and genuine canonical recovery.
+
+Explicit absence of pending or unresolved finding subjects remains neutral; independent pending/failed evidence remains blocking. Defect and regression assertions share the existing finding category and canonical recovery checks.
