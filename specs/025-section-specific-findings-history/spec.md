@@ -69,3 +69,5 @@ The finding statement checks preserve singular word counts, quantified plural su
 Explicit absence of pending or unresolved finding subjects remains neutral; independent pending/failed evidence remains blocking. Defect and regression assertions share the existing finding category and canonical recovery checks.
 
 Canonical completion authority cannot predate the containing comment creation second. An invalid historical finding clock falls back to its observed update time; only a genuinely newer section completion can retire it.
+
+Present-tense reporting preserves quantified findings. Complete prevention or mitigation statements are neutral; a qualifying unresolved or recurring finding remains blocking.
