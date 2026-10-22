@@ -55,3 +55,5 @@ Reference identity uses Unicode full case folding. Explicit article-based bug re
 Use the shared assertion predicate for reporting, observation-time invalidation and historical clearing guards. Keep explicit determiner/modifier subjects separate from bare noun mentions, and preserve standard block context for indented code. Validate original clean-companion triggers before any negative-only projection.
 
 Predicate-nominal findings reuse local negation and canonical recovery guards. Negative visible-text projection preserves renderer-confirmed block boundaries, including center, so a preceding absence word cannot negate a separate rendered finding. Syntactic HTML block detection remains distinct from sanitized rendered layout.
+
+The finding statement checks preserve singular word counts, quantified plural subjects, auxiliary-qualified empty statuses, and resolution-qualified exceptions. Rendered line breaks remain within a paragraph for finding statements. Regression coverage includes historical edits and genuine canonical recovery.
