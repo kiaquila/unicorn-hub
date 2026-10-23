@@ -71,3 +71,5 @@ Explicit absence of pending or unresolved finding subjects remains neutral; inde
 Canonical completion authority cannot predate the containing comment creation second. An invalid historical finding clock falls back to its observed update time; only a genuinely newer section completion can retire it.
 
 Present-tense reporting preserves quantified findings. Complete prevention or mitigation statements are neutral; a qualifying unresolved or recurring finding remains blocking.
+
+Active modal authentication-bypass assertions are findings; informational mentions or discussions of findings alone do not assert an unresolved finding.

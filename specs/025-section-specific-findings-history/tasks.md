@@ -62,3 +62,5 @@ The finding statement checks preserve singular word counts, quantified plural su
 Explicit absence of pending or unresolved finding subjects remains neutral; independent pending/failed evidence remains blocking. Defect and regression assertions share the existing finding category and canonical recovery checks.
 
 - [x] Verify quantified present-tense findings, complete prevention/mitigation, and qualified recurring findings through actual edited-history and canonical recovery controls.
+
+- [x] Cover active authentication bypass and neutral mention/discussion in fresh, edited-history, and canonical recovery gate scenarios.

@@ -61,3 +61,5 @@ The finding statement checks preserve singular word counts, quantified plural su
 Explicit absence of pending or unresolved finding subjects remains neutral; independent pending/failed evidence remains blocking. Defect and regression assertions share the existing finding category and canonical recovery checks.
 
 Reuse the shared candidate-local finding predicate for productive reporting and completed remediation. Keep quantified transitive reporting and retain qualifier/recurrence checks.
+
+Keep active authentication-bypass predicates and informational mention guards in the shared candidate-local classifier; preserve typed section clocks and request binding.

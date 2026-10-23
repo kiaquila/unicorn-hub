@@ -503,7 +503,7 @@ function projectFootnoteDefinitions(value, ranges, inlineDelimiters, htmlStarts)
   return value;
 }
 
-function literalAwareVisibleText(value) {
+function literalAwareVisibleText(value, structuralOnly = false) {
   value = String(value || "");
   const comments = [];
   for (let start = value.indexOf("<!--"); start >= 0;) {
@@ -542,6 +542,10 @@ function literalAwareVisibleText(value) {
     const match = closing.exec(value);
     if (match) { inlineDelimiters.set(opening.index, opening[0].length); ranges.push([opening.index, match.index + match[0].length]); ticks.lastIndex = match.index + match[0].length; }
   }
+  if (structuralOnly) {
+    for (const [start, end] of [...comments, ...ranges.filter(([start]) => !htmlStarts.has(start))].sort((a, b) => b[0] - a[0])) value = value.slice(0, start) + value.slice(start, end).replace(/[^\r\n]/g, " ") + value.slice(end);
+    return value;
+  }
   value = projectFootnoteDefinitions(value, ranges, inlineDelimiters, htmlStarts);
   ranges.sort((a, b) => a[0] - b[0]);
   let referenceText = value;
@@ -571,7 +575,7 @@ function hasPositiveFindingStatement(text) {
     .split(/[.!?;]|(?<![0-9]),|,(?![0-9])|\b(?:and|or|but|however|yet)\b/i).some((clause) => {
       // Negating a resolution preserves the finding, unlike negating its noun.
       clause = clause.replace(/\b(?:not|never) +(?:(?:be|been|being|get|gets|got|gotten|getting) +)*(?:resolved|fixed|addressed|cleared|removed|closed|eliminated)\b|\b(?:is|are|was|were|has|have|had)n['’]t +(?:(?:be|been|being|get|gets|got|gotten|getting) +)*(?:resolved|fixed|addressed|cleared|removed|closed|eliminated)\b/gi, " unresolved ");
-      const noun = "(?<![\\p{L}\\p{N}_\\p{Pd}])(?:issues?|findings?|problems?|bugs?|flaws?|defects?|regressions?|vulnerabilit(?:y|ies)|security +risks?)(?![\\p{L}\\p{N}_\\p{Pd}])(?! +(?:tests?|reports?)\\b)";
+      const noun = "(?<![\\p{L}\\p{N}_\\p{Pd}])(?:issues?|findings?|problems?|bugs?|flaws?|defects?|regressions?|vulnerabilit(?:y|ies)|security +risks?)(?![\\p{L}\\p{N}_\\p{Pd}])(?! +(?:tests?|reports?|fix(?:es)?)\\b)";
       const headingNoun = noun.replace("(?![\\p{L}\\p{N}_\\p{Pd}])", "(?![\\p{L}\\p{N}_-])");
       const isAffirmative = (match, counted = false) => {
         const before = clause.slice(0, match.index);
@@ -584,6 +588,8 @@ function hasPositiveFindingStatement(text) {
         const predicate = matchedNoun ? match[0].slice(matchedNoun.index + matchedNoun[0].length) : match[0];
         const modifiers = matchedNoun ? match[0].slice(0, matchedNoun.index) : "";
         const tail = predicate + after;
+        // An informational mention does not assert that the named finding exists.
+        if (/\b(?:mention(?:s|ed|ing)?|discuss(?:es|ed|ing)?) +/iu.test(modifiers)) return false;
         // Absence/resolution is evidence only for an unqualified completed assertion.
         if (/^ +(?:do|does|did) +not +(?:exist|exists|remain|remains) *$/iu.test(tail)) return false;
         if (/\b(?:resolved|fixed|addressed|cleared|removed|closed|eliminated) +$/iu.test(before)) return false;
@@ -603,6 +609,7 @@ function hasPositiveFindingStatement(text) {
       const patterns = [
         "\\b(?:is|are) +vulnerable +to\\b",
         "\\bauthentication +(?:can|could|may|might) +be +bypassed\\b",
+        "\\b(?:can|could|may|might) +bypass +authentication\\b",
         "\\b(?:most|every|numerous) +(?:[\\p{L}-]+ +)*?" + noun + " +(?:(?:is|are|was|were|has|have|had|be|been|being|get|gets|got|gotten|getting|still) +)*(?:found|[\\p{L}]+ed|remains?|exists?)\\b",
           "(?<![\\p{L}\\p{N}_] )\\b(?:the +)?(?:(?:critical|security|authentication|code|blocking|high|medium|low|major|minor|unresolved|open|new) +)+" + noun + " +(?:(?:is|are|was|were|has|have|had|be|been|being|get|gets|got|gotten|getting|still) +)*(?:(?:is|are|was|were) +[\\p{L}]+|found|[\\p{L}]+ed|[\\p{L}]+s|remains?|exists?)\\b",
         "\\b(?:a|an) +(?:[\\p{L}-]+ +)*?" + noun + " +(?:(?:can|could|may|might|will|would|must|should) +[\\p{L}-]+|[\\p{L}]+s)\\b",
@@ -717,18 +724,22 @@ function activeMarkdownEmphasis(text) {
   }
   for (const match of text.matchAll(/\*+|_+|~{2,}/g)) {
     if (escaped(match.index)) continue;
-    const before = [...text.slice(0, match.index)].at(-1) || "";
-    const after = [...text.slice(match.index + match[0].length)][0] || "";
+    const beforeIndex = match.index - (match.index >= 2 && /[\uDC00-\uDFFF]/.test(text[match.index - 1]) && /[\uD800-\uDBFF]/.test(text[match.index - 2]) ? 2 : 1);
+    const before = beforeIndex >= 0 ? String.fromCodePoint(text.codePointAt(beforeIndex)) : "";
+    const afterIndex = match.index + match[0].length;
+    const after = afterIndex < text.length ? String.fromCodePoint(text.codePointAt(afterIndex)) : "";
     const left = !whitespace(after) && (!punctuation(after) || whitespace(before) || punctuation(before));
     const right = !whitespace(before) && (!punctuation(before) || whitespace(after) || punctuation(after));
     runs.push({ character: match[0][0], start: match.index, length: match[0].length, usedOpen: 0, usedClose: 0,
       open: match[0][0] === "_" ? left && (!right || punctuation(before)) : left,
       close: match[0][0] === "_" ? right && (!left || punctuation(after)) : right });
   }
+  const eligibleOpeners = new Map();
   for (let closeIndex = 0; closeIndex < runs.length; closeIndex += 1) {
     const closer = runs[closeIndex];
-    if (!closer.close) continue;
-    for (let openIndex = closeIndex - 1; openIndex >= 0 && closer.length - closer.usedClose >= (closer.character === "~" ? 2 : 1); openIndex -= 1) {
+    const candidates = eligibleOpeners.get(closer.character) || [];
+    if (closer.close) for (let candidate = candidates.length - 1; candidate >= 0 && closer.length - closer.usedClose >= (closer.character === "~" ? 2 : 1); candidate -= 1) {
+      const openIndex = candidates[candidate];
       const opener = runs[openIndex];
       if (!opener.open || opener.character !== closer.character || /\r?\n[ \t\f\v]*\r?\n/.test(text.slice(opener.start, closer.start))) continue;
       let availableOpen = opener.length - opener.usedOpen - opener.usedClose;
@@ -746,6 +757,10 @@ function activeMarkdownEmphasis(text) {
         for (let nested = openIndex + 1; nested < closeIndex; nested += 1) { runs[nested].open = false; runs[nested].close = false; }
         availableOpen -= count; availableClose -= count;
       }
+    }
+    if (closer.open) {
+      candidates.push(closeIndex);
+      eligibleOpeners.set(closer.character, candidates);
     }
   }
   return text.split("").map((character, index) => removed.has(index) ? "" : character).join("");
@@ -985,10 +1000,10 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
 // time alone cannot prove that code review ran for this particular request.
 function codeReviewCompletionTime(body, section = "Code Review", headSha = null, createdAt = null) {
   // Rendered-equivalent duplicate labels are ambiguity, never new clock authority.
-  const rawRows = String(body).split(/\r?\n/).filter(line => new RegExp("^ {0,3}\\|[^|]*\\b" + section + "\\s*\\|", "i").test(renderedLabelAmbiguityText(line)));
+  const rawRows = String(body).split(/\r?\n/).filter(line => new RegExp("^ {0,3}\\|[^|]*\\b" + section + "\\b", "i").test(renderedLabelAmbiguityText(line)));
   if (rawRows.length !== 1 || [...rawRows[0].matchAll(/<!--(?:>|->|[\s\S]*?(?:--!?>|$))/g)].some(comment => [...comment[0].matchAll(/\|/g)].some(pipe => markdownLinkOpenerAllowed(comment[0], pipe.index)))) return NaN;
   // A rendered code example cannot supply a canonical completion row.
-  if ([...String(body).matchAll(/<summary\b(?:[^"'<>]|"[^"]*"|'[^']*')*>([\s\S]*?)<\/summary>/gi)].some(match => renderedLabelAmbiguityText(match[1]).includes(section))) return NaN;
+  if ([...literalAwareVisibleText(body, true).matchAll(/<summary\b(?:[^"'<>]|"[^"]*"|'[^']*')*>([\s\S]*?)<\/summary>/gi)].some(match => renderedLabelAmbiguityText(match[1]).includes(section))) return NaN;
   body = withoutMarkdownFences(withoutAuthorityHtmlBlocks(String(body).replace(/<!--(?:>|->|[\s\S]*?(?:--!?>|$))/g, comment => comment.replace(/[^\r\n]/g, "")))).replace(/^ {1,3}(?=\|)/gm, "");
   const label = section === "Code Review" ? "📝 \\*\\*Code Review\\*\\*" : "🛡️ \\*\\*Security Review\\*\\*";
   const rowPattern = new RegExp('^\\| ' + label + ' \\| ✅ \\*\\*Completed\\*\\* <relative-time datetime="([^"<>]+)">([^<>]+)</relative-time> \\| `([a-f0-9]{7,40})` \\| (?:Manual request|Automatic review) \\|$', "gm");
