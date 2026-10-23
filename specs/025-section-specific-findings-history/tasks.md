@@ -64,3 +64,5 @@ Explicit absence of pending or unresolved finding subjects remains neutral; inde
 - [x] Verify quantified present-tense findings, complete prevention/mitigation, and qualified recurring findings through actual edited-history and canonical recovery controls.
 
 - [x] Cover active authentication bypass and neutral mention/discussion in fresh, edited-history, and canonical recovery gate scenarios.
+
+- [x] Verify recurrent mention and incomplete fix statements, qualified negated subjects, able-to and subjectless bypass reports, and protected missing-companion history through the actual gate.

@@ -73,3 +73,5 @@ Canonical completion authority cannot predate the containing comment creation se
 Present-tense reporting preserves quantified findings. Complete prevention or mitigation statements are neutral; a qualifying unresolved or recurring finding remains blocking.
 
 Active modal authentication-bypass assertions are findings; informational mentions or discussions of findings alone do not assert an unresolved finding.
+
+Informational mentions and remediation compounds stay neutral only while their own finding is not reaffirmed. Active authentication bypass includes modal, able-to and subjectless assertions, with qualified subject negation and completed resolution remaining neutral.

@@ -63,3 +63,5 @@ Explicit absence of pending or unresolved finding subjects remains neutral; inde
 Reuse the shared candidate-local finding predicate for productive reporting and completed remediation. Keep quantified transitive reporting and retain qualifier/recurrence checks.
 
 Keep active authentication-bypass predicates and informational mention guards in the shared candidate-local classifier; preserve typed section clocks and request binding.
+
+Use the shared candidate-local recurrence check before informational mention or fix-compound exemptions. Include the optional qualified subject in active bypass matching without changing typed clocks or canonical row authority.
