@@ -1,0 +1,225 @@
+{
+  "sha": "2667f79cd7676ff331730cabf661d38dbbcddb0d",
+  "requestMarker": {
+    "agent": "codex",
+    "sha": "2667f79cd7676ff331730cabf661d38dbbcddb0d",
+    "requestedAt": "2026-10-15T01:00:00Z",
+    "sourceCommentCreatedAt": "2026-10-15T01:00:00Z"
+  },
+  "lifecycle": {
+    "id": 920,
+    "user": {
+      "login": "chatgpt-codex-connector[bot]",
+      "type": "Bot"
+    },
+    "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":null,\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":null}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T02:00:00Z\">2026-10-15T02:00:00Z</relative-time> | `2667f79` | Manual request |",
+    "created_at": "2026-10-15T02:00:00Z",
+    "updated_at": "2026-10-15T03:00:00Z"
+  },
+  "codeClear": {
+    "id": 921,
+    "user": {
+      "login": "chatgpt-codex-connector[bot]",
+      "type": "Bot"
+    },
+    "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":true,\"has_unresolved_findings\":true,\"status\":\"completed\"}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T04:00:00Z\">2026-10-15T04:00:00Z</relative-time> | `2667f79` | Manual request |\n| \ud83d\udd12 **Security Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T04:00:00Z\">2026-10-15T04:00:00Z</relative-time> | `2667f79` | Manual request |",
+    "created_at": "2026-10-15T04:00:00Z",
+    "updated_at": "2026-10-15T04:00:00Z"
+  },
+  "securityClear": {
+    "id": 922,
+    "user": {
+      "login": "chatgpt-codex-connector[bot]",
+      "type": "Bot"
+    },
+    "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T02:00:00Z\">2026-10-15T02:00:00Z</relative-time> | `2667f79` | Manual request |\n| \ud83d\udd12 **Security Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T05:00:00Z\">2026-10-15T05:00:00Z</relative-time> | `2667f79` | Manual request |",
+    "created_at": "2026-10-15T02:00:00Z",
+    "updated_at": "2026-10-15T05:00:00Z"
+  },
+  "receipt": {
+    "id": 923,
+    "user": {
+      "login": "chatgpt-codex-connector[bot]",
+      "type": "Bot"
+    },
+    "created_at": "2026-10-15T06:00:00Z",
+    "updated_at": "2026-10-15T06:00:00Z",
+    "body": "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues. :rocket:\n\n**Reviewed commit:** `2667f79cd7`"
+  },
+  "equalCodeClear": {
+    "id": 924,
+    "user": {
+      "login": "chatgpt-codex-connector[bot]",
+      "type": "Bot"
+    },
+    "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":true,\"has_unresolved_findings\":true,\"status\":\"completed\"}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T03:00:00Z\">2026-10-15T03:00:00Z</relative-time> | `2667f79` | Manual request |\n| \ud83d\udd12 **Security Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T03:00:00Z\">2026-10-15T03:00:00Z</relative-time> | `2667f79` | Manual request |",
+    "created_at": "2026-10-15T03:00:00Z",
+    "updated_at": "2026-10-15T03:00:00Z"
+  },
+  "cases": [
+    {
+      "name": "security-finding-uncleared",
+      "comments": [
+        {
+          "id": 920,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":null,\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":null}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T02:00:00Z\">2026-10-15T02:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T02:00:00Z",
+          "updated_at": "2026-10-15T03:00:00Z"
+        },
+        {
+          "id": 921,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":true,\"has_unresolved_findings\":true,\"status\":\"completed\"}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T04:00:00Z\">2026-10-15T04:00:00Z</relative-time> | `2667f79` | Manual request |\n| \ud83d\udd12 **Security Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T04:00:00Z\">2026-10-15T04:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T04:00:00Z",
+          "updated_at": "2026-10-15T04:00:00Z"
+        },
+        {
+          "id": 923,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "created_at": "2026-10-15T06:00:00Z",
+          "updated_at": "2026-10-15T06:00:00Z",
+          "body": "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues. :rocket:\n\n**Reviewed commit:** `2667f79cd7`"
+        }
+      ],
+      "expected": false
+    },
+    {
+      "name": "code-not-cleared-after-observation",
+      "comments": [
+        {
+          "id": 920,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":null,\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":null}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T02:00:00Z\">2026-10-15T02:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T02:00:00Z",
+          "updated_at": "2026-10-15T03:00:00Z"
+        },
+        {
+          "id": 922,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T02:00:00Z\">2026-10-15T02:00:00Z</relative-time> | `2667f79` | Manual request |\n| \ud83d\udd12 **Security Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T05:00:00Z\">2026-10-15T05:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T02:00:00Z",
+          "updated_at": "2026-10-15T05:00:00Z"
+        },
+        {
+          "id": 923,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "created_at": "2026-10-15T06:00:00Z",
+          "updated_at": "2026-10-15T06:00:00Z",
+          "body": "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues. :rocket:\n\n**Reviewed commit:** `2667f79cd7`"
+        }
+      ],
+      "expected": false
+    },
+    {
+      "name": "equal-code-clear",
+      "comments": [
+        {
+          "id": 920,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":null,\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":null}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T02:00:00Z\">2026-10-15T02:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T02:00:00Z",
+          "updated_at": "2026-10-15T03:00:00Z"
+        },
+        {
+          "id": 924,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":true,\"has_unresolved_findings\":true,\"status\":\"completed\"}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T03:00:00Z\">2026-10-15T03:00:00Z</relative-time> | `2667f79` | Manual request |\n| \ud83d\udd12 **Security Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T03:00:00Z\">2026-10-15T03:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T03:00:00Z",
+          "updated_at": "2026-10-15T03:00:00Z"
+        },
+        {
+          "id": 922,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T02:00:00Z\">2026-10-15T02:00:00Z</relative-time> | `2667f79` | Manual request |\n| \ud83d\udd12 **Security Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T05:00:00Z\">2026-10-15T05:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T02:00:00Z",
+          "updated_at": "2026-10-15T05:00:00Z"
+        },
+        {
+          "id": 923,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "created_at": "2026-10-15T06:00:00Z",
+          "updated_at": "2026-10-15T06:00:00Z",
+          "body": "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues. :rocket:\n\n**Reviewed commit:** `2667f79cd7`"
+        }
+      ],
+      "expected": false
+    },
+    {
+      "name": "both-independent-sections-cleared",
+      "comments": [
+        {
+          "id": 920,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":null,\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":null}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T02:00:00Z\">2026-10-15T02:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T02:00:00Z",
+          "updated_at": "2026-10-15T03:00:00Z"
+        },
+        {
+          "id": 921,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":true,\"has_unresolved_findings\":true,\"status\":\"completed\"}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T04:00:00Z\">2026-10-15T04:00:00Z</relative-time> | `2667f79` | Manual request |\n| \ud83d\udd12 **Security Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T04:00:00Z\">2026-10-15T04:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T04:00:00Z",
+          "updated_at": "2026-10-15T04:00:00Z"
+        },
+        {
+          "id": 922,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":\"2667f79cd7676ff331730cabf661d38dbbcddb0d\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T02:00:00Z\">2026-10-15T02:00:00Z</relative-time> | `2667f79` | Manual request |\n| \ud83d\udd12 **Security Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-15T05:00:00Z\">2026-10-15T05:00:00Z</relative-time> | `2667f79` | Manual request |",
+          "created_at": "2026-10-15T02:00:00Z",
+          "updated_at": "2026-10-15T05:00:00Z"
+        },
+        {
+          "id": 923,
+          "user": {
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "Bot"
+          },
+          "created_at": "2026-10-15T06:00:00Z",
+          "updated_at": "2026-10-15T06:00:00Z",
+          "body": "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues. :rocket:\n\n**Reviewed commit:** `2667f79cd7`"
+        }
+      ],
+      "expected": true
+    }
+  ]
+}

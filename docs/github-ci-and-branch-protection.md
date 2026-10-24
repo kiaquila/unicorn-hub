@@ -322,3 +322,7 @@ summary cannot renew an old code verdict; a missing completion time stays pendin
 Positive machine evidence is ordered by code completion time in whole-second
 buckets, matching GitHub comment precision. Same-second request or pending
 evidence remains blocking; security-only edits cannot advance that order.
+
+Clean structured approval requires every active completed section clock to fit the server observation's whole-second bucket. A fractional observation never lends authority to the next second. A carried companion completion may predate this comment's creation; the current code verdict retains its own request and creation bounds.
+
+Completed code lifecycle snapshots with unknown finding flags retain their server observation fence until an immutable in-window receipt corroborates them or a canonical clean **Code Review** completion is strictly newer. A later Security Review row carrying an older code clock cannot clear that fence; each section must clear independently. Completion upper bounds use the server observation’s whole-second bucket for approval, findings, retirement and history.

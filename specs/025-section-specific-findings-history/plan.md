@@ -7,3 +7,5 @@ Retain the original actual gate warning corpus; update only the former harmless-
 ## Verification
 
 Run the mandatory full preflight before publication. Require genuine exact-head CI and native review, no unresolved threads, and the authorized stability interval before ordinary merge.
+
+Apply the existing completed-companion validation to positive approval using the floored server observation bucket. Keep the code request/creation bounds and validate shield/lock rows through the production gate.
