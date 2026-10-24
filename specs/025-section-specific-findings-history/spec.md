@@ -17,3 +17,5 @@ A completed code lifecycle with both finding flags null is not approval. With se
 Clean structured approval requires every active completed section to fit the server observation bucket. Preserve its last millisecond, reject the next second even with a fractional observation, and allow carried companion clocks from before comment creation.
 
 Running security companions support both canonical shield and lock icons in an independent channel recovery sequence. Icon choice must not change whether a newer own code completion retires its observed lifecycle latch; security still requires its own later clean completion.
+
+A historical finding uses its own completion clock only when every active companion has a coherent clock within the server observation bucket. Otherwise its observation remains the fence even after later activity in another section.

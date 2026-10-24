@@ -14,3 +14,5 @@
 - [x] Keep unpaired unknown CODE lifecycle observation latched independently of later SEC updates; verify missing/equal own clear blocks and strictly newer independent channel clears recover.
 
 - [x] Validate both canonical running security icons in own-code recovery, retaining the independent security-clear requirement.
+
+- [x] Keep impossible companion history at its observation fence across later independent section updates; verify both channels, both icons, last-bucket acceptance, next-bucket rejection and fresh own recovery through the actual gate.

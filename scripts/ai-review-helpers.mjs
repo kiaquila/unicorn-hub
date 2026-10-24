@@ -1535,7 +1535,7 @@ function hasUnclearedStructuredFindings(snapshots, headSha) {
     const fence = Math.max(...findings.map(({ comment, state, time }) => {
       const completed = codeReviewCompletionTime(comment.body, label, headSha, comment.created_at);
       const unknownVerdict = state[section].has_any_findings === null && state[section].has_unresolved_findings === null;
-      return Math.floor((!unknownVerdict && !hasVisibleStructuredConflict(comment.body, section) && state[section].status === "completed" && Number.isFinite(completed) && completed <= Math.floor(time / 1000) * 1000 + 999 ? completed : time) / 1000);
+      return Math.floor((!unknownVerdict && hasValidFindingCompanions(state, comment.body, time, headSha, null, comment.created_at) && !hasVisibleStructuredConflict(comment.body, section) && state[section].status === "completed" && Number.isFinite(completed) && completed <= Math.floor(time / 1000) * 1000 + 999 ? completed : time) / 1000);
     }));
     const cleared = states.some(({ comment, state, result, time }) => {
       if (!state) return false;
