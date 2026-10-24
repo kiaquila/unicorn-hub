@@ -9,3 +9,5 @@ Retain the original actual gate warning corpus; update only the former harmless-
 Run the mandatory full preflight before publication. Require genuine exact-head CI and native review, no unresolved threads, and the authorized stability interval before ordinary merge.
 
 Apply the existing completed-companion validation to positive approval using the floored server observation bucket. Keep the code request/creation bounds and validate shield/lock rows through the production gate.
+
+Normalize either already-supported security icon only within the existing exact running-row validation. Exercise code-clear/running-security followed by independent security clear through the evaluator and invoked gate, with a missing-security-clear blocking control.

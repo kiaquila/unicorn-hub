@@ -12,3 +12,5 @@
 - [x] Add positive approval companion bounds and invoked-gate malformed/future, fractional observation, carried completion and security finding controls.
 
 - [x] Keep unpaired unknown CODE lifecycle observation latched independently of later SEC updates; verify missing/equal own clear blocks and strictly newer independent channel clears recover.
+
+- [x] Validate both canonical running security icons in own-code recovery, retaining the independent security-clear requirement.

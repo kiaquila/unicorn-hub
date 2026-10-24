@@ -1444,8 +1444,9 @@ function hasValidFindingCompanions(state, body, observed, headSha, resolvingSect
       if (renderedLabelAmbiguityText(body).toLowerCase().includes(label.toLowerCase())) return false;
       continue;
     }
+    const icons = section === "security_review" ? ["🛡️", "🔒"] : [emoji];
     const rowBody = resolvingSection && value.status === "running"
-      ? String(body).replace(`| ${emoji} **${label}** | 🔄 **Running** since`, `| ${emoji} **${label}** | ✅ **Completed**`).replace(`| ${emoji} **${label}** | 🔄 **Running**`, `| ${emoji} **${label}** | ✅ **Completed**`)
+      ? icons.reduce((text, icon) => text.replace(`| ${icon} **${label}** | 🔄 **Running** since`, `| ${icon} **${label}** | ✅ **Completed**`).replace(`| ${icon} **${label}** | 🔄 **Running**`, `| ${icon} **${label}** | ✅ **Completed**`), String(body))
       : body;
     if (resolvingSection && value.status === "running" && rowBody === body) return false;
     const completed = codeReviewCompletionTime(rowBody, label, value.commit_sha);

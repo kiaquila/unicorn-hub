@@ -1213,6 +1213,12 @@ test("unknown code lifecycle retires only after its own observed channel clears"
   const request = { agent: "codex", sha: headSha, requestedAt, sourceCommentCreatedAt: requestedAt };
   const marker = { id: 21, user: { login: "github-actions[bot]" }, created_at: requestedAt,
     body: createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "20-head", sourceCommentId: "20", sourceCommentCreatedAt: requestedAt, requestedAt }) };
+  const running = structuredClone(mapped.codeClear);
+  const runningState = JSON.parse(running.body.match(/codex-review-state:v1 (.+?) -->/)[1]);
+  runningState.security_review = { ...runningState.security_review, status: "running", has_any_findings: false, has_unresolved_findings: false };
+  running.body = running.body.replace(/codex-review-state:v1 (.+?) -->/, "codex-review-state:v1 " + JSON.stringify(runningState) + " -->").replace(/(\| 🔒 \*\*Security Review\*\* \| )✅ \*\*Completed\*\*/, "$1🔄 **Running** since");
+  mapped.cases.push({ name: "code clear with running security companion then independent security clear", comments: [mapped.lifecycle, running, mapped.securityClear, mapped.receipt], expected: true });
+  mapped.cases.push({ name: "running security remains blocking without own later clear", comments: [mapped.lifecycle, running, mapped.receipt], expected: false });
   for (const icon of ["🔒", "🛡️"]) for (const row of mapped.cases) {
     const comments = row.comments.map(comment => ({ ...comment, body: comment.body.replaceAll("🔒", icon) }));
     assert.equal(evaluateCodexEvidence({ comments, headSha, requestMarker: request }) === "pass", row.expected, `${icon}: ${row.name}`);
