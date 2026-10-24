@@ -190,11 +190,11 @@ test("native failures and all unresolved threads survive a new request marker", 
   assert.equal(evaluate({ comments: [comment(receipt)], reviews: [{ ...reviews[0], submitted_at: resultAt }] }), "fail", "failure wins a timestamp tie");
 });
 
-function runGate({ body = receipt, clockStep = 0, heads = [headSha], threads = [], reviews = [], extraComments = [], inlineComments = [], deletedEvidence = false, historyNodes = {}, reviewPageInfo = { hasNextPage: false }, graphErrors = null, withdrawalPages = [{ total_count: 0, workflow_runs: [] }], withdrawalApiError = false }) {
+function runGate({ comments = null, body = receipt, clockStep = 0, heads = [headSha], threads = [], reviews = [], extraComments = [], inlineComments = [], deletedEvidence = false, historyNodes = {}, reviewPageInfo = { hasNextPage: false }, graphErrors = null, withdrawalPages = [{ total_count: 0, workflow_runs: [] }], withdrawalApiError = false }) {
   const dir = mkdtempSync(join(tmpdir(), "native-review-gate-"));
   try {
     const markerBody = createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "1", sourceCommentId: "1", sourceCommentCreatedAt: triggerAt, requestedAt: triggerAt });
-    const fixture = structuredClone({ heads, clockStep, threads, reviews, inlineComments, historyNodes, reviewPageInfo, graphErrors, withdrawalPages, withdrawalApiError, comments: [comment(markerBody, { user: { login: "github-actions[bot]" } }), ...(deletedEvidence ? [] : [comment(body)]), ...extraComments] });
+    const fixture = structuredClone({ heads, clockStep, threads, reviews, inlineComments, historyNodes, reviewPageInfo, graphErrors, withdrawalPages, withdrawalApiError, comments: comments || [comment(markerBody, { user: { login: "github-actions[bot]" } }), ...(deletedEvidence ? [] : [comment(body)]), ...extraComments] });
     for (const [index, item] of fixture.comments.entries()) {
       if (item.user?.login !== bot.login || item.node_id) continue;
       item.node_id = `created-native-${index}`;
@@ -1164,5 +1164,111 @@ test("clean structured approval requires a contiguous canonical native table", (
   for (const body of [summary().replace("| --- | --- | --- | --- |\n", "| --- | --- | --- | --- |\n\n"), summary().replace("| Review | Status | Commit | Review trigger |\n", "| Review | Status | Commit | Review trigger |\n\n")]) {
     assert.notEqual(evaluate({ comments: [comment(body)] }), "pass");
     assert.equal(runGate({ body }).status, 1);
+  }
+});
+
+
+test("positive completed companions obey the observation bucket without a creation lower bound", () => {
+  const created = "2026-10-01T10:01:00Z", observed = "2026-10-01T10:02:00Z";
+  const cases = [
+    { name: "canonical", at: created, pass: true },
+    { name: "invalid matching clock", at: "invalid", pass: false },
+    { name: "invalid clock with blocker", at: "invalid", visible: "P1: Do not merge", pass: false },
+    { name: "mismatched display", at: created, visible: "P1: Do not merge", pass: false },
+    { name: "future companion", at: "2026-10-01T10:03:00Z", pass: false },
+    { name: "last millisecond in observed bucket", at: "2026-10-01T10:02:00.999Z", pass: true },
+    { name: "next whole second", at: "2026-10-01T10:02:01Z", pass: false },
+    { name: "fractional observation never lends next bucket", at: "2026-10-01T10:02:01.100Z", observed: "2026-10-01T10:02:00.500Z", pass: false },
+    { name: "fractional observation preserves own bucket", at: "2026-10-01T10:02:00.999Z", observed: "2026-10-01T10:02:00.500Z", pass: true },
+    { name: "carried precreation completion", at: "2026-10-01T09:30:00Z", pass: true },
+    { name: "typed security finding", at: created, findings: true, pass: false }
+  ];
+  for (const icon of ["🛡️", "🔒"]) for (const row of cases) {
+    const active = { code_review: { commit_sha: headSha, status: "completed", has_any_findings: false, has_unresolved_findings: false },
+      security_review: { commit_sha: headSha, status: "completed", has_any_findings: row.findings === true, has_unresolved_findings: row.findings === true } };
+    const body = `<!-- codex-pull-request-review-summary -->
+<!-- codex-review-state:v1 ${JSON.stringify(active)} -->
+
+## Codex Review Summary
+
+This comment shows the latest Codex review activity on this pull request.
+
+| Review | Status | Commit | Review trigger |
+| --- | --- | --- | --- |
+| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="${created}">${created}</relative-time> | \`${headSha.slice(0, 7)}\` | Manual request |
+| ${icon} **Security Review** | ✅ **Completed** <relative-time datetime="${row.at}">${row.visible || row.at}</relative-time> | \`${headSha.slice(0, 7)}\` | Manual request |`;
+    const native = { id: 90, user: bot, body, created_at: created, updated_at: row.observed || observed };
+    assert.equal(evaluate({ comments: [native] }) === "pass", row.pass, `${icon}: ${row.name}`);
+    const invoked = runGate({ body: "", extraComments: [native] });
+    assert.equal(invoked.status === 0, row.pass, `${icon}: ${row.name}: ${invoked.stderr}`);
+  }
+});
+
+
+test("unknown code lifecycle retires only after its own observed channel clears", () => {
+  const raw = JSON.parse(readFileSync(new URL("./fixtures/channel-lifecycle-sequence.json", import.meta.url), "utf8"));
+  const offset = Date.parse(triggerAt) - Date.parse(raw.requestMarker.requestedAt);
+  const mapped = JSON.parse(JSON.stringify(raw).replaceAll(raw.sha, headSha).replaceAll(raw.sha.slice(0, 10), headSha.slice(0, 10)).replaceAll(raw.sha.slice(0, 7), headSha.slice(0, 7)).replace(/2026-10-15T\d{2}:\d{2}:\d{2}Z/g, value => new Date(Date.parse(value) + offset).toISOString()));
+  const requestedAt = triggerAt;
+  const request = { agent: "codex", sha: headSha, requestedAt, sourceCommentCreatedAt: requestedAt };
+  const marker = { id: 21, user: { login: "github-actions[bot]" }, created_at: requestedAt,
+    body: createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "20-head", sourceCommentId: "20", sourceCommentCreatedAt: requestedAt, requestedAt }) };
+  const running = structuredClone(mapped.codeClear);
+  const runningState = JSON.parse(running.body.match(/codex-review-state:v1 (.+?) -->/)[1]);
+  runningState.security_review = { ...runningState.security_review, status: "running", has_any_findings: false, has_unresolved_findings: false };
+  running.body = running.body.replace(/codex-review-state:v1 (.+?) -->/, "codex-review-state:v1 " + JSON.stringify(runningState) + " -->").replace(/(\| 🔒 \*\*Security Review\*\* \| )✅ \*\*Completed\*\*/, "$1🔄 **Running** since");
+  mapped.cases.push({ name: "code clear with running security companion then independent security clear", comments: [mapped.lifecycle, running, mapped.securityClear, mapped.receipt], expected: true });
+  mapped.cases.push({ name: "running security remains blocking without own later clear", comments: [mapped.lifecycle, running, mapped.receipt], expected: false });
+  for (const icon of ["🔒", "🛡️"]) for (const row of mapped.cases) {
+    const comments = row.comments.map(comment => ({ ...comment, body: comment.body.replaceAll("🔒", icon) }));
+    assert.equal(evaluateCodexEvidence({ comments, headSha, requestMarker: request }) === "pass", row.expected, `${icon}: ${row.name}`);
+    const invoked = runGate({ body: "", extraComments: comments });
+    assert.equal(invoked.status === 0, row.expected, `${icon}: ${row.name}: ${invoked.stderr}`);
+  }
+});
+
+
+test("fractional observations cannot lend a later bucket to negative history", () => {
+  const requestTime = triggerAt;
+  const time = minutes => new Date(Date.parse(requestTime) + minutes * 60000).toISOString();
+  const render = (section, own, companion, icon) => {
+    const value = Object.fromEntries(["code_review", "security_review"].map(key => [key, { commit_sha: headSha, status: "completed", has_any_findings: key === section, has_unresolved_findings: key === section }]));
+    const rows = [["code_review", "📝", "Code Review"], ["security_review", icon, "Security Review"]].map(([key, emoji, label]) => {
+      const at = !section || key === section ? own : companion;
+      return `| ${emoji} **${label}** | ✅ **Completed** <relative-time datetime="${at}">${at}</relative-time> | \`${headSha.slice(0, 7)}\` | Manual request |`;
+    });
+    return `<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 ${JSON.stringify(value)} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n${rows.join("\n")}`;
+  };
+  const record = (body, created, updated = created) => ({ id: Math.round(Date.parse(created) / 1000), user: { login: "chatgpt-codex-connector[bot]" }, body, created_at: created, updated_at: updated });
+  const request = { agent: "codex", sha: headSha, requestedAt: requestTime, sourceCommentCreatedAt: requestTime };
+  const marker = { id: 21, user: { login: "github-actions[bot]" }, created_at: requestTime, body: createAiReviewRequestMarkerBody({ agent: "codex", headSha, requestId: "20-head", sourceCommentId: "20", sourceCommentCreatedAt: requestTime, requestedAt: requestTime }) };
+  const positive = record(receipt, time(6));
+  for (const section of ["code_review", "security_review"]) for (const icon of ["🔒", "🛡️"]) for (const [fraction, allowed] of [["00.999Z", true], ["01.100Z", false]]) {
+    const observed = time(4).replace("00.000Z", "00.999Z");
+    const companion = time(4).replace("00.000Z", fraction);
+    const negative = record(render(section, time(2), companion, icon), time(2), observed);
+    const intermediate = record(render(null, time(3), null, icon), time(3));
+    const comments = [negative, intermediate, positive];
+    assert.equal(evaluateCodexEvidence({ comments, headSha, requestMarker: request }) === "pass", allowed, `${section} ${icon} ${fraction}`);
+    assert.equal(runGate({ body: "", extraComments: comments }).status === 0, allowed, `${section} ${icon} ${fraction} actual gate`);
+    // A later other-channel update cannot hide the impossible companion in
+    // the finding that established this section's observed fence.
+    const ownLabel = section === "code_review" ? "Code Review" : "Security Review";
+    const laterBody = render(null, time(5), null, icon).split("\n").map(line => line.includes("**" + ownLabel + "**") ? line.replaceAll(time(5), time(2)) : line).join("\n");
+    const laterOtherClear = record(laterBody, time(2), time(5));
+    const crossed = [negative, intermediate, laterOtherClear, positive];
+    assert.equal(evaluateCodexEvidence({ comments: crossed, headSha, requestMarker: request }) === "pass", allowed, `${section} ${icon} ${fraction} later other-channel clear`);
+    assert.equal(runGate({ comments: [marker, ...crossed] }).status === 0, allowed, `${section} ${icon} ${fraction} crossed actual gate`);
+    if (section === "security_review") {
+      const codeOnly = record(render(null, time(5), null, icon), time(5));
+      const codeOnlyState = JSON.parse(codeOnly.body.match(/codex-review-state:v1 (.+?) -->/)[1]);
+      codeOnlyState.security_review = { commit_sha: null, status: null, has_any_findings: null, has_unresolved_findings: null };
+      codeOnly.body = codeOnly.body.replace(/codex-review-state:v1 (.+?) -->/, "codex-review-state:v1 " + JSON.stringify(codeOnlyState) + " -->").split("\n").filter(line => !line.includes("**Security Review**")).join("\n");
+      const codeOnlyCrossed = [negative, intermediate, codeOnly, positive];
+      assert.equal(evaluateCodexEvidence({ comments: codeOnlyCrossed, headSha, requestMarker: request }) === "pass", allowed, `${icon} ${fraction} exact later code-only clear`);
+      assert.equal(runGate({ comments: [marker, ...codeOnlyCrossed] }).status === 0, allowed, `${icon} ${fraction} exact code-only actual gate`);
+    }
+    const fresh = record(render(null, time(5), null, icon), time(5));
+    assert.equal(evaluateCodexEvidence({ comments: [negative, fresh, positive], headSha, requestMarker: request }), "pass", "new canonical own completion recovers");
   }
 });

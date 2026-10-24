@@ -1444,12 +1444,13 @@ function hasValidFindingCompanions(state, body, observed, headSha, resolvingSect
       if (renderedLabelAmbiguityText(body).toLowerCase().includes(label.toLowerCase())) return false;
       continue;
     }
+    const icons = section === "security_review" ? ["🛡️", "🔒"] : [emoji];
     const rowBody = resolvingSection && value.status === "running"
-      ? String(body).replace(`| ${emoji} **${label}** | 🔄 **Running** since`, `| ${emoji} **${label}** | ✅ **Completed**`).replace(`| ${emoji} **${label}** | 🔄 **Running**`, `| ${emoji} **${label}** | ✅ **Completed**`)
+      ? icons.reduce((text, icon) => text.replace(`| ${icon} **${label}** | 🔄 **Running** since`, `| ${icon} **${label}** | ✅ **Completed**`).replace(`| ${icon} **${label}** | 🔄 **Running**`, `| ${icon} **${label}** | ✅ **Completed**`), String(body))
       : body;
     if (resolvingSection && value.status === "running" && rowBody === body) return false;
     const completed = codeReviewCompletionTime(rowBody, label, value.commit_sha);
-    if (!(value.status === "completed" || (resolvingSection && value.status === "running")) || !Number.isFinite(completed) || completed > observed + 999) return false;
+    if (!(value.status === "completed" || (resolvingSection && value.status === "running")) || !Number.isFinite(completed) || completed > Math.floor(observed / 1000) * 1000 + 999) return false;
   }
   return true;
 }
@@ -1462,7 +1463,7 @@ function negativeSectionRow(body, value, label, observed, createdAt = null) {
   if (rows.length !== 1) return null;
   const row = rows[0], structural = (value.has_any_findings === true || value.has_unresolved_findings === true) ? row.replace(/^(\|[^|]*\|[^|]+\|\s*`[a-f0-9]{7,40}`\s*\|)[^|\r\n]*(\|\s*)$/, "$1 Manual request $2") : row;
   const completed = codeReviewCompletionTime(String(body).replace(row, structural), label, value.commit_sha, createdAt);
-  return Number.isFinite(completed) && completed <= observed + 999 ? row : null;
+  return Number.isFinite(completed) && completed <= Math.floor(observed / 1000) * 1000 + 999 ? row : null;
 }
 
 function negativeSectionBody(body, state, section, observed, createdAt = null) {
@@ -1480,7 +1481,7 @@ function structuredNegativeTime(comment, headSha) {
     const value = state[section];
     if (value.commit_sha !== headSha || !(value.has_any_findings === true || value.has_unresolved_findings === true)) continue;
     const completed = codeReviewCompletionTime(comment.body, label, headSha, comment.created_at);
-    times.push(!hasVisibleStructuredConflict(comment.body, section) && value.status === "completed" && Number.isFinite(completed) && completed <= observed + 999 ? Math.floor(completed / 1000) * 1000 : observed);
+    times.push(!hasVisibleStructuredConflict(comment.body, section) && value.status === "completed" && Number.isFinite(completed) && completed <= Math.floor(observed / 1000) * 1000 + 999 ? Math.floor(completed / 1000) * 1000 : observed);
   }
   return times.length ? Math.max(...times) : observed;
 }
@@ -1505,7 +1506,7 @@ function isSupersededTypedFinding(comment, snapshots, headSha) {
     const visible = withoutCodexHelpFooter(hardBody);
     if (containsBlockingSeverity(hardBody, "codex") || containsNegativeReviewState(visible) || /Codex Review:/i.test(visibleReviewText(visible))) return false;
     const completed = codeReviewCompletionTime(body, label, headSha, comment.created_at);
-    const fence = Math.floor((!hasVisibleStructuredConflict(body, section) && state[section].status === "completed" && Number.isFinite(completed) && completed <= observed + 999 ? completed : observed) / 1000);
+    const fence = Math.floor((!hasVisibleStructuredConflict(body, section) && state[section].status === "completed" && Number.isFinite(completed) && completed <= Math.floor(observed / 1000) * 1000 + 999 ? completed : observed) / 1000);
     return snapshots.some(({ comment: clean }) => {
       if (clean === comment || hasVisibleStructuredConflict(clean.body, section)) return false;
       const cleanState = parseStructuredCodexSummary(String(clean.body || ""), headSha, true);
@@ -1513,7 +1514,7 @@ function isSupersededTypedFinding(comment, snapshots, headSha) {
       const value = cleanState[section];
       const time = codeReviewCompletionTime(clean.body, label, headSha, clean.created_at);
       const updated = Date.parse(clean.updated_at || clean.created_at || "");
-      return value.commit_sha === headSha && value.status === "completed" && value.has_any_findings === false && value.has_unresolved_findings === false && Number.isFinite(time) && time <= updated + 999 && Math.floor(time / 1000) > fence;
+      return value.commit_sha === headSha && value.status === "completed" && value.has_any_findings === false && value.has_unresolved_findings === false && Number.isFinite(time) && time <= Math.floor(updated / 1000) * 1000 + 999 && Math.floor(time / 1000) > fence;
     });
   });
 }
@@ -1525,12 +1526,16 @@ function hasUnclearedStructuredFindings(snapshots, headSha) {
     time: Date.parse(comment.updated_at || comment.created_at || "")
   })).filter((entry) => (entry.state || entry.negativeState) && Number.isFinite(entry.time));
   for (const [section, label] of [["code_review", "Code Review"], ["security_review", "Security Review"]]) {
-    const findings = states.map(entry => ({ ...entry, state: entry.negativeState || entry.state })).filter(({ state }) => state[section].commit_sha === headSha &&
-      (state[section].has_any_findings === true || state[section].has_unresolved_findings === true));
+    // An unpaired completed/null code lifecycle has no verdict. Security
+    // activity cannot retire it by carrying an older code completion clock.
+    const findings = states.map(entry => ({ ...entry, state: entry.negativeState || entry.state })).filter(({ state, result }) => state[section].commit_sha === headSha &&
+      (state[section].has_any_findings === true || state[section].has_unresolved_findings === true ||
+       (section === "code_review" && result !== "pass" && state[section].status === "completed" && state[section].has_any_findings === null && state[section].has_unresolved_findings === null)));
     if (!findings.length) continue;
     const fence = Math.max(...findings.map(({ comment, state, time }) => {
       const completed = codeReviewCompletionTime(comment.body, label, headSha, comment.created_at);
-      return Math.floor((!hasVisibleStructuredConflict(comment.body, section) && state[section].status === "completed" && Number.isFinite(completed) && completed <= time + 999 ? completed : time) / 1000);
+      const unknownVerdict = state[section].has_any_findings === null && state[section].has_unresolved_findings === null;
+      return Math.floor((!unknownVerdict && hasValidFindingCompanions(state, comment.body, time, headSha, null, comment.created_at) && !hasVisibleStructuredConflict(comment.body, section) && state[section].status === "completed" && Number.isFinite(completed) && completed <= Math.floor(time / 1000) * 1000 + 999 ? completed : time) / 1000);
     }));
     const cleared = states.some(({ comment, state, result, time }) => {
       if (!state) return false;
@@ -1538,7 +1543,7 @@ function hasUnclearedStructuredFindings(snapshots, headSha) {
       const completed = codeReviewCompletionTime(comment.body, label, headSha, comment.created_at);
       return hasValidFindingCompanions(state, comment.body, time, headSha, section, comment.created_at) && !hasVisibleStructuredConflict(comment.body, section) && value.commit_sha === headSha && value.status === "completed" &&
         value.has_any_findings === false && value.has_unresolved_findings === false &&
-        Number.isFinite(completed) && completed <= time + 999 && Math.floor(completed / 1000) > fence;
+        Number.isFinite(completed) && completed <= Math.floor(time / 1000) * 1000 + 999 && Math.floor(completed / 1000) > fence;
     });
     if (!cleared) return true;
   }
@@ -1552,7 +1557,7 @@ function isCompletedCleanHistory(comment, headSha) {
   return parseStructuredCodexSummary(body, headSha)?.result === "pass" && state &&
     [["code_review", "Code Review"], ["security_review", "Security Review"]].every(([key, label]) => {
       const value = state[key], time = codeReviewCompletionTime(body, label, headSha);
-      return value.commit_sha === headSha && value.status === "completed" && value.has_any_findings === false && value.has_unresolved_findings === false && Number.isFinite(time) && time <= observed + 999;
+      return value.commit_sha === headSha && value.status === "completed" && value.has_any_findings === false && value.has_unresolved_findings === false && Number.isFinite(time) && time <= Math.floor(observed / 1000) * 1000 + 999;
     }) && ["Code Review", "Security Review"].some(label => Number.isFinite(codeReviewCompletionTime(body, label, headSha, comment.created_at)));
 }
 
@@ -1560,9 +1565,13 @@ function hasFreshCodeReviewCompletion(body, requestMarker, updatedAt, createdAt)
   const time = codeReviewCompletionTime(body, "Code Review", null, createdAt);
   const cutoff = Date.parse(requestMarker?.sourceCommentCreatedAt || requestMarker?.requestedAt || requestMarker?.commentCreatedAt || "");
   const snapshotTime = Date.parse(updatedAt || "");
+  // Every active completed section must fit this server observation bucket.
+  // Companions may carry older clocks from before this comment was created.
+  const state = parseStructuredCodexSummary(body, null, true);
+  const coherent = state && hasValidFindingCompanions(state, withoutCodexHelpFooter(body), Math.floor(snapshotTime / 1000) * 1000, state.code_review.commit_sha);
   // GitHub comment timestamps have second precision; row times retain fractions.
-  return Number.isFinite(time) && Number.isFinite(cutoff) && Number.isFinite(snapshotTime) &&
-    Math.floor(time / 1000) > Math.floor(cutoff / 1000) && time <= snapshotTime + 999;
+  return coherent && Number.isFinite(time) && Number.isFinite(cutoff) && Number.isFinite(snapshotTime) &&
+    Math.floor(time / 1000) > Math.floor(cutoff / 1000) && Math.floor(time / 1000) <= Math.floor(snapshotTime / 1000);
 }
 
 export function evaluateCodexEvidence({ comments = [], reviews = [], reviewComments = [], threads = [], timeline = [], headSha, requestMarker, config = {} }) {
