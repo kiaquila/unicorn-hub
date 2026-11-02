@@ -10,7 +10,156 @@ Native GitHub PR review. Blocking findings use `P0`, `P1`, or `P2`. Advisory fin
 
 Codex evidence must be tied to the latest PR head. Native reviews must have `commit_id` equal to the current head SHA and must be submitted after the trusted `AI_REVIEW_REQUEST_ID` marker for that head.
 
-When Codex has no inline findings, a top-level `Codex Review:` summary comment from the trusted Codex bot also satisfies the gate only when it either names the current head SHA in its body or is posted after the trusted marker with no commit or force-push event between the source trigger comment and the summary.
+Trusted Codex no-findings comments support both legacy `Codex Review:` bodies and
+native `<!-- codex-review-receipt:v1 -->` receipts. Receipts require exactly one
+`**Reviewed commit:**` binding (10–40 hexadecimal characters matching the current
+full head). Explicit stale or malformed bindings never fall back to timestamps.
+SHA-less legacy comments require a matching trusted marker and no intervening
+head-changing timeline event.
+
+Mutable `<!-- codex-pull-request-review-summary -->` comments can supply evidence
+only with one valid `codex-review-state:v1` object. The object must contain the
+exact current full `code_review.commit_sha`, `status: "completed"`, and explicit
+boolean `has_any_findings: false` and `has_unresolved_findings: false` for a
+standalone verdict. Omitted code flags require a separate current-request receipt
+as described below; null fields alone never establish success. Schema,
+types, duplicate markers/fields, and conflicting visible verdicts are validated.
+Visible failure or incomplete statuses cannot be hidden by completed JSON;
+compound enum-style negative statuses remain blocking after normalization.
+Positive summaries and receipts allow only recognized positive renderings;
+arbitrary additional prose remains non-successful even without a severity tag.
+Structured results require the full native table; bare completed text is not
+a supported rendering. If structured state exists, its latest trusted snapshot
+must be valid, current, complete, and finding-free. Later code-only receipts or
+approvals cannot override pending/negative security work, malformed state, or a
+stale snapshot; a newer complete structured result is required. Only the complete known standard help footer is excluded;
+a matching details label cannot hide arbitrary review prose.
+The inactive security-review state has null fields; active security state must
+be well formed, completed, finding-free, and bound to the exact current head. Bare headings, reactions,
+and visible "Completed" text do not prove review success.
+
+Evidence must be at or after the source request time. Explicitly head-bound
+mutable evidence uses `updated_at`; SHA-less legacy evidence uses `created_at`.
+An accepted negative legacy edit is ordered by `updated_at` to invalidate older
+success, while its request/head eligibility remains bound to `created_at`.
+The latest result wins, with failure winning timestamp ties. All unresolved
+Codex threads block, including advisory or earlier-head findings, independently
+of the request marker. The gate rechecks the live PR head before success.
+
+Formal reviews reject negative/incomplete state text and unrecognized finding
+prose. Nonempty bodies require a recognized no-findings/approval verdict or an
+explicit advisory priority. Inline findings are checked on both commented and
+approved reviews; blocking inline edits use their own update time, while
+positive edits cannot renew old approval eligibility. Edited COMMENTED reviews
+remain pending. Empty formal reviews are also pending: deletion of the last
+inline finding cannot itself create positive evidence; require a fresh explicit
+native verdict.
+
+Created, edited, and deleted native comments, plus formal review and inline
+review-comment mutations, wake the gate. Deletions always force a fresh check;
+the deleted comment's old update time cannot suppress this rerun. Ordinary bot
+replies remain unrelated: pending withdrawal tombstones require a former review
+signal verified from complete server edit history.
+
+The default-branch workflow-run controller persists negative-only deletion
+records using the existing administrative write scope. Source path and its server-bound ref suffix, event,
+repository, and PR association/default branch are checked from server run
+metadata. Each record binds the live full head and server event time; positives
+at or before that time cannot pass. The record is published before waking the
+real gate. Delayed or duplicate events retain their original event time, and
+machine review-control edits/deletions are repaired. Ordinary Actions diagnostics
+remain unrelated. Control membership uses the current or pre-edit webhook body
+and is checked by both runtime paths. The controller executes only default
+scripts, downloads no artifacts, and never executes source-run code. Validation
+and the native-event router gain no write scope.
+
+Wakeup routing never
+constitutes an acceptable verdict. Per-PR serialization with `queue: max`, a bounded active-run
+wait, and attempt timestamps prevent lost wakeups and duplicate reruns. A wait
+timeout requests cancellation, confirms terminal state by polling, escalates
+to force-cancel when needed, and schedules a fresh rerun even if stale success
+won the cancellation race. The gate has a ten-minute job limit; controllers
+have fifteen minutes. A newer
+negative or incomplete edit re-evaluates a previously successful gate.
+Request wakeup deduplication uses the marker's server publication time, while
+native-review eligibility retains the human source request time. Missing marker
+timestamps and rerun API failures fail command policy explicitly.
+
+Validation has a read-only token; administrative writes remain in an isolated
+default-branch job that can run only from the default workflow ref. Non-default
+diagnostic dispatches cannot request writes. Validation normally checks out an
+immutable default-branch SHA.
+For a parser's initial rollout, a maintainer may set repository variable
+`AI_REVIEW_GATE_PIN=<default-full-sha>:<independently-reviewed-gate-full-sha>`
+only after inspecting, testing, and obtaining genuine native review of that
+gate snapshot. The pin is not a PR input or an automatic fallback, and expires
+when the default SHA changes. The final PR head still needs real current-head
+native evidence, resolved threads, and all real required checks. Remove the pin
+after merge; never use a synthetic status or relax protection.
+
+Deletion metadata distinguishes native issue-comment review signals from ordinary
+command replies; inline native findings remain review evidence. Edit histories
+reconstruct only the removed/prior side of unified or HTML diffs and retain the
+legacy start-of-body rule. Added markers and quoted legacy phrases cannot create
+withdrawal records or pending tombstones for unrelated bot replies.
+
+
+Whole-review state survives marker removal and deletion. The gate reads complete
+server edit histories for code-only receipts as well as ordinary replies, and
+retains structured-summary withdrawal state. Durable withdrawal records require a
+newer complete structured snapshot; a later code-only receipt or approval cannot
+clear them. Destructive native edits persist a record before a cleared comment
+can itself disappear. Normal structured-summary updates do not fence their own
+completion.
+
+Legacy top-level verdicts must start at column zero, case-insensitively, matching
+Actions `startsWith`. Leading whitespace is outside the accepted legacy grammar;
+edit history preserves that whitespace and Markdown content after removing only
+diff prefixes and paired file headers before the first hunk. Partial hunks below
+line one cannot establish a start-of-body legacy verdict. HTML history removes
+diff-specific `del`/`ins` markup, preserving text, evidence-bearing HTML comments,
+and container boundaries. Tag names and quoted attributes are excluded; nested
+insertions are removed completely. Real diff markup is tokenized before retained
+text entities are decoded, so escaped tags cannot close an insertion.
+Explicit receipts and structured envelopes retain their own marker rules.
+
+Destructive native events and machine review-control mutations defer in the
+ordinary rerun router. Only the default-branch withdrawal controller wakes their
+validation, after the durable negative record has been published. A direct rerun
+cannot race the independent writer and briefly restore an older positive result.
+
+
+The read-only gate also checks server-listed withdrawal source runs for this PR
+since its creation. A source requires its exact trusted durable record even while
+the separate writer is queued, running, or failed; later positive wakeups cannot
+publish green before that fence. Writer and gate share provenance validation.
+Records already persisted on an earlier head prove that source was processed;
+current-head records still require a newer complete structured snapshot. This
+uses `actions: read` only. API errors, changing/incomplete pagination, and the
+Actions search limit fail closed instead of silently skipping sources. A deleted
+durable record must be restored by replaying its original default-branch
+controller; later reviews or replacement records cannot silently erase its source.
+
+When the native backend omits both code findings flags in a completed summary,
+that summary remains pending by itself. The gate can corroborate it only with a
+separate trusted v1 no-findings receipt bound to the exact head and created after
+the current request. Legacy receipt closings remain strict: unseen presentation text alone never
+approves. A current-request complete structured snapshot with explicit
+false findings flags independently establishes the verdict; arbitrary English
+never determines machine success. Unknown receipt prose remains pending. Only a strictly newer affirmative snapshot
+can supersede it; pending wins an equal timestamp. Structured success must follow the current request.
+Both artifacts
+must be newer than any withdrawal they clear. Mixed null/boolean flags, missing
+receipts, formal approvals, stale or edited older receipts, and unknown active
+security flags cannot fill the missing code verdict. Security and visible status
+must still be fully complete and consistent. The paired verdict uses the older
+of the summary update and receipt publication times, so it cannot renew an older
+receipt over intervening negative evidence. Source state is never rewritten.
+
+Positive code-only receipts and legacy verdicts retain their original publication
+time even when edited. A benign edit cannot make them newer than an intervening
+failure or request. Negative edits still use server update time; only structured
+snapshots can publish a fresh whole-review verdict through an edit.
 
 ## Claude
 
@@ -27,3 +176,56 @@ Only `pass` satisfies the gate.
 ## Gemini
 
 Native GitHub PR review from the configured app. Critical or high-severity findings block merge.
+
+
+Structured approval also requires the visible code-review completion timestamp
+to be strictly newer than the trusted request. A security-only edit of the shared
+summary cannot renew an old code verdict; a missing completion time stays pending.
+
+Positive machine evidence is ordered by code completion time in whole-second
+buckets, matching GitHub comment precision. Same-second request or pending
+evidence remains blocking; security-only edits cannot advance that order.
+
+Structured withdrawal recovery requires code completion in a strictly later whole-second bucket than the withdrawal; refreshing the summary alone cannot restore approval.
+
+Unknown and negative receipt edits use their observed server update time; only static clean approval retains publication time. An unknown edit blocks older or equal-time code completion.
+
+Valid exact-head structured findings survive a repeated request until a newer clean machine snapshot completes the affected review section. A security finding requires its own newer canonical Security Review completion timestamp; all-null security state and code-only approval cannot clear it. Same-second completions remain pending. Malformed, duplicate or foreign-head history cannot create this durable fence; the latest invalid signal still blocks.
+
+Completed typed findings are dated by their affected section’s valid canonical completion row; an edit to another section does not renew them. Missing or invalid completion rows retain the server observation time.
+
+Historical section resolution uses independent canonical clean proof for that same head and section, regardless of later requests or the other section’s progress. It does not itself approve the current request. Visible conflicting findings cannot provide resolution proof.
+
+Protocol markers indented by four spaces or a tab are Markdown examples without approval or history authority. Foreign-head finding companions require canonical row coherence before an observation can be retired.
+
+Malformed protocol discovery is case-insensitive and remains pending. Indentation examples are excluded only in leading-envelope context; a later indented snippet cannot erase real findings. Section projection validates known companion-row rendering before removing it.
+
+Historical resolution validates each visible companion against its typed SHA, status, and canonical clock; canonical running progress remains compatible. All-null companions cannot hide any rendered section label. Accepted leading whitespace is normalized consistently for conflict scanning.
+
+BOM-prefixed indented envelopes remain examples. Later fenced marker examples cannot erase a genuine leading finding. Indented nonprotocol HTML cannot be normalized into historical clearance.
+
+Explicit negative facts in a canonical leading summary marker, closed typed state and summary heading survive trailing presentation, including protocol examples. This negative-only extraction never grants approval or section clearance; those require strict full-body validation. Duplicate markers within the leading envelope remain invalid.
+
+Visible negative edits retain server observation time; fenced example rows cannot supply completion clocks. Negative-only parsing still requires marker uniqueness within the leading envelope.
+
+Protocol and completion-row extraction share the same stateful Markdown fence scanner; a closer with the same character and at least the opener length ends the example.
+
+A summary heading indented as Markdown code cannot establish typed authority. A later strict same-section completion can still clear an earlier visible finding.
+
+Visible contradiction checks decode numeric character references and inline Markdown before checking P0–P2 and the known “Do not merge” warning. Canonical row scans exclude HTML comments and use the same accepted zero-to-three-space indentation when detecting duplicate sections. Raw protocol, JSON, SHA and timestamp validation remain unchanged.
+
+HTML-comment row exclusion consumes an unterminated comment through EOF and preserves line boundaries. A BOM does not hide code indentation before the summary heading; rendered whitespace references cannot hide the known Do not merge warning.
+
+Existing warning checks use rendered HTML text and Markdown link labels, ignoring Unicode default-ignorable characters, including variation selectors. Collapsed informational details cannot supply canonical completion rows.
+
+BOM placement cannot erase raw code indentation before protocol markers; zero-width formatting cannot hide the known Do not merge warning.
+
+Visible warning projection preserves quoted HTML attributes, image alternative text, balanced and reference link labels, and literal malformed links. Completion-row visibility removes comments before Markdown fences and tracks nested details through the outer closing tag.
+
+Presentation warning checks remove raw comments before links, tokenize quoted HTML before decoding entities, and resolve defined full, collapsed, shortcut references and optional inline-link titles. Undefined or malformed links stay literal. Visible details-summary section text can invalidate completion evidence, but never supplies canonical authority.
+
+Canonical completion rows cannot come from GFM raw HTML blocks, including generic complete-tag blocks. Raw-text terminators and blank-line block boundaries follow the HTML block class; unrelated closing tags cannot expose a row. Escaped Markdown link openers remain literal across inline and defined-reference warning projection.
+
+Warning projection removes inline-code delimiters while preserving literal code contents. GFM raw HTML blocks suppress Markdown parsing until their standard terminator, while HTML and entities still render; active Markdown in an About footer requires a blank line after its summary. Only validated reference-definition labels and balanced destinations can hide definition text.
+
+Negative observation clocks are scoped to each structurally coherent section: a companion section's warning cannot renew an already cleared finding. Canonical completed historical clears do not approve a new request; after all findings retire, only a later strict, fresh, head-bound receipt can supply that approval. Pending, malformed, unresolved and global-warning guards remain blocking. GFM type-7 HTML blocks cannot interrupt a paragraph; table boundaries require matching unescaped-pipe cells and valid delimiter cells. Warning projection removes only active matched emphasis, preserving literal punctuation and explicit negation.
