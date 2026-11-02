@@ -47,6 +47,8 @@ Treatment cohort:
 - Scope: first 8 PR/head-branch groups after merge, or all groups after 14
   calendar days.
 - Primary metric: average `AI Review` job runner-minutes per PR/head branch.
+- Enumerate all workflow-run attempts; sum non-skipped job durations across
+  initial runs and reruns, rounding each job separately for rounded minutes.
 - Secondary metric: total AI-review control-plane runner-minutes, including
   `ai-review.yml`, `ai-command-policy.yml`, and any new rerun-router workflow.
 - Success threshold: `AI Review` average at or below 9.03 runner-minutes per PR
@@ -61,6 +63,9 @@ Treatment cohort:
 - `pnpm run preflight`
 - After merge, run the post-change measurement script and record the result in
   `tasks.md`.
+
+Completed treatment measurement and the corresponding baseline attempt audit
+are recorded in `tasks.md`. The original thresholds above remain unchanged.
 
 ## Decisions and Constraints
 

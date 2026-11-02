@@ -11,7 +11,7 @@
 - [x] T007 Update operator docs for the event-driven review flow.
 - [x] T008 Add tests for fast-fail, rerun routing, and stale-head safety.
 - [x] T009 Run `pnpm run preflight`.
-- [ ] T010 After merge, collect treatment metrics and compare them to the
+- [x] T010 After merge, collect treatment metrics and compare them to the
   baseline.
 
 ## Baseline Results
@@ -35,12 +35,101 @@ branch. Ten failure runs lasted at least 19 minutes.
 
 ## Treatment Results
 
-Pending. Measure after this feature reaches `main`, using the first 8
-PR/head-branch groups after merge or all groups after 14 calendar days,
-whichever comes first.
+Measured on 2026-10-12 from GitHub Actions job timestamps. The post-merge
+window is 2026-05-12T00:50:21Z through 2026-05-26T00:50:21Z. Only one
+PR/head-branch group occurred within 14 calendar days, so the time-based
+sample rule applies. This is a before/after observation with a small treatment
+sample, not a randomized experiment.
+
+The sample is PR #10, branch `docs/at-syntax-claude-md`. Its two workflow
+runs have six non-skipped job attempts in total, including native reruns:
+
+| Workflow run | Attempt | Conclusion | Runner-seconds | Rounded job-minutes |
+| --- | ---: | --- | ---: | ---: |
+| `25868452766` | 1 | failure | 14 | 1 |
+| `25868452766` | 2 | failure | 41 | 1 |
+| `25869160536` | 1 | failure | 10 | 1 |
+| `25869160536` | 2 | failure | 41 | 1 |
+| `25869160536` | 3 | failure | 41 | 1 |
+| `25869160536` | 4 | success | 17 | 1 |
+
+| Metric | Treatment |
+| --- | ---: |
+| PR/head-branch groups | 1 |
+| `AI Review` workflow runs | 2 |
+| Non-skipped `AI Review` job attempts | 6 |
+| Total / average `AI Review` runner-minutes per PR | 2.73 |
+| Total / average rounded `AI Review` job-minutes per PR | 6 |
+| Failure attempts lasting at least 19 minutes | 0 |
+| Longest `AI Review` attempt, seconds | 41 |
+| Required checks still pending at measurement time | 0 |
+
+The previous preliminary B estimate of 0.97 runner-minutes and 2 rounded
+job-minutes counted only the latest attempt of each workflow run. It omitted
+four rerun attempts and is superseded by the totals above.
+
+Secondary control-plane consumption in the same window includes all
+non-skipped jobs in the three review workflows:
+
+| Workflow | Job attempts | Runner-minutes | Rounded job-minutes |
+| --- | ---: | ---: | ---: |
+| `AI Review` | 6 | 2.73 | 6 |
+| `AI Command Policy` | 3 | 0.30 | 3 |
+| `AI Review Rerun` | 3 | 0.27 | 3 |
+| Total | 12 | 3.30 | 12 |
+
+The final current-head request was posted at 2026-05-14T15:35:52Z, its marker
+at 15:36:04Z, accepted evidence at 15:37:32Z, and the passing check completed
+at 15:38:15Z. Marker-to-pass latency was 131 seconds; evidence-to-pass latency
+was 43 seconds. Earlier requests were superseded by a new head or a newer
+request, so this latency describes the final successful request only.
+
+### Baseline Attempt Audit
+
+The same audit found two previously omitted non-skipped attempts in the
+control cohort, both in `codex/senar-process-layer`. That group consumed
+40.40 runner-minutes and 44 rounded job-minutes across four attempts, rather
+than the original latest-attempt snapshot of 0.22 minutes and 2 rounded minutes.
+Other control groups retain their published totals. Skipped attempts are
+excluded, including the first attempts of the two
+`codex/flutter-profile-ci-compat` workflow runs.
+
+| Metric | Original A snapshot | A including all non-skipped attempts | B |
+| --- | ---: | ---: | ---: |
+| PR/head-branch groups | 8 | 8 | 1 |
+| Counted job attempts | 28 | 30 | 6 |
+| Total runner-minutes | 289.02 | 329.20 | 2.73 |
+| Total rounded job-minutes | 304 | 346 | 6 |
+| Average runner-minutes per PR | 36.13 | 41.15 | 2.73 |
+| Average rounded job-minutes per PR | 38.00 | 43.25 | 6 |
+| Failure attempts lasting at least 19 minutes | 10 | 12 | 0 |
+
+Result: the agreed thresholds pass. Treatment averages are below the original
+9.03 runner-minute and 10 rounded-job-minute limits. Runner time per PR fell
+92.4% against the original baseline, or 93.4% against the audited baseline.
+The thresholds remain as agreed before implementation. Rounded job-minutes
+are a conservative usage proxy, not an invoice or a measurement of total CI
+consumption. Existing stale-head regression tests remain the evidence for that
+safety requirement; the small treatment cohort cannot establish it alone.
+
+Reproduction: list completed `ai-review.yml` `pull_request` workflow runs
+within each cohort, group by head branch, and enumerate attempts `1` through
+`run_attempt`. For each attempt, retrieve
+`GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs`
+and sum `(completed_at - started_at) / 60` for non-skipped jobs, including
+cancelled jobs for their consumed duration. Round each job up separately for
+the rounded metric. For B control-plane totals, include non-skipped jobs from
+`ai-command-policy.yml` and `ai-review-rerun.yml` in the same window.
+
+Source runs: [first PR head](https://github.com/kiaquila/unicorn-hub/actions/runs/25868452766),
+[final PR head](https://github.com/kiaquila/unicorn-hub/actions/runs/25869160536),
+and [PR #10 request markers and review evidence](https://github.com/kiaquila/unicorn-hub/pull/10).
 
 ## Process Memory
 
+- T010 is complete; the treatment result and all-attempt baseline audit above
+  include the rerun-router overhead. Always enumerate job attempts when
+  measuring rerun-based workflows; latest-attempt totals undercount usage.
 - The baseline deliberately excludes skipped `ai-review.yml` workflow runs
   because they did not run the required `AI Review` job and did not consume the
   polling window.
