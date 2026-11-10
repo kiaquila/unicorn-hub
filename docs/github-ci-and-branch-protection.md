@@ -259,6 +259,11 @@ approves. A current-request complete structured snapshot with explicit
 false findings flags independently establishes the verdict; arbitrary English
 never determines machine success. Unknown receipt prose remains pending. Only a strictly newer affirmative snapshot
 can supersede it; pending wins an equal timestamp. Structured success must follow the current request.
+The parser accepts both observed native summary containers: the original
+`## Codex Review Summary` heading and the exact collapsed
+`<details><summary><strong>Codex Review Summary</strong>` wrapper. The wrapper
+status must agree with the machine state, its table remains canonical, and
+unknown attributes, extra closings, or hidden findings still fail closed.
 Both artifacts
 must be newer than any withdrawal they clear. Mixed null/boolean flags, missing
 receipts, formal approvals, stale or edited older receipts, and unknown active
