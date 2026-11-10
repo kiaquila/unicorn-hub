@@ -1197,6 +1197,24 @@ function withoutCodexHelpFooter(text) {
   return body.slice(0, footer.index);
 }
 
+function normalizeStructuredSummaryPresentation(value) {
+  const raw = String(value).trim();
+  const wrapped = raw.match(/^(<!-- codex-pull-request-review-summary -->[ \t]*\r?\n<!-- codex-review-state:v1 .+? -->)[ \t]*(?:\r?\n){2}<details>[ \t]*\r?\n<summary><strong>Codex Review Summary<\/strong>: (✅ Completed|🔄 Running)<\/summary>[ \t]*(?:\r?\n){2}([\s\S]*?)(?:\r?\n){2}<\/details>$/s);
+  if (!wrapped) return { body: raw, wrapperStatus: null };
+  return {
+    body: `${wrapped[1]}\n\n## Codex Review Summary\n\n${wrapped[3].trim()}`,
+    wrapperStatus: wrapped[2]
+  };
+}
+
+function summaryWrapperMatchesState(wrapperStatus, state) {
+  if (!wrapperStatus) return true;
+  const active = [state?.code_review, state?.security_review].filter((value) => value?.status !== null);
+  if (!active.length) return false;
+  if (wrapperStatus === "✅ Completed") return active.every((value) => value.status === "completed");
+  return wrapperStatus === "🔄 Running" && active.some((value) => value.status === "running");
+}
+
 export function isAfterReviewRequest(value, marker) {
   const time = Date.parse(value || "");
   const cutoff = Date.parse(marker?.sourceCommentCreatedAt || marker?.requestedAt || marker?.commentCreatedAt || "");
@@ -1207,7 +1225,9 @@ export function isAfterReviewRequest(value, marker) {
 // observed evidence; English/Markdown interpretation cannot backdate findings.
 function hasCanonicalStructuredPresentation(body, state) {
   if (!state) return false;
-  const raw = String(body);
+  const presentation = normalizeStructuredSummaryPresentation(body);
+  if (!summaryWrapperMatchesState(presentation.wrapperStatus, state)) return false;
+  const raw = presentation.body;
   if (raw.split(/\r?\n/).some(line => /^(?: {4}| *\t|[^\S \t\r\n])/.test(line))) return false;
   const envelope = raw.trim().match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
   if (!envelope) return false;
@@ -1265,7 +1285,8 @@ function parseStructuredCodexSummary(body, headSha, stateOnly = false, negativeO
   const leadingState = rawEnvelope.match(/^\uFEFF?(?:[ \t]*\r?\n)*[ \t]*<!-- codex-pull-request-review-summary -->[ \t]*\r?\n([ \t]*)<!--\s*codex-review-state:/);
   const leadingHeading = rawEnvelope.match(/^\uFEFF?(?:[ \t]*\r?\n)*[ \t]*<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->[ \t]*\r?\n(?:[ \t]*\r?\n)*([ \t\uFEFF]*)## Codex Review Summary/s);
   if ([leadingMarkers, leadingState, leadingHeading].some(match => match && (/\t/.test(match[1]) || match[1].replace(/\uFEFF/g, "").length >= 4))) return null;
-  body = body.trim();
+  const presentation = normalizeStructuredSummaryPresentation(body);
+  body = presentation.body;
   const protocolBody = withoutMarkdownFences(body).replace(/^(?: {4,}| *\t[ \t]*)<!--[^\n]*-->[ \t]*$/gm, "");
   const envelope = body.match(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 (.+?) -->\s*## Codex Review Summary(?:\s|$)/s);
   if (!envelope || (!negativeOnly && ((protocolBody.match(/<!--\s*codex-pull-request-review-summary\b/g) || []).length !== 1 ||
@@ -1285,6 +1306,7 @@ function parseStructuredCodexSummary(body, headSha, stateOnly = false, negativeO
     if (typeof value.commit_sha !== "string" || !/^[a-f0-9]{40}$/.test(value.commit_sha) || typeof value.status !== "string" ||
         (!knownFindings && !omittedCodeFindings) || (!value.has_any_findings && value.has_unresolved_findings)) return null;
   }
+  if (!summaryWrapperMatchesState(presentation.wrapperStatus, state)) return null;
   // Decode key spellings too, so escaped duplicate JSON fields cannot override
   // an earlier negative value under a second spelling of the same key.
   const keys = [...envelope[1].matchAll(/("(?:[^"\\]|\\.)*")\s*:/g)].map((match) => JSON.parse(match[1]));
@@ -1416,6 +1438,7 @@ export function hasUnrecordedReviewWithdrawals({ runs, comments, repository, def
 // The shared summary can be edited by security activity. Its server update
 // time alone cannot prove that code review ran for this particular request.
 function codeReviewCompletionTime(body, section = "Code Review", headSha = null, createdAt = null) {
+  body = normalizeStructuredSummaryPresentation(body).body;
   // Rendered-equivalent duplicate labels are ambiguity, never new clock authority.
   const rawRows = String(body).split(/\r?\n/).filter(line => new RegExp("^ {0,3}\\|[^|]*\\b" + section + "\\b", "i").test(renderedLabelAmbiguityText(line)));
   if (rawRows.length !== 1 || [...rawRows[0].matchAll(/<!--(?:>|->|[\s\S]*?(?:--!?>|$))/g)].some(comment => [...comment[0].matchAll(/\|/g)].some(pipe => markdownLinkOpenerAllowed(comment[0], pipe.index)))) return NaN;
@@ -1436,6 +1459,7 @@ function codeReviewCompletionTime(body, section = "Code Review", headSha = null,
 // section. Only a newer independently clean snapshot with that section's own
 // canonical completion clock can retire the valid current-head finding.
 function hasValidFindingCompanions(state, body, observed, headSha, resolvingSection = null, createdAt = null) {
+  body = withoutCodexHelpFooter(normalizeStructuredSummaryPresentation(body).body);
   for (const [section, label, emoji] of [["code_review", "Code Review", "📝"], ["security_review", "Security Review", "🛡️"]]) {
     const value = state[section];
     if (section === resolvingSection) continue;
@@ -1495,7 +1519,8 @@ function isSupersededTypedFinding(comment, snapshots, headSha) {
   const body = String(comment.body || "").trim();
   const state = parseStructuredCodexSummary(String(comment.body || ""), headSha, true);
   if (!state) return false;
-  const visible = withoutCodexHelpFooter(body.replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
+  const presentationBody = normalizeStructuredSummaryPresentation(body).body;
+  const visible = withoutCodexHelpFooter(presentationBody.replace(/^<!-- codex-pull-request-review-summary -->\s*<!-- codex-review-state:v1 .+? -->\s*## Codex Review Summary/s, ""));
   const observed = Date.parse(comment.updated_at || comment.created_at || "");
   if (!hasValidFindingCompanions(state, body, observed, headSha, null, comment.created_at)) return false;
   const findings = [["code_review", "Code Review"], ["security_review", "Security Review"]].filter(([section]) => state[section].commit_sha === headSha && (state[section].has_any_findings === true || state[section].has_unresolved_findings === true));

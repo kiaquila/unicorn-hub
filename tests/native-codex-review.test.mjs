@@ -44,6 +44,8 @@ This comment shows the latest Codex review activity on this pull request.
 | Review | Status | Commit | Review trigger |
 | --- | --- | --- | --- |
 | 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-01T10:02:00Z">2026-10-01T10:02:00Z</relative-time> | \`${headSha.slice(0, 7)}\` | Manual request |${value.security_review.status !== null ? `\n| 🛡️ **Security Review** | ✅ **Completed** | \`${headSha.slice(0, 7)}\` | Manual request |` : ""}`;
+const detailsSummary = (value = state(), wrapperStatus = "✅ Completed") =>
+  summary(value).replace("\n\n## Codex Review Summary\n\n", `\n\n<details>\n<summary><strong>Codex Review Summary</strong>: ${wrapperStatus}</summary>\n\n`) + "\n\n</details>";
 
 const evaluate = (extra) => evaluateCodexEvidence({ headSha, requestMarker: marker, ...extra });
 
@@ -111,6 +113,19 @@ test("structured state requires exact full SHA, strict schema/types, and complet
     summary() + "\nFound a P1 issue.",
     summary() + "\nFound a bug.",
     "## Codex Review Summary\nCompleted 👍"
+  ]) assert.notEqual(evaluate({ comments: [comment(body)] }), "pass", body);
+});
+
+test("structured state accepts the exact native details summary container", () => {
+  const withHelp = detailsSummary().replace(/\n\n<\/details>$/, `\n\n${helpFooter}\n\n</details>`);
+  assert.equal(evaluate({ comments: [comment(detailsSummary())] }), "pass");
+  assert.equal(evaluate({ comments: [comment(withHelp)] }), "pass");
+  for (const body of [
+    detailsSummary(state(), "🔄 Running"),
+    detailsSummary(state({ status: "running" }), "✅ Completed"),
+    detailsSummary().replace("<details>", "<details open>"),
+    detailsSummary().replace(/\n\n<\/details>$/, "\n\nFound a P1 issue.\n\n</details>"),
+    detailsSummary() + "\n</details>"
   ]) assert.notEqual(evaluate({ comments: [comment(body)] }), "pass", body);
 });
 
