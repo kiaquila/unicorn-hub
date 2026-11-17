@@ -39,7 +39,7 @@ test("dependency policy remains inside the existing PR Guard context", () => {
   const workflow = readFileSync(join(root, ".github", "workflows", "pr-guard.yml"), "utf8");
   assert.match(workflow, /jobs:\n  guard:\n    name: guard/);
   assert.match(workflow, /check-dependency-policy\.mjs --sync-python/);
-  assert.match(workflow, /pnpm\/action-setup@ea17c68df8912ef543352723c149a84f56e3d413/);
+  assert.match(workflow, /pnpm\/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115/);
   assert.match(workflow, /version: 10\.34\.5/);
   assert.match(workflow, /astral-sh\/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2/);
   assert.doesNotMatch(workflow, /^  dependency-policy:/m);
