@@ -53,8 +53,8 @@ test("OSV workflow is blocking and retains all activation triggers", () => {
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /name: osv-scan/);
   assert.match(workflow, /--fail-on-vuln=true/);
-  assert.match(workflow, /osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36/);
-  assert.match(workflow, /osv-reporter-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36/);
+  assert.match(workflow, /osv-scanner-action@32d3cd482bdadfb38b186c0ad1b031902d55d932/);
+  assert.match(workflow, /osv-reporter-action@32d3cd482bdadfb38b186c0ad1b031902d55d932/);
 });
 
 test("installed workflow filter routes created/edited native evidence to the trusted runtime", () => {
